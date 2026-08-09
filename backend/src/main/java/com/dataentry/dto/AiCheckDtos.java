@@ -8,7 +8,7 @@ import java.util.List;
 public class AiCheckDtos {
 
     public record CheckRequest(
-            @NotBlank @Size(max = 20000) String content
+            @NotBlank @Size(max = 50000000) String content
     ) {}
 
     public record CheckResponse(
