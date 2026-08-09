@@ -59,6 +59,39 @@ public class DashboardDtos {
             long completedThisWeek
     ) {}
 
+    // --- user-facing dashboard (self view) ---
+
+    public record RecentTicket(
+            Long id,
+            String title,
+            String departmentName,
+            String subcategoryName,
+            String status,
+            Instant submittedAt
+    ) {}
+
+    public record BestDay(LocalDate date, long count) {}
+
+    public record MyDashboard(
+            Long userId,
+            String username,
+            String displayName,
+            long totalAllTime,
+            long todayCount,
+            long thisWeekCount,
+            long thisMonthCount,
+            long currentStreak,
+            long longestStreak,
+            double averagePerDay,
+            BestDay bestDay,
+            int daysWindow,
+            List<DailyCount> daily,
+            Map<String, Long> byStatus,
+            List<UserBreakdownRow> byDepartment,
+            List<UserBreakdownRow> bySubcategory,
+            List<RecentTicket> recent
+    ) {}
+
     public record DomainStats(
             Long departmentId,
             String departmentName,

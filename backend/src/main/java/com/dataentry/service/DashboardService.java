@@ -3,6 +3,7 @@ package com.dataentry.service;
 import com.dataentry.dto.DashboardDtos;
 import com.dataentry.model.Department;
 import com.dataentry.model.Subcategory;
+import com.dataentry.model.Ticket;
 import com.dataentry.model.TicketStatus;
 import com.dataentry.model.User;
 import com.dataentry.repository.CustomFieldRepository;
@@ -10,6 +11,7 @@ import com.dataentry.repository.DepartmentRepository;
 import com.dataentry.repository.SubcategoryRepository;
 import com.dataentry.repository.TicketRepository;
 import com.dataentry.repository.UserRepository;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -276,6 +278,123 @@ public class DashboardService {
                 bySub,
                 byStatus
         );
+    }
+
+    // ---------- user self-dashboard ----------
+
+    /**
+     * Everything a data-entry agent needs to see about their own progress on one screen:
+     * KPIs, streak, best day, 30-day trend, status/department/subcategory breakdowns,
+     * and the most recent tickets.
+     */
+    public DashboardDtos.MyDashboard myDashboard(User user, Integer daysWindow) {
+        int window = (daysWindow == null || daysWindow < 7 || daysWindow > 90) ? 30 : daysWindow;
+        LocalDate today = today();
+        LocalDate weekStart = today.minusDays(6);
+        LocalDate monthStart = today.minusDays(29);
+        LocalDate windowStart = today.minusDays(window - 1L);
+
+        // Single query: pull every submission timestamp for this user, ever.
+        // Cheap (just longs) and enough to derive counts, streaks, and the best-day metric.
+        List<Instant> allTimes = ticketRepository.userSubmissionTimesSince(user.getId(), Instant.EPOCH);
+        long total = allTimes.size();
+
+        Map<LocalDate, Long> byDate = allTimes.stream()
+                .collect(Collectors.groupingBy(t -> t.atZone(zone()).toLocalDate(), Collectors.counting()));
+
+        long todayCount = byDate.getOrDefault(today, 0L);
+        long thisWeekCount = sumBetween(byDate, weekStart, today);
+        long thisMonthCount = sumBetween(byDate, monthStart, today);
+
+        long currentStreak = currentStreak(byDate, today);
+        long longestStreak = longestStreak(byDate);
+
+        DashboardDtos.BestDay bestDay = byDate.entrySet().stream()
+                .max(Comparator.comparingLong(Map.Entry::getValue))
+                .map(e -> new DashboardDtos.BestDay(e.getKey(), e.getValue()))
+                .orElse(new DashboardDtos.BestDay(today, 0L));
+
+        long inWindow = sumBetween(byDate, windowStart, today);
+        double avgPerDay = window > 0 ? (double) inWindow / window : 0;
+        avgPerDay = Math.round(avgPerDay * 100.0) / 100.0;
+
+        List<DashboardDtos.DailyCount> daily = new ArrayList<>(window);
+        for (int i = 0; i < window; i++) {
+            LocalDate d = windowStart.plusDays(i);
+            daily.add(new DashboardDtos.DailyCount(d, byDate.getOrDefault(d, 0L)));
+        }
+
+        Map<String, Long> byStatus = emptyStatusMap();
+        for (DashboardDtos.StatusCount sc : ticketRepository.userTicketsByStatus(user.getId())) {
+            byStatus.put(sc.status().name(), sc.total());
+        }
+
+        List<DashboardDtos.UserBreakdownRow> byDept = ticketRepository.userTicketsByDepartment(user.getId()).stream()
+                .map(r -> new DashboardDtos.UserBreakdownRow(r.groupId(), r.groupName(), r.total()))
+                .sorted(Comparator.comparingLong(DashboardDtos.UserBreakdownRow::count).reversed())
+                .toList();
+
+        List<DashboardDtos.UserBreakdownRow> bySub = ticketRepository.userTicketsBySubcategory(user.getId()).stream()
+                .map(r -> new DashboardDtos.UserBreakdownRow(r.groupId(), r.groupName(), r.total()))
+                .sorted(Comparator.comparingLong(DashboardDtos.UserBreakdownRow::count).reversed())
+                .limit(6)
+                .toList();
+
+        Page<Ticket> recentPage = ticketRepository
+                .findAllBySubmittedByOrderBySubmittedAtDesc(user, PageRequest.of(0, 5));
+        List<DashboardDtos.RecentTicket> recent = recentPage.getContent().stream()
+                .map(t -> new DashboardDtos.RecentTicket(
+                        t.getId(),
+                        t.getTitle(),
+                        t.getDepartment().getName(),
+                        t.getSubcategory() != null ? t.getSubcategory().getName() : null,
+                        t.getStatus().name(),
+                        t.getSubmittedAt()
+                ))
+                .toList();
+
+        return new DashboardDtos.MyDashboard(
+                user.getId(),
+                user.getUsername(),
+                user.getDisplayName() != null ? user.getDisplayName() : user.getUsername(),
+                total, todayCount, thisWeekCount, thisMonthCount,
+                currentStreak, longestStreak,
+                avgPerDay, bestDay,
+                window, daily,
+                byStatus, byDept, bySub, recent
+        );
+    }
+
+    private long sumBetween(Map<LocalDate, Long> byDate, LocalDate from, LocalDate to) {
+        long sum = 0;
+        for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
+            sum += byDate.getOrDefault(d, 0L);
+        }
+        return sum;
+    }
+
+    private long currentStreak(Map<LocalDate, Long> byDate, LocalDate today) {
+        long streak = 0;
+        for (LocalDate d = today; byDate.getOrDefault(d, 0L) > 0; d = d.minusDays(1)) {
+            streak++;
+        }
+        return streak;
+    }
+
+    private long longestStreak(Map<LocalDate, Long> byDate) {
+        if (byDate.isEmpty()) return 0;
+        List<LocalDate> days = byDate.keySet().stream().sorted().toList();
+        long longest = 1;
+        long current = 1;
+        for (int i = 1; i < days.size(); i++) {
+            if (days.get(i).equals(days.get(i - 1).plusDays(1))) {
+                current++;
+                if (current > longest) longest = current;
+            } else {
+                current = 1;
+            }
+        }
+        return longest;
     }
 
     // ---------- helpers ----------

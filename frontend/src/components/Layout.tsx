@@ -65,6 +65,10 @@ export function Layout() {
           </>
         ) : (
           <>
+            <NavLink to="/dashboard" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
+              <span className="side-icon"><IconDashboard /></span>
+              {t('nav.dashboard')}
+            </NavLink>
             <NavLink to="/submit" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
               <span className="side-icon"><IconTasks /></span>
               {t('nav.submit')}

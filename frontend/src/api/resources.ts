@@ -11,6 +11,7 @@ import type {
   DomainStats,
   ExtractedPdf,
   LeaderboardResponse,
+  MyDashboard,
   Project,
   ProjectStatus,
   ReportData,
@@ -123,6 +124,12 @@ export const dashboardApi = {
     api.get<LeaderboardResponse>('/admin/dashboard/users', { params: { range } }).then(r => r.data),
   user: (id: number, days = 30) =>
     api.get<UserActivity>(`/admin/dashboard/users/${id}`, { params: { days } }).then(r => r.data),
+};
+
+// User's own analytics dashboard (self-view)
+export const myDashboardApi = {
+  fetch: (days = 30) =>
+    api.get<MyDashboard>('/user/dashboard/me', { params: { days } }).then(r => r.data),
 };
 
 // PDF extraction (legacy — kept for backwards compatibility)

@@ -14,12 +14,13 @@ import { AdminReportsPage } from './pages/admin/AdminReportsPage';
 import { AdminUserActivityPage } from './pages/admin/AdminUserActivityPage';
 import { SubmitTicketPage } from './pages/user/SubmitTicketPage';
 import { MyTicketsPage } from './pages/user/MyTicketsPage';
+import { UserDashboardPage } from './pages/user/UserDashboardPage';
 
 function RootRedirect() {
   const { user, loading } = useAuth();
   if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
-  return <Navigate to={user.role === 'ADMIN' ? '/admin' : '/submit'} replace />;
+  return <Navigate to={user.role === 'ADMIN' ? '/admin' : '/dashboard'} replace />;
 }
 
 export default function App() {
@@ -46,6 +47,7 @@ export default function App() {
         <Route path="/admin/users/:id/activity" element={<ProtectedRoute roles={['ADMIN']}><AdminUserActivityPage /></ProtectedRoute>} />
 
         {/* User (admins can access too) */}
+        <Route path="/dashboard" element={<UserDashboardPage />} />
         <Route path="/submit" element={<SubmitTicketPage />} />
         <Route path="/my-tickets" element={<MyTicketsPage />} />
       </Route>

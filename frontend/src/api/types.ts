@@ -231,6 +231,40 @@ export interface UserActivity {
   byStatus: StatusMap;
 }
 
+export interface RecentTicket {
+  id: number;
+  title: string | null;
+  departmentName: string;
+  subcategoryName: string | null;
+  status: TicketStatus;
+  submittedAt: string;
+}
+
+export interface BestDay {
+  date: string;
+  count: number;
+}
+
+export interface MyDashboard {
+  userId: number;
+  username: string;
+  displayName: string;
+  totalAllTime: number;
+  todayCount: number;
+  thisWeekCount: number;
+  thisMonthCount: number;
+  currentStreak: number;
+  longestStreak: number;
+  averagePerDay: number;
+  bestDay: BestDay;
+  daysWindow: number;
+  daily: DailyCount[];
+  byStatus: StatusMap;
+  byDepartment: UserBreakdownRow[];
+  bySubcategory: UserBreakdownRow[];
+  recent: RecentTicket[];
+}
+
 // --- pdf ---
 
 export interface ExtractedPdf {
