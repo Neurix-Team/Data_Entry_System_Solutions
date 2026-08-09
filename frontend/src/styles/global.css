@@ -362,8 +362,71 @@ html[dir='rtl'] .switch input:checked + .slider::before { transform: translateX(
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   padding: 1.5rem;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 .card + .card { margin-top: 1rem; }
+
+/* ============================================================
+   Card hover — refined & calm.
+   No transforms (they feel jittery on scroll / touch). Just a
+   softer border and a wider, softer shadow so cards feel tangible
+   without moving. Mirrors Stripe / Linear / Vercel dashboards.
+   ============================================================ */
+.card, .stat-card, .dept-card, .udash-kpi, .udash-panel, .article-card {
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.card:hover,
+.stat-card:hover,
+.dept-card:hover,
+.udash-kpi:hover,
+.udash-panel:hover,
+.article-card:hover {
+  border-color: var(--border-strong);
+  box-shadow:
+    0 1px 2px rgba(20, 22, 31, 0.04),
+    0 6px 20px -8px rgba(20, 22, 31, 0.10);
+}
+
+/* Recent activity row — just a soft background wash on hover, no shift */
+.udash-recent-item {
+  transition: background 0.18s ease, box-shadow 0.18s ease;
+  transform: none !important;
+}
+.udash-recent-item:hover {
+  background: var(--bg-hover);
+  box-shadow: 0 2px 8px -4px rgba(20, 22, 31, 0.08);
+}
+.udash-recent-item:hover { transform: none !important; }
+
+/* Sidebar links — no shift, just a soft background tint */
+.side-link {
+  transition: background 0.18s ease, color 0.18s ease;
+}
+.side-link:not(.active):hover {
+  background: var(--bg-hover);
+  transform: none !important;
+}
+html[dir='rtl'] .side-link:not(.active):hover { transform: none !important; }
+
+/* Table rows — very soft warm tint using the brand color */
+.data tbody tr {
+  transition: background 0.18s ease;
+}
+.data tbody tr:hover td {
+  background: var(--bg-sunken);
+}
+
+/* Intro examples — softer & no jitter */
+.intro-example {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transform: none !important;
+}
+.intro-example:hover {
+  transform: none !important;
+  border-color: var(--brand-border);
+  box-shadow: 0 4px 12px -6px rgba(245, 185, 60, 0.18);
+}
 
 /* ============================================================
    Layout
@@ -1317,6 +1380,95 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
 .mt-tight { margin-top: 0.75rem; }
 
 /* ============================================================
+   Intro / "How it works" card — used on pages that need context
+   ============================================================ */
+.intro-card {
+  display: flex;
+  gap: 1.15rem;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.25rem;
+  background: linear-gradient(135deg, var(--brand-soft) 0%, var(--bg-surface) 100%);
+  border: 1px solid var(--brand-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.intro-card-icon {
+  flex-shrink: 0;
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  background: rgba(245, 185, 60, 0.18);
+  color: var(--accent-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+}
+.intro-card-body { flex: 1; }
+.intro-card-title {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--text-primary);
+  margin: 0 0 0.35rem 0;
+}
+.intro-card-text {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.intro-examples {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+.intro-example {
+  padding: 0.75rem 0.9rem;
+  background: var(--bg-sunken);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+.intro-example:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+}
+.intro-example-head { font-weight: 600; color: var(--text-primary); font-size: 0.85rem; }
+.intro-example-body {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  margin-top: 0.35rem;
+  line-height: 1.5;
+}
+.intro-example-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 0.5rem; }
+.intro-example-tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand-soft-text);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+@media (max-width: 700px) {
+  .intro-examples { grid-template-columns: 1fr; }
+  .intro-card { flex-direction: column; }
+}
+
+/* Empty-state hero for pages with no data yet */
+.empty-hero {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+}
+.empty-hero-icon { font-size: 3rem; margin-bottom: 0.75rem; }
+.empty-hero-title { font-size: 1.1rem; font-weight: 700; color: var(--text-primary); margin: 0 0 0.35rem; }
+.empty-hero-text { color: var(--text-secondary); max-width: 480px; margin: 0 auto 1.25rem; line-height: 1.55; }
+
+/* ============================================================
    User self-dashboard — professional & calming palette
    ============================================================ */
 
@@ -1326,12 +1478,15 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.6rem 1.75rem;
+  padding: 1.75rem 2rem;
   margin-bottom: 1.25rem;
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 55%, #ec4899 100%);
+  /* Warm amber gradient — matches the golden brand tone of the app */
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 255, 255, 0.18), transparent 55%),
+    linear-gradient(135deg, #8b6a15 0%, #b8892a 45%, #f5b93c 100%);
   color: #fff;
   border-radius: var(--radius-lg);
-  box-shadow: 0 10px 30px -12px rgba(79, 70, 229, 0.55);
+  box-shadow: 0 8px 24px -12px rgba(139, 106, 21, 0.35);
   flex-wrap: wrap;
   gap: 1rem;
 }
@@ -1370,7 +1525,7 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
 }
 .udash-range-picker button.active {
   background: #fff;
-  color: #4f46e5;
+  color: #8b6a15;
 }
 
 .udash-kpi-grid {
@@ -1380,51 +1535,55 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
   margin-bottom: 1.25rem;
 }
 .udash-kpi {
-  padding: 1.15rem 1.25rem;
+  padding: 1.25rem 1.4rem;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   background: var(--bg-surface);
   box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.65rem;
   position: relative;
   overflow: hidden;
 }
-.udash-kpi::after {
+/* Left accent stripe — very thin, subtle, professional */
+.udash-kpi::before {
   content: '';
   position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.06;
-  background: radial-gradient(circle at 100% 0%, var(--accent), transparent 60%);
+  inset-inline-start: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent);
+  opacity: 0.85;
 }
-.udash-kpi[data-accent="blue"]   { --accent: #3b82f6; }
-.udash-kpi[data-accent="green"]  { --accent: #10b981; }
-.udash-kpi[data-accent="amber"]  { --accent: #f59e0b; }
-.udash-kpi[data-accent="rose"]   { --accent: #f43f5e; }
-.udash-kpi[data-accent="purple"] { --accent: #8b5cf6; }
-.udash-kpi[data-accent="teal"]   { --accent: #14b8a6; }
+/* Warm accent palette — softer, muted, easier on the eyes than pure saturated tones */
+.udash-kpi[data-accent="blue"]   { --accent: #5b8def; --accent-soft: #eef3fd; }
+.udash-kpi[data-accent="green"]  { --accent: #3f9d78; --accent-soft: #e6f5ee; }
+.udash-kpi[data-accent="amber"]  { --accent: #d99a4a; --accent-soft: #fdf3e2; }
+.udash-kpi[data-accent="rose"]   { --accent: #c76a7d; --accent-soft: #fbeaef; }
+.udash-kpi[data-accent="purple"] { --accent: #8578c9; --accent-soft: #f0edf9; }
+.udash-kpi[data-accent="teal"]   { --accent: #4faaa1; --accent-soft: #e6f4f2; }
 
 .udash-kpi-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 0.5rem;
-  color: var(--text-secondary);
-  font-size: 0.85rem;
+  color: var(--text-tertiary);
+  font-size: 0.8rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
 }
 .udash-kpi-icon {
-  width: 32px; height: 32px;
+  width: 34px; height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  background: var(--accent-soft);
   color: var(--accent);
-  border-radius: 8px;
+  border-radius: 10px;
 }
 .udash-kpi-value { font-size: 1.9rem; font-weight: 700; color: var(--text-primary); line-height: 1; }
 .udash-kpi-sub { color: var(--text-tertiary); font-size: 0.85rem; }
@@ -1481,17 +1640,17 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
 .udash-trend-bar {
   flex: 1;
   min-width: 4px;
-  background: linear-gradient(180deg, #6366f1 0%, #a78bfa 100%);
+  background: linear-gradient(180deg, #d9a04a 0%, #f0c876 100%);
   border-radius: 4px 4px 0 0;
   position: relative;
-  transition: background 0.2s ease;
+  transition: filter 0.18s ease;
   cursor: pointer;
 }
 .udash-trend-bar:hover {
-  background: linear-gradient(180deg, #4f46e5 0%, #7c3aed 100%);
+  filter: brightness(0.92) saturate(1.05);
 }
 .udash-trend-bar.today {
-  background: linear-gradient(180deg, #ec4899 0%, #f59e0b 100%);
+  background: linear-gradient(180deg, #8b6a15 0%, #d99a4a 100%);
 }
 .udash-trend-bar.zero {
   background: color-mix(in srgb, var(--border) 60%, transparent);
@@ -1577,7 +1736,7 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
 }
 .udash-breakdown-fill {
   height: 100%;
-  background: linear-gradient(90deg, #06b6d4 0%, #6366f1 100%);
+  background: linear-gradient(90deg, #d99a4a 0%, #f5b93c 100%);
   border-radius: 999px;
   transition: width 0.5s ease;
 }
@@ -1598,7 +1757,7 @@ html[dir='rtl'] .udash-recent-item:hover { transform: translateX(-4px); }
 .udash-recent-mark {
   width: 40px; height: 40px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #6366f1, #ec4899);
+  background: linear-gradient(135deg, #8b6a15, #d99a4a);
   color: #fff;
   display: flex;
   align-items: center;
@@ -1634,19 +1793,173 @@ html[dir='rtl'] .udash-recent-item:hover { transform: translateX(-4px); }
   .udash-hero { flex-direction: column; align-items: flex-start; }
 }
 
-/* Responsive */
+/* ============================================================
+   Mobile menu: hamburger button, backdrop, and slide-in sidebar
+   ============================================================ */
+.app-main { flex: 1; min-width: 0; }
+
+.topbar-menu-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px; height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-surface);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.topbar-menu-btn:hover { background: var(--bg-hover); }
+.hamburger-icon {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 18px; height: 12px;
+}
+.hamburger-icon span {
+  height: 2px;
+  background: var(--text-primary);
+  border-radius: 1px;
+}
+
+.sidebar-close-btn {
+  display: none;
+  margin-inline-start: auto;
+  width: 32px; height: 32px;
+  border: 1px solid var(--border);
+  background: transparent;
+  border-radius: 8px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+.sidebar-close-btn:hover { background: var(--bg-hover); }
+
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+  background: rgba(15, 16, 22, 0.45);
+  backdrop-filter: blur(2px);
+  animation: fadeIn 0.15s ease;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.sidebar-footer-links {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+/* ---------------- Large tablets & below (≤ 1100px) ---------------- */
+@media (max-width: 1100px) {
+  :root { --sidebar-w: 220px; }
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  .topbar-search { max-width: 340px; }
+}
+
+/* ---------------- Tablets (≤ 900px) — sidebar becomes overlay ---------------- */
 @media (max-width: 900px) {
   .app-shell { grid-template-columns: 1fr; }
+
+  /* Sidebar becomes an off-screen drawer */
   .sidebar {
-    position: fixed; z-index: 40; height: 100vh;
+    position: fixed;
+    top: 0;
+    inset-inline-start: 0;
+    z-index: 40;
+    height: 100vh;
+    width: 280px;
+    max-width: 82vw;
     transform: translateX(-100%);
-    transition: transform 0.2s ease;
-    width: 260px;
+    transition: transform 0.22s ease;
+    box-shadow: 8px 0 32px -12px rgba(0, 0, 0, 0.25);
   }
-  html[dir='rtl'] .sidebar { transform: translateX(100%); }
+  html[dir='rtl'] .sidebar {
+    transform: translateX(100%);
+    box-shadow: -8px 0 32px -12px rgba(0, 0, 0, 0.25);
+  }
   .sidebar.open { transform: translateX(0); }
-  .page { padding: 1.25rem; }
-  .topbar { padding: 0 1rem; }
+  .app-shell.sidebar-open .sidebar-backdrop { display: block; }
+
+  .sidebar-close-btn { display: inline-flex; }
+  .topbar-menu-btn { display: inline-flex; }
+
+  .topbar {
+    padding: 0 1rem;
+    gap: 0.6rem;
+  }
+  .topbar-search { max-width: none; flex: 1; }
   .user-chip-info { display: none; }
   .topbar-divider { display: none; }
+  .topbar-signout { display: none; }
+
+  .page { padding: 1.25rem; }
+  h1 { font-size: 1.5rem; }
+}
+
+/* ---------------- Phones (≤ 640px) ---------------- */
+@media (max-width: 640px) {
+  .page { padding: 1rem 0.85rem; }
+  h1 { font-size: 1.25rem; }
+  .subtitle { font-size: 0.875rem; }
+  .topbar { height: 60px; padding: 0 0.75rem; }
+  .topbar-search { display: none; }
+  .notification-btn { display: none; }
+
+  /* Sidebar takes almost full width on phones */
+  .sidebar { width: 88vw; max-width: 320px; }
+
+  /* Cards & panels — reduce padding */
+  .card, .udash-panel, .stat-card, .dept-card, .udash-kpi { padding: 1rem; }
+  .udash-hero { padding: 1.25rem 1.15rem; }
+
+  /* Tables — horizontal scroll instead of squeezing */
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -0.85rem;   /* bleed to page edges for more room */
+    padding: 0 0.85rem;
+  }
+  .data { min-width: 640px; }
+
+  /* Modals — full-width on phones */
+  .modal {
+    width: 96vw;
+    max-width: none;
+    max-height: 92vh;
+  }
+  .modal-footer { flex-wrap: wrap; }
+  .modal-footer .btn { flex: 1; min-width: 120px; }
+
+  /* Any inline flex "row" collapses */
+  .row { flex-wrap: wrap; }
+
+  /* Toolbar / filters — stack neatly */
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .toolbar > * { width: 100%; }
+
+  /* Dept grid / stat grid — always single column on phone */
+  .dept-grid, .stat-grid { grid-template-columns: 1fr !important; }
+
+  /* Auth page — brand panel is hidden on ≤ 900 already; form padding tighter */
+  .auth-form-panel { padding: 1.25rem; }
+  .auth-card { padding: 1.5rem 1.25rem; }
+}
+
+/* ---------------- Very small phones (≤ 380px) ---------------- */
+@media (max-width: 380px) {
+  .page { padding: 0.75rem 0.65rem; }
+  .card, .udash-panel { padding: 0.85rem; }
+  h1 { font-size: 1.1rem; }
+  .btn { padding: 0.5rem 0.85rem; font-size: 0.85rem; }
 }

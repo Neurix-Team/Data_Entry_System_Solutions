@@ -1,9 +1,10 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useT } from '../i18n';
 import { Avatar } from './Avatar';
 import {
-  IconBell, IconBuilding, IconChart, IconDashboard, IconFolder,
+  IconBell, IconBuilding, IconChart, IconClose, IconDashboard, IconFolder,
   IconMembers, IconSearch, IconSettings, IconTasks,
 } from './Icons';
 import { PreferencesToggle } from './PreferencesToggle';
@@ -11,15 +12,40 @@ import { PreferencesToggle } from './PreferencesToggle';
 export function Layout() {
   const { user, logout } = useAuth();
   const { t } = useT();
+  const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const isAdmin = user?.role === 'ADMIN';
   const roleLabel = isAdmin ? t('common.teamLeader') : t('common.dataEntryAgent');
 
+  // Close mobile sidebar on route change
+  useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
+
+  // Close on Escape
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSidebarOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [sidebarOpen]);
+
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
+    <div className={`app-shell${sidebarOpen ? ' sidebar-open' : ''}`}>
+      {sidebarOpen && (
+        <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} aria-hidden="true" />
+      )}
+
+      <aside className={`sidebar${sidebarOpen ? ' open' : ''}`}>
         <div className="sidebar-brand">
           <div className="sidebar-brand-mark" />
           <span>{t('brand')}</span>
+          <button
+            type="button"
+            className="sidebar-close-btn"
+            onClick={() => setSidebarOpen(false)}
+            aria-label={t('common.close')}
+          >
+            <IconClose size={16} />
+          </button>
         </div>
 
         {isAdmin ? (
@@ -56,7 +82,7 @@ export function Layout() {
               <span className="side-icon"><IconChart /></span>
               {t('nav.reports')}
             </NavLink>
-            <div style={{ marginTop: 'auto', paddingTop: '1rem' }}>
+            <div className="sidebar-footer-links">
               <NavLink to="/submit" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
                 <span className="side-icon"><IconSettings /></span>
                 {t('nav.submit')}
@@ -83,6 +109,17 @@ export function Layout() {
 
       <div className="main-content">
         <header className="topbar">
+          <button
+            type="button"
+            className="topbar-menu-btn"
+            onClick={() => setSidebarOpen(true)}
+            aria-label={t('common.searchGlobal')}
+          >
+            <span className="hamburger-icon">
+              <span /><span /><span />
+            </span>
+          </button>
+
           <div className="topbar-search">
             <span className="search-icon"><IconSearch size={18} /></span>
             <input type="search" placeholder={t('common.searchGlobal')} />
@@ -103,7 +140,7 @@ export function Layout() {
               <Avatar name={user?.displayName || user?.username} size="md" />
             </div>
             <button
-              className="btn btn-ghost btn-sm"
+              className="btn btn-ghost btn-sm topbar-signout"
               onClick={logout}
               title={t('common.signOut')}
             >
@@ -112,7 +149,7 @@ export function Layout() {
           </div>
         </header>
 
-        <main style={{ flex: 1, minWidth: 0 }}>
+        <main className="app-main">
           <Outlet />
         </main>
       </div>

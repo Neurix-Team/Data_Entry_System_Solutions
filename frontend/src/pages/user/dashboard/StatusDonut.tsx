@@ -7,9 +7,9 @@ interface Props {
 
 const STATUS_ORDER: Array<keyof StatusMap> = ['IN_PROGRESS', 'REVIEW', 'COMPLETED'];
 const STATUS_COLORS: Record<string, string> = {
-  IN_PROGRESS: '#3b82f6',
-  REVIEW: '#f59e0b',
-  COMPLETED: '#10b981',
+  IN_PROGRESS: '#4f86ff', // status-progress
+  REVIEW: '#f5b93c',      // brand golden
+  COMPLETED: '#3f9d78',   // success
 };
 
 /** SVG donut chart for the three ticket statuses. */

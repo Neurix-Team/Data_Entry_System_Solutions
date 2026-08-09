@@ -171,6 +171,9 @@ export function AdminFieldsPage() {
     catch (e) { alert(extractError(e)); }
   }
 
+  const noFilterActive = filterDept === '' && filterSub === '';
+  const showEmptyHero = !loading && items.length === 0 && noFilterActive;
+
   return (
     <div className="page">
       <div className="page-header">
@@ -184,6 +187,41 @@ export function AdminFieldsPage() {
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
+
+      {/* Purpose banner — always visible so admins never wonder what this page is for */}
+      <div className="intro-card">
+        <div className="intro-card-icon">💡</div>
+        <div className="intro-card-body">
+          <p className="intro-card-title">{t('admin.fields.introTitle')}</p>
+          <p className="intro-card-text">{t('admin.fields.introBody')}</p>
+          <div className="intro-examples">
+            <div className="intro-example">
+              <div className="intro-example-head">{t('admin.fields.ex1Title')}</div>
+              <div className="intro-example-body">{t('admin.fields.ex1Body')}</div>
+              <div className="intro-example-tags">
+                <span className="intro-example-tag">{t('admin.fields.ex1TagPriority')}</span>
+                <span className="intro-example-tag">{t('admin.fields.ex1TagDate')}</span>
+              </div>
+            </div>
+            <div className="intro-example">
+              <div className="intro-example-head">{t('admin.fields.ex2Title')}</div>
+              <div className="intro-example-body">{t('admin.fields.ex2Body')}</div>
+              <div className="intro-example-tags">
+                <span className="intro-example-tag">{t('admin.fields.ex2TagContract')}</span>
+                <span className="intro-example-tag">{t('admin.fields.ex2TagEmail')}</span>
+              </div>
+            </div>
+            <div className="intro-example">
+              <div className="intro-example-head">{t('admin.fields.ex3Title')}</div>
+              <div className="intro-example-body">{t('admin.fields.ex3Body')}</div>
+              <div className="intro-example-tags">
+                <span className="intro-example-tag">{t('admin.fields.ex3TagLevel')}</span>
+                <span className="intro-example-tag">{t('admin.fields.ex3TagNotes')}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="card" style={{ padding: '0.75rem 1rem', marginBottom: '1rem', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <label className="field-label" style={{ margin: 0 }}>{t('admin.fields.filterDept')}</label>
@@ -216,6 +254,16 @@ export function AdminFieldsPage() {
         </select>
       </div>
 
+      {showEmptyHero ? (
+        <div className="empty-hero">
+          <div className="empty-hero-icon">📝</div>
+          <p className="empty-hero-title">{t('admin.fields.emptyHeroTitle')}</p>
+          <p className="empty-hero-text">{t('admin.fields.emptyHeroText')}</p>
+          <button className="btn btn-primary" onClick={openCreate}>
+            <IconFolder size={16} /> {t('admin.fields.newBtn')}
+          </button>
+        </div>
+      ) : (
       <div className="table-wrap">
         <table className="data">
           <thead>
@@ -259,6 +307,7 @@ export function AdminFieldsPage() {
           </tbody>
         </table>
       </div>
+      )}
 
       <Modal
         open={modalOpen}

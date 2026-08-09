@@ -15,6 +15,10 @@ services:
     ports:
       - "8083:8080"
     restart: unless-stopped
+    labels:
+      # Neurix reverse proxy → auto-SSL. Domain gets an https cert; port is the host port above.
+      - "neurix.proxy.domain=dataentry-api.neurix.uk"
+      - "neurix.proxy.port=8083"
 
   frontend:
     build:
@@ -25,6 +29,10 @@ services:
     ports:
       - "8082:80"
     restart: unless-stopped
+    labels:
+      # Public UI — this is what end-users open in their browser.
+      - "neurix.proxy.domain=dataentry.neurix.uk"
+      - "neurix.proxy.port=8082"
 
 volumes:
   dems-data:
