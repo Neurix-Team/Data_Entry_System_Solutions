@@ -9,8 +9,11 @@ services:
       # If unset the container fails fast at startup — see AppConfig#jwtSecret.
       JWT_SECRET: "${JWT_SECRET:?JWT_SECRET must be set (min 32 chars) — see .env}"
       SPRING_PROFILES_ACTIVE: "docker"
-      # Restrict which origins may call the API. Comma-separated. Leave unset only for local dev.
-      APP_CORS_ALLOWED_ORIGINS: "${APP_CORS_ALLOWED_ORIGINS:-https://dataentry.neurix.uk}"
+      # Which browser origins may call the API (comma-separated).  Default is "*" so a fresh
+      # deployment to any IP/host just works.  For a production install where you know the
+      # exact frontend origin, override with a strict allowlist, e.g.:
+      #   APP_CORS_ALLOWED_ORIGINS=https://dataentry.neurix.uk,https://admin.neurix.uk
+      APP_CORS_ALLOWED_ORIGINS: "${APP_CORS_ALLOWED_ORIGINS:-*}"
       # Rotate these before first prod boot.  admin/admin123 is dev-only.
       APP_SEED_ADMIN_USERNAME: "${APP_SEED_ADMIN_USERNAME:-admin}"
       APP_SEED_ADMIN_PASSWORD: "${APP_SEED_ADMIN_PASSWORD:-admin123}"
