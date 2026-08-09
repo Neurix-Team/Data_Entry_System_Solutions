@@ -1,0 +1,50 @@
+server:
+  port: 8080
+  tomcat:
+    max-http-form-post-size: 200MB
+    max-swallow-size: 200MB
+
+spring:
+  datasource:
+    url: jdbc:sqlite:./data/dataentry.db
+    driver-class-name: org.sqlite.JDBC
+    username:
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.community.dialect.SQLiteDialect
+        format_sql: true
+    show-sql: false
+    open-in-view: false
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 200MB
+      file-size-threshold: 2MB
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:change-me-in-production-a-very-long-random-secret-key-min-32-chars}
+    expiration-ms: 86400000  # 24 hours
+  cors:
+    allowed-origins: http://localhost:5173,http://localhost:3000,http://localhost:8081
+  seed:
+    enabled: true
+    admin-username: admin
+    admin-password: admin123
+  pdf:
+    max-chars: 200000
+    output-dir: ${java.io.tmpdir}/dataentry-pdf
+  ocr:
+    tessdata-path: /usr/share/tesseract-ocr/4.00/tessdata/
+    languages: ara+eng
+
+logging:
+  level:
+    org.springframework.security: INFO
+    org.hibernate.SQL: WARN
+    com.dataentry.service.PdfExtractionService: DEBUG
+    com.dataentry.service.DocumentExtractionService: DEBUG

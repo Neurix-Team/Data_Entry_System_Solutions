@@ -1,0 +1,64 @@
+# ===== Java / Maven / Spring Boot =====
+backend/target/
+backend/.mvn/wrapper/maven-wrapper.jar
+backend/data/
+*.class
+*.jar
+*.war
+*.log
+hs_err_pid*
+replay_pid*
+
+# ===== Node / Vite / npm =====
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.pnpm-debug.log*
+
+# ===== Environment / secrets =====
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# ===== IDEs =====
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+nbproject/private/
+build/
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# ===== Docker runtime / local data =====
+# Persistent SQLite lives in a named Docker volume, not the repo,
+# but ignore any accidental host copies.
+**/dataentry.db
+**/*.db-journal
+
+# ===== Claude Code local artifacts =====
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+.claude/plans/
+.claude/logs/
+.claude/*.local.json
+
+# ===== Editor backups =====
+*.swp
+*.swo
+*~

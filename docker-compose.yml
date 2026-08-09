@@ -1,0 +1,31 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: dems-backend
+    environment:
+      # Change these before running in production
+      JWT_SECRET: "change-me-in-production-a-very-long-random-secret-key-min-32-chars"
+      SPRING_PROFILES_ACTIVE: "docker"
+    volumes:
+      # Persist the SQLite database on the host
+      - dems-data:/app/data
+    expose:
+      - "8080"
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: dems-frontend
+    depends_on:
+      - backend
+    ports:
+      - "8081:80"
+    restart: unless-stopped
+
+volumes:
+  dems-data:
+    driver: local
