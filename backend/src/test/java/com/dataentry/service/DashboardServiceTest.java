@@ -41,7 +41,7 @@ class DashboardServiceTest {
     private DashboardService newService() {
         return new DashboardService(
                 fixedClock, ticketRepository, departmentRepository,
-                subcategoryRepository, customFieldRepository, userRepository);
+                subcategoryRepository, customFieldRepository, userRepository, new Localizer());
     }
 
     @Test

@@ -5,23 +5,40 @@ export const API_BASE = import.meta.env.VITE_API_BASE ?? '/api';
 export const api = axios.create({
   baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json' },
+  // Send/receive the auth cookie on cross-origin requests. Backend must set
+  // Access-Control-Allow-Credentials + a specific origin (not *) for this to work.
+  withCredentials: true,
 });
 
-const TOKEN_KEY = 'dems.token';
+// In-memory token — used only if some caller still passes a token from a previous session
+// (backward-compat migration).  New logins do NOT write here; the browser gets the auth via
+// an httpOnly cookie the server sets.
+let memoryToken: string | null = null;
 
 export const tokenStore = {
-  get: () => localStorage.getItem(TOKEN_KEY),
-  set: (t: string) => localStorage.setItem(TOKEN_KEY, t),
-  clear: () => localStorage.removeItem(TOKEN_KEY),
+  get: () => memoryToken,
+  set: (t: string) => { memoryToken = t; },
+  clear: () => { memoryToken = null; },
 };
+
+const LANG_KEY = 'dems.lang';
 
 api.interceptors.request.use((config) => {
   const token = tokenStore.get();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  // Read the locale from localStorage on every request so the backend can pick the
+  // right side of bilingual (name_en / name_ar) fields.  Written by i18n/index.tsx.
+  const lang = localStorage.getItem(LANG_KEY);
+  config.headers['Accept-Language'] = lang === 'ar' ? 'ar' : 'en';
   return config;
 });
+
+// One-time cleanup of legacy localStorage token — it's now handled via cookies. Doing this
+// on module load means users who had a stored token get it purged after this deploy without
+// needing to log out manually.
+try { localStorage.removeItem('dems.token'); } catch { /* SSR / private mode */ }
 
 let onUnauthorized: (() => void) | null = null;
 export const setUnauthorizedHandler = (fn: () => void) => {

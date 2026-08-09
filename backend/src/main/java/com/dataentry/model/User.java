@@ -31,6 +31,12 @@ public class User {
     @Column(length = 150)
     private String displayName;
 
+    @Column(name = "display_name_en", length = 150)
+    private String displayNameEn;
+
+    @Column(name = "display_name_ar", length = 150)
+    private String displayNameAr;
+
     @Column(length = 200)
     private String email;
 

@@ -28,6 +28,12 @@ public class CustomField {
     @Column(nullable = false, length = 150)
     private String label;
 
+    @Column(name = "label_en", length = 150)
+    private String labelEn;
+
+    @Column(name = "label_ar", length = 150)
+    private String labelAr;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private FieldType type;
@@ -43,8 +49,20 @@ public class CustomField {
     @Column(length = 2000)
     private String options;
 
+    @Column(name = "options_en", length = 2000)
+    private String optionsEn;
+
+    @Column(name = "options_ar", length = 2000)
+    private String optionsAr;
+
     @Column(length = 250)
     private String placeholder;
+
+    @Column(name = "placeholder_en", length = 250)
+    private String placeholderEn;
+
+    @Column(name = "placeholder_ar", length = 250)
+    private String placeholderAr;
 
     @Column(nullable = false)
     @Builder.Default

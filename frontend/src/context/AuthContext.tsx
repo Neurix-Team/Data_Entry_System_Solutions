@@ -17,8 +17,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const logout = useCallback(() => {
-    tokenStore.clear();
-    setUser(null);
+    // Tell the server to clear the httpOnly cookie; then wipe local state.  Even if the
+    // request fails (network down), we still clear local state so the UI reflects logout.
+    authApi.logout().catch(() => undefined).finally(() => {
+      tokenStore.clear();
+      setUser(null);
+    });
   }, []);
 
   useEffect(() => {
@@ -29,23 +33,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const token = tokenStore.get();
-    if (!token) {
-      setLoading(false);
-      return;
-    }
+    // Cookie-based session — we can't read the httpOnly cookie from JS, so probe /auth/me
+    // to see if the browser already has a valid session.  401 → not logged in.
     authApi.me()
       .then(setUser)
-      .catch(() => {
-        tokenStore.clear();
-        setUser(null);
-      })
+      .catch(() => setUser(null))
       .finally(() => setLoading(false));
   }, []);
 
   const login = useCallback(async (username: string, password: string) => {
     const res = await authApi.login(username, password);
-    tokenStore.set(res.token);
+    // Server sets the httpOnly cookie in the response; we no longer store the token in JS.
     setUser(res.user);
     return res.user;
   }, []);

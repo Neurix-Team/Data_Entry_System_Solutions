@@ -35,11 +35,17 @@ public class CustomFieldDtos {
             String departmentName,
             String fieldKey,
             String label,
+            String labelEn,
+            String labelAr,
             String type,
             boolean required,
             int displayOrder,
             String options,
+            String optionsEn,
+            String optionsAr,
             String placeholder,
+            String placeholderEn,
+            String placeholderAr,
             boolean active
     ) {}
 }

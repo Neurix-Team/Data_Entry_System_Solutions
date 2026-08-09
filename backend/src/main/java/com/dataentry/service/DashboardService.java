@@ -41,19 +41,35 @@ public class DashboardService {
     private final SubcategoryRepository subcategoryRepository;
     private final CustomFieldRepository customFieldRepository;
     private final UserRepository userRepository;
+    private final Localizer localizer;
 
     public DashboardService(Clock clock,
                             TicketRepository ticketRepository,
                             DepartmentRepository departmentRepository,
                             SubcategoryRepository subcategoryRepository,
                             CustomFieldRepository customFieldRepository,
-                            UserRepository userRepository) {
+                            UserRepository userRepository,
+                            Localizer localizer) {
         this.clock = clock;
         this.ticketRepository = ticketRepository;
         this.departmentRepository = departmentRepository;
         this.subcategoryRepository = subcategoryRepository;
         this.customFieldRepository = customFieldRepository;
         this.userRepository = userRepository;
+        this.localizer = localizer;
+    }
+
+    private String deptName(Department d) {
+        return localizer.pick(d.getNameEn(), d.getNameAr(), d.getName());
+    }
+
+    private String subName(Subcategory s) {
+        return localizer.pick(s.getNameEn(), s.getNameAr(), s.getName());
+    }
+
+    private String userDisplayName(User u) {
+        String picked = localizer.pick(u.getDisplayNameEn(), u.getDisplayNameAr(), u.getDisplayName());
+        return picked != null && !picked.isBlank() ? picked : u.getUsername();
     }
 
     // ---------- admin stats (moved from TicketService) ----------
@@ -120,7 +136,7 @@ public class DashboardService {
                 .sorted(Comparator.comparing(Department::getName, String.CASE_INSENSITIVE_ORDER))
                 .map(d -> new DashboardDtos.DomainStats(
                         d.getId(),
-                        d.getName(),
+                        deptName(d),
                         totals.getOrDefault(d.getId(), 0L),
                         subCounts.getOrDefault(d.getId(), 0L),
                         agents.getOrDefault(d.getId(), 0L),
@@ -146,7 +162,7 @@ public class DashboardService {
 
         return new DashboardDtos.DomainDetail(
                 dept.getId(),
-                dept.getName(),
+                deptName(dept),
                 totals.getOrDefault(dept.getId(), 0L),
                 agents.getOrDefault(dept.getId(), 0L),
                 byStatus.getOrDefault(dept.getId(), emptyStatusMap()),
@@ -182,9 +198,9 @@ public class DashboardService {
         return subs.stream()
                 .map(s -> new DashboardDtos.SubcategoryStats(
                         s.getId(),
-                        s.getName(),
+                        subName(s),
                         dept.getId(),
-                        dept.getName(),
+                        deptName(dept),
                         totals.getOrDefault(s.getId(), 0L),
                         byStatus.getOrDefault(s.getId(), emptyStatusMap()),
                         sparklines.getOrDefault(s.getId(), emptyDaily(weekStart, 7))
@@ -213,13 +229,19 @@ public class DashboardService {
         Instant weekStart = today.minusDays(6).atStartOfDay(zone()).toInstant();
         Map<Long, Long> weekByUser = userCountMap(ticketRepository.countByUserSince(weekStart));
 
+        // Fetch users once to resolve localized display names — cheaper than an N+1.
+        Map<Long, User> usersById = userRepository.findAll().stream()
+                .collect(Collectors.toMap(User::getId, u -> u));
         List<DashboardDtos.AgentLeaderboardRow> rows = board.stream()
                 .map(row -> {
                     double avg = windowDays > 0 ? (double) row.total() / windowDays : 0;
+                    User u = usersById.get(row.userId());
+                    String display = u != null ? userDisplayName(u)
+                            : (row.displayName() != null ? row.displayName() : row.username());
                     return new DashboardDtos.AgentLeaderboardRow(
                             row.userId(),
                             row.username(),
-                            row.displayName() != null ? row.displayName() : row.username(),
+                            display,
                             row.total(),
                             todayByUser.getOrDefault(row.userId(), 0L),
                             weekByUser.getOrDefault(row.userId(), 0L),
@@ -270,7 +292,7 @@ public class DashboardService {
         return new DashboardDtos.UserActivity(
                 user.getId(),
                 user.getUsername(),
-                user.getDisplayName() != null ? user.getDisplayName() : user.getUsername(),
+                userDisplayName(user),
                 total,
                 window,
                 series,
@@ -345,9 +367,9 @@ public class DashboardService {
         List<DashboardDtos.RecentTicket> recent = recentPage.getContent().stream()
                 .map(t -> new DashboardDtos.RecentTicket(
                         t.getId(),
-                        t.getTitle(),
-                        t.getDepartment().getName(),
-                        t.getSubcategory() != null ? t.getSubcategory().getName() : null,
+                        localizer.pick(t.getTitleEn(), t.getTitleAr(), t.getTitle()),
+                        deptName(t.getDepartment()),
+                        t.getSubcategory() != null ? subName(t.getSubcategory()) : null,
                         t.getStatus().name(),
                         t.getSubmittedAt()
                 ))
@@ -356,7 +378,7 @@ public class DashboardService {
         return new DashboardDtos.MyDashboard(
                 user.getId(),
                 user.getUsername(),
-                user.getDisplayName() != null ? user.getDisplayName() : user.getUsername(),
+                userDisplayName(user),
                 total, todayCount, thisWeekCount, thisMonthCount,
                 currentStreak, longestStreak,
                 avgPerDay, bestDay,

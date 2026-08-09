@@ -43,6 +43,8 @@ public class UserDtos {
             Long id,
             String username,
             String displayName,
+            String displayNameEn,
+            String displayNameAr,
             String email,
             String phone,
             String role,

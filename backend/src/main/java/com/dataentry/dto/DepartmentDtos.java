@@ -10,9 +10,15 @@ public class DepartmentDtos {
             Boolean active
     ) {}
 
+    /**
+     * `name` is already localized for the caller (based on Accept-Language). `nameEn` and `nameAr`
+     * are the raw stored translations — exposed so admin screens can show both sides when editing.
+     */
     public record DepartmentResponse(
             Long id,
             String name,
+            String nameEn,
+            String nameAr,
             boolean active
     ) {}
 }

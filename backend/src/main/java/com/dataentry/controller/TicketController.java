@@ -42,14 +42,23 @@ public class TicketController {
             @AuthenticationPrincipal User current,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return service.listForUser(current, page, size);
+        return service.listForUser(current, clampPage(page), clampSize(size));
     }
 
     @GetMapping("/admin/tickets")
     public TicketDtos.TicketPage listAll(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return service.listAll(page, size);
+        return service.listAll(clampPage(page), clampSize(size));
+    }
+
+    /** Clamp page inputs so a caller can't request page=-5 or size=1_000_000 and OOM us. */
+    private int clampPage(int page) {
+        return Math.max(page, 0);
+    }
+    private int clampSize(int size) {
+        if (size < 1) return 1;
+        return Math.min(size, 200);
     }
 
     @GetMapping("/tickets/{id}")

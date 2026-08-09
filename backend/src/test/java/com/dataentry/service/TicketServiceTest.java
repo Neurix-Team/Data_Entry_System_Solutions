@@ -36,6 +36,9 @@ class TicketServiceTest {
     @Mock DepartmentRepository departmentRepository;
     @Mock SubcategoryRepository subcategoryRepository;
     @Mock CustomFieldRepository customFieldRepository;
+    @Mock TranslationService translator;
+    @Mock Localizer localizer;
+    @Mock AuditService audit;
 
     @InjectMocks TicketService ticketService;
 
@@ -48,6 +51,11 @@ class TicketServiceTest {
         agent = User.builder().id(1L).username("agent").role(Role.USER).active(true).build();
         dept = Department.builder().id(10L).name("Marketing").active(true).build();
         sub = Subcategory.builder().id(100L).department(dept).name("Blog").active(true).build();
+        // Translator returns the input unchanged in both languages by default — keeps existing
+        // assertions on title/content/website fields valid without touching them.
+        org.mockito.Mockito.lenient()
+                .when(translator.toBoth(org.mockito.ArgumentMatchers.anyString()))
+                .thenAnswer(inv -> new TranslationService.Bilingual(inv.getArgument(0), inv.getArgument(0)));
     }
 
     @Test

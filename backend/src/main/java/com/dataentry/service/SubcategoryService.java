@@ -21,15 +21,24 @@ public class SubcategoryService {
     private final DepartmentRepository departmentRepository;
     private final TicketRepository ticketRepository;
     private final CustomFieldRepository customFieldRepository;
+    private final TranslationService translator;
+    private final Localizer localizer;
+    private final AuditService audit;
 
     public SubcategoryService(SubcategoryRepository repository,
                               DepartmentRepository departmentRepository,
                               TicketRepository ticketRepository,
-                              CustomFieldRepository customFieldRepository) {
+                              CustomFieldRepository customFieldRepository,
+                              TranslationService translator,
+                              Localizer localizer,
+                              AuditService audit) {
         this.repository = repository;
         this.departmentRepository = departmentRepository;
         this.ticketRepository = ticketRepository;
         this.customFieldRepository = customFieldRepository;
+        this.translator = translator;
+        this.localizer = localizer;
+        this.audit = audit;
     }
 
     public List<SubcategoryDtos.SubcategoryResponse> listAll(Long departmentId, boolean activeOnly) {
@@ -61,12 +70,18 @@ public class SubcategoryService {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Subcategory already exists in this department");
         }
+        TranslationService.Bilingual bi = translator.toBoth(name);
         Subcategory s = Subcategory.builder()
                 .department(dept)
                 .name(name)
+                .nameEn(bi.en())
+                .nameAr(bi.ar())
                 .active(req.active() == null || req.active())
                 .build();
-        return toDto(repository.save(s));
+        Subcategory saved = repository.save(s);
+        audit.record(AuditService.Action.CREATE, AuditService.EntityType.SUBCATEGORY,
+                saved.getId(), "name=" + name + " departmentId=" + dept.getId());
+        return toDto(saved);
     }
 
     @Transactional
@@ -85,8 +100,16 @@ public class SubcategoryService {
         }
         s.setDepartment(dept);
         s.setName(newName);
+        if (renamed) {
+            TranslationService.Bilingual bi = translator.toBoth(newName);
+            s.setNameEn(bi.en());
+            s.setNameAr(bi.ar());
+        }
         if (req.active() != null) s.setActive(req.active());
-        return toDto(repository.save(s));
+        Subcategory saved = repository.save(s);
+        audit.record(AuditService.Action.UPDATE, AuditService.EntityType.SUBCATEGORY,
+                saved.getId(), "name=" + newName + " active=" + saved.isActive());
+        return toDto(saved);
     }
 
     @Transactional
@@ -100,16 +123,22 @@ public class SubcategoryService {
                     "Cannot delete a subcategory with fields or tickets. Deactivate it instead.");
         }
         repository.delete(s);
+        audit.record(AuditService.Action.DELETE, AuditService.EntityType.SUBCATEGORY, id, "name=" + s.getName());
     }
 
     private SubcategoryDtos.SubcategoryResponse toDto(Subcategory s) {
         long tickets = ticketRepository.countBySubcategoryId(s.getId());
         long fields = customFieldRepository.countBySubcategoryId(s.getId());
+        Department d = s.getDepartment();
         return new SubcategoryDtos.SubcategoryResponse(
                 s.getId(),
-                s.getDepartment().getId(),
-                s.getDepartment().getName(),
-                s.getName(),
+                d.getId(),
+                localizer.pick(d.getNameEn(), d.getNameAr(), d.getName()),
+                d.getNameEn(),
+                d.getNameAr(),
+                localizer.pick(s.getNameEn(), s.getNameAr(), s.getName()),
+                s.getNameEn(),
+                s.getNameAr(),
                 s.isActive(),
                 tickets,
                 fields

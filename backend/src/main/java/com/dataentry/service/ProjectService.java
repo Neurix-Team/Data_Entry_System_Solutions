@@ -15,6 +15,7 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -24,15 +25,24 @@ public class ProjectService {
     private final ProjectRepository repository;
     private final DepartmentRepository departmentRepository;
     private final UserRepository userRepository;
+    private final TranslationService translator;
+    private final Localizer localizer;
+    private final AuditService audit;
 
     public ProjectService(Clock clock,
                           ProjectRepository repository,
                           DepartmentRepository departmentRepository,
-                          UserRepository userRepository) {
+                          UserRepository userRepository,
+                          TranslationService translator,
+                          Localizer localizer,
+                          AuditService audit) {
         this.clock = clock;
         this.repository = repository;
         this.departmentRepository = departmentRepository;
         this.userRepository = userRepository;
+        this.translator = translator;
+        this.localizer = localizer;
+        this.audit = audit;
     }
 
     @Transactional(readOnly = true)
@@ -47,9 +57,11 @@ public class ProjectService {
 
         Set<User> members = resolveMembers(req.memberIds());
 
+        String name = req.name().trim();
+        String subtitle = req.subtitle() != null ? req.subtitle().trim() : null;
         Project p = Project.builder()
-                .name(req.name().trim())
-                .subtitle(req.subtitle() != null ? req.subtitle().trim() : null)
+                .name(name)
+                .subtitle(subtitle)
                 .department(dept)
                 .members(members)
                 .startDate(req.startDate())
@@ -57,7 +69,11 @@ public class ProjectService {
                 .progress(req.progress() == null ? 0 : req.progress())
                 .status(req.status() == null ? ProjectStatus.ON_TRACK : ProjectStatus.valueOf(req.status()))
                 .build();
-        return toDto(repository.save(p));
+        applyTranslations(p, name, subtitle);
+        Project saved = repository.save(p);
+        audit.record(AuditService.Action.CREATE, AuditService.EntityType.PROJECT,
+                saved.getId(), "name=" + name + " departmentId=" + dept.getId());
+        return toDto(saved);
     }
 
     @Transactional
@@ -65,8 +81,13 @@ public class ProjectService {
         Project p = repository.findWithMembersById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
 
-        p.setName(req.name().trim());
-        p.setSubtitle(req.subtitle() != null ? req.subtitle().trim() : null);
+        String newName = req.name().trim();
+        String newSubtitle = req.subtitle() != null ? req.subtitle().trim() : null;
+        boolean nameChanged = !Objects.equals(p.getName(), newName);
+        boolean subtitleChanged = !Objects.equals(p.getSubtitle(), newSubtitle);
+
+        p.setName(newName);
+        p.setSubtitle(newSubtitle);
         if (req.departmentId() != null && !req.departmentId().equals(p.getDepartment().getId())) {
             Department dept = departmentRepository.findById(req.departmentId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Department not found"));
@@ -79,8 +100,26 @@ public class ProjectService {
         p.setEndDate(req.endDate());
         if (req.progress() != null) p.setProgress(req.progress());
         if (req.status() != null) p.setStatus(ProjectStatus.valueOf(req.status()));
+        if (nameChanged || subtitleChanged) applyTranslations(p, newName, newSubtitle);
 
-        return toDto(repository.save(p));
+        Project saved = repository.save(p);
+        audit.record(AuditService.Action.UPDATE, AuditService.EntityType.PROJECT,
+                saved.getId(), "name=" + newName + " status=" + saved.getStatus());
+        return toDto(saved);
+    }
+
+    private void applyTranslations(Project p, String name, String subtitle) {
+        TranslationService.Bilingual nameBi = translator.toBoth(name);
+        p.setNameEn(nameBi.en());
+        p.setNameAr(nameBi.ar());
+        if (subtitle != null && !subtitle.isBlank()) {
+            TranslationService.Bilingual subBi = translator.toBoth(subtitle);
+            p.setSubtitleEn(subBi.en());
+            p.setSubtitleAr(subBi.ar());
+        } else {
+            p.setSubtitleEn(null);
+            p.setSubtitleAr(null);
+        }
     }
 
     @Transactional
@@ -89,6 +128,7 @@ public class ProjectService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found");
         }
         repository.deleteById(id);
+        audit.record(AuditService.Action.DELETE, AuditService.EntityType.PROJECT, id, null);
     }
 
     private Set<User> resolveMembers(Set<Long> memberIds) {
@@ -103,11 +143,26 @@ public class ProjectService {
             daysLeft = (int) ChronoUnit.DAYS.between(LocalDate.now(clock), p.getEndDate());
         }
         List<ProjectDtos.ProjectMember> members = p.getMembers().stream()
-                .map(u -> new ProjectDtos.ProjectMember(u.getId(), u.getUsername(), u.getDisplayName()))
+                .map(u -> new ProjectDtos.ProjectMember(
+                        u.getId(),
+                        u.getUsername(),
+                        localizer.pick(u.getDisplayNameEn(), u.getDisplayNameAr(), u.getDisplayName()),
+                        u.getDisplayNameEn(),
+                        u.getDisplayNameAr()))
                 .toList();
+        Department dept = p.getDepartment();
         return new ProjectDtos.ProjectResponse(
-                p.getId(), p.getName(), p.getSubtitle(),
-                p.getDepartment().getId(), p.getDepartment().getName(),
+                p.getId(),
+                localizer.pick(p.getNameEn(), p.getNameAr(), p.getName()),
+                p.getNameEn(),
+                p.getNameAr(),
+                localizer.pick(p.getSubtitleEn(), p.getSubtitleAr(), p.getSubtitle()),
+                p.getSubtitleEn(),
+                p.getSubtitleAr(),
+                dept.getId(),
+                localizer.pick(dept.getNameEn(), dept.getNameAr(), dept.getName()),
+                dept.getNameEn(),
+                dept.getNameAr(),
                 members,
                 p.getStartDate(), p.getEndDate(), daysLeft,
                 p.getProgress(), p.getStatus().name()

@@ -29,4 +29,10 @@ public class TicketFieldValue {
 
     @Column(columnDefinition = "TEXT")
     private String value;
+
+    @Column(name = "value_en", columnDefinition = "TEXT")
+    private String valueEn;
+
+    @Column(name = "value_ar", columnDefinition = "TEXT")
+    private String valueAr;
 }

@@ -15,9 +15,18 @@ import java.util.List;
 public class DepartmentService {
 
     private final DepartmentRepository repository;
+    private final TranslationService translator;
+    private final Localizer localizer;
+    private final AuditService audit;
 
-    public DepartmentService(DepartmentRepository repository) {
+    public DepartmentService(DepartmentRepository repository,
+                             TranslationService translator,
+                             Localizer localizer,
+                             AuditService audit) {
         this.repository = repository;
+        this.translator = translator;
+        this.localizer = localizer;
+        this.audit = audit;
     }
 
     public List<DepartmentDtos.DepartmentResponse> listAll() {
@@ -33,14 +42,21 @@ public class DepartmentService {
 
     @Transactional
     public DepartmentDtos.DepartmentResponse create(DepartmentDtos.UpsertDepartmentRequest req) {
-        if (repository.existsByNameIgnoreCase(req.name().trim())) {
+        String raw = req.name().trim();
+        if (repository.existsByNameIgnoreCase(raw)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Department already exists");
         }
+        TranslationService.Bilingual bi = translator.toBoth(raw);
         Department d = Department.builder()
-                .name(req.name().trim())
+                .name(raw)
+                .nameEn(bi.en())
+                .nameAr(bi.ar())
                 .active(req.active() == null || req.active())
                 .build();
-        return toDto(repository.save(d));
+        Department saved = repository.save(d);
+        audit.record(AuditService.Action.CREATE, AuditService.EntityType.DEPARTMENT,
+                saved.getId(), "name=" + raw);
+        return toDto(saved);
     }
 
     @Transactional
@@ -52,8 +68,14 @@ public class DepartmentService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Department already exists");
         }
         d.setName(newName);
+        TranslationService.Bilingual bi = translator.toBoth(newName);
+        d.setNameEn(bi.en());
+        d.setNameAr(bi.ar());
         if (req.active() != null) d.setActive(req.active());
-        return toDto(repository.save(d));
+        Department saved = repository.save(d);
+        audit.record(AuditService.Action.UPDATE, AuditService.EntityType.DEPARTMENT,
+                saved.getId(), "name=" + newName + " active=" + saved.isActive());
+        return toDto(saved);
     }
 
     @Transactional
@@ -63,6 +85,7 @@ public class DepartmentService {
         }
         try {
             repository.deleteById(id);
+            audit.record(AuditService.Action.DELETE, AuditService.EntityType.DEPARTMENT, id, null);
         } catch (Exception ex) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Cannot delete a department that has tickets. Deactivate it instead.");
@@ -70,6 +93,7 @@ public class DepartmentService {
     }
 
     private DepartmentDtos.DepartmentResponse toDto(Department d) {
-        return new DepartmentDtos.DepartmentResponse(d.getId(), d.getName(), d.isActive());
+        String localized = localizer.pick(d.getNameEn(), d.getNameAr(), d.getName());
+        return new DepartmentDtos.DepartmentResponse(d.getId(), localized, d.getNameEn(), d.getNameAr(), d.isActive());
     }
 }

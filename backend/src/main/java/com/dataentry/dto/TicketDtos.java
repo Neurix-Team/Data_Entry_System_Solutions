@@ -49,24 +49,40 @@ public class TicketDtos {
             Long fieldId,
             String fieldKey,
             String label,
-            String value
+            String labelEn,
+            String labelAr,
+            String value,
+            String valueEn,
+            String valueAr
     ) {}
 
     public record TicketResponse(
             Long id,
             Long departmentId,
             String departmentName,
+            String departmentNameEn,
+            String departmentNameAr,
             Long subcategoryId,
             String subcategoryName,
+            String subcategoryNameEn,
+            String subcategoryNameAr,
             String title,
+            String titleEn,
+            String titleAr,
             String content,
+            String contentEn,
+            String contentAr,
             String websiteName,
+            String websiteNameEn,
+            String websiteNameAr,
             String websiteLink,
             String status,
             Instant submittedAt,
             Long submittedById,
             String submittedByUsername,
             String submittedByDisplayName,
+            String submittedByDisplayNameEn,
+            String submittedByDisplayNameAr,
             List<CustomValueResponse> customValues
     ) {}
 

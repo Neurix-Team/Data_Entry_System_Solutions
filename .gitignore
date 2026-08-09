@@ -2,6 +2,8 @@
 backend/target/
 backend/.mvn/wrapper/maven-wrapper.jar
 backend/data/
+# Local Maven repository cache (populated by containerized builds)
+.m2/
 *.class
 *.jar
 *.war

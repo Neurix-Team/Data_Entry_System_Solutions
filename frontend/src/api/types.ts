@@ -8,6 +8,8 @@ export interface User {
   id: number;
   username: string;
   displayName?: string | null;
+  displayNameEn?: string | null;
+  displayNameAr?: string | null;
   role: Role;
 }
 
@@ -27,6 +29,8 @@ export interface LoginResponse {
 export interface Department {
   id: number;
   name: string;
+  nameEn?: string | null;
+  nameAr?: string | null;
   active: boolean;
 }
 
@@ -34,7 +38,11 @@ export interface Subcategory {
   id: number;
   departmentId: number;
   departmentName: string;
+  departmentNameEn?: string | null;
+  departmentNameAr?: string | null;
   name: string;
+  nameEn?: string | null;
+  nameAr?: string | null;
   active: boolean;
   ticketCount: number;
   fieldCount: number;
@@ -48,11 +56,17 @@ export interface CustomField {
   departmentName?: string | null;
   fieldKey: string;
   label: string;
+  labelEn?: string | null;
+  labelAr?: string | null;
   type: FieldType;
   required: boolean;
   displayOrder: number;
   options?: string | null;
+  optionsEn?: string | null;
+  optionsAr?: string | null;
   placeholder?: string | null;
+  placeholderEn?: string | null;
+  placeholderAr?: string | null;
   active: boolean;
 }
 
@@ -60,24 +74,40 @@ export interface CustomValue {
   fieldId: number;
   fieldKey: string;
   label: string;
+  labelEn?: string | null;
+  labelAr?: string | null;
   value: string;
+  valueEn?: string | null;
+  valueAr?: string | null;
 }
 
 export interface Ticket {
   id: number;
   departmentId: number;
   departmentName: string;
+  departmentNameEn?: string | null;
+  departmentNameAr?: string | null;
   subcategoryId?: number | null;
   subcategoryName?: string | null;
+  subcategoryNameEn?: string | null;
+  subcategoryNameAr?: string | null;
   title?: string | null;
+  titleEn?: string | null;
+  titleAr?: string | null;
   content: string;
+  contentEn?: string | null;
+  contentAr?: string | null;
   websiteName?: string | null;
+  websiteNameEn?: string | null;
+  websiteNameAr?: string | null;
   websiteLink?: string | null;
   status: TicketStatus;
   submittedAt: string;
   submittedById: number;
   submittedByUsername: string;
   submittedByDisplayName?: string | null;
+  submittedByDisplayNameEn?: string | null;
+  submittedByDisplayNameAr?: string | null;
   customValues: CustomValue[];
 }
 
@@ -137,14 +167,22 @@ export interface ProjectMember {
   id: number;
   username: string;
   displayName?: string | null;
+  displayNameEn?: string | null;
+  displayNameAr?: string | null;
 }
 
 export interface Project {
   id: number;
   name: string;
+  nameEn?: string | null;
+  nameAr?: string | null;
   subtitle?: string | null;
+  subtitleEn?: string | null;
+  subtitleAr?: string | null;
   departmentId: number;
   departmentName: string;
+  departmentNameEn?: string | null;
+  departmentNameAr?: string | null;
   members: ProjectMember[];
   startDate?: string | null;
   endDate?: string | null;

@@ -6,6 +6,7 @@ import com.dataentry.repository.DepartmentRepository;
 import com.dataentry.repository.SubcategoryRepository;
 import com.dataentry.repository.TicketRepository;
 import com.dataentry.repository.UserRepository;
+import com.dataentry.service.TranslationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,6 +33,7 @@ public class DataSeeder implements CommandLineRunner {
     private final TicketRepository ticketRepository;
     private final PasswordEncoder passwordEncoder;
     private final JdbcTemplate jdbc;
+    private final TranslationService translator;
 
     @Value("${app.seed.enabled:true}")
     private boolean seedEnabled;
@@ -48,7 +50,8 @@ public class DataSeeder implements CommandLineRunner {
                       CustomFieldRepository customFieldRepository,
                       TicketRepository ticketRepository,
                       PasswordEncoder passwordEncoder,
-                      JdbcTemplate jdbc) {
+                      JdbcTemplate jdbc,
+                      TranslationService translator) {
         this.userRepository = userRepository;
         this.departmentRepository = departmentRepository;
         this.subcategoryRepository = subcategoryRepository;
@@ -56,6 +59,7 @@ public class DataSeeder implements CommandLineRunner {
         this.ticketRepository = ticketRepository;
         this.passwordEncoder = passwordEncoder;
         this.jdbc = jdbc;
+        this.translator = translator;
     }
 
     @Override
@@ -68,39 +72,55 @@ public class DataSeeder implements CommandLineRunner {
         seedSubcategoriesPerDepartment();
         seedCustomFields();
         backfillLegacyRows();
+        backfillTranslations();
     }
 
     private void seedUsers() {
+        if ("admin123".equals(adminPassword)) {
+            log.error("⚠ SECURITY: admin password is the built-in default 'admin123'. "
+                    + "Rotate APP_SEED_ADMIN_PASSWORD before exposing this instance.");
+        }
         if (userRepository.findByUsername(adminUsername).isEmpty()) {
-            userRepository.save(User.builder()
+            userRepository.save(withTranslatedDisplayName(User.builder()
                     .username(adminUsername)
                     .passwordHash(passwordEncoder.encode(adminPassword))
                     .displayName("System Administrator")
                     .email("admin@dataentry.local")
                     .role(Role.ADMIN)
                     .active(true)
-                    .build());
-            log.info("Seeded default admin user: {} / {}", adminUsername, adminPassword);
+                    .build()));
+            // Do NOT log the password — logs may end up in shared observability tooling.
+            log.info("Seeded default admin user: {}", adminUsername);
         }
 
         if (userRepository.findByUsername("agent1").isEmpty()) {
-            userRepository.save(User.builder()
+            userRepository.save(withTranslatedDisplayName(User.builder()
                     .username("agent1")
                     .passwordHash(passwordEncoder.encode("agent123"))
                     .displayName("Sample Data Entry Agent")
                     .email("agent1@dataentry.local")
                     .role(Role.USER)
                     .active(true)
-                    .build());
+                    .build()));
             log.info("Seeded sample user: agent1 / agent123");
         }
+    }
+
+    private User withTranslatedDisplayName(User u) {
+        TranslationService.Bilingual bi = translator.toBoth(u.getDisplayName());
+        u.setDisplayNameEn(bi.en());
+        u.setDisplayNameAr(bi.ar());
+        return u;
     }
 
     private void seedDepartments() {
         if (departmentRepository.count() == 0) {
             List.of("Marketing", "Sales", "Content Review", "Compliance", "Research")
-                    .forEach(name -> departmentRepository.save(
-                            Department.builder().name(name).active(true).build()));
+                    .forEach(name -> {
+                        TranslationService.Bilingual bi = translator.toBoth(name);
+                        departmentRepository.save(Department.builder()
+                                .name(name).nameEn(bi.en()).nameAr(bi.ar()).active(true).build());
+                    });
             log.info("Seeded default departments.");
         }
     }
@@ -123,9 +143,12 @@ public class DataSeeder implements CommandLineRunner {
                 .filter(s -> s.getName().equalsIgnoreCase(name))
                 .findFirst()
                 .orElseGet(() -> {
+                    TranslationService.Bilingual bi = translator.toBoth(name);
                     Subcategory saved = subcategoryRepository.save(Subcategory.builder()
                             .department(d)
                             .name(name)
+                            .nameEn(bi.en())
+                            .nameAr(bi.ar())
                             .active(true)
                             .build());
                     log.info("Seeded subcategory '{}' under department '{}'", name, d.getName());
@@ -144,7 +167,7 @@ public class DataSeeder implements CommandLineRunner {
 
         Subcategory general = ensureSubcategory(marketing, DEFAULT_SUBCATEGORY);
 
-        customFieldRepository.save(CustomField.builder()
+        customFieldRepository.save(withTranslatedField(CustomField.builder()
                 .subcategory(general)
                 .fieldKey("priority")
                 .label("Priority")
@@ -154,8 +177,8 @@ public class DataSeeder implements CommandLineRunner {
                 .options("Low,Medium,High")
                 .placeholder("Select priority")
                 .active(true)
-                .build());
-        customFieldRepository.save(CustomField.builder()
+                .build()));
+        customFieldRepository.save(withTranslatedField(CustomField.builder()
                 .subcategory(general)
                 .fieldKey("reference_id")
                 .label("Reference ID")
@@ -164,8 +187,25 @@ public class DataSeeder implements CommandLineRunner {
                 .displayOrder(2)
                 .placeholder("Optional reference identifier")
                 .active(true)
-                .build());
+                .build()));
         log.info("Seeded example custom fields under Marketing/General.");
+    }
+
+    private CustomField withTranslatedField(CustomField f) {
+        TranslationService.Bilingual lb = translator.toBoth(f.getLabel());
+        f.setLabelEn(lb.en());
+        f.setLabelAr(lb.ar());
+        if (f.getPlaceholder() != null && !f.getPlaceholder().isBlank()) {
+            TranslationService.Bilingual pb = translator.toBoth(f.getPlaceholder());
+            f.setPlaceholderEn(pb.en());
+            f.setPlaceholderAr(pb.ar());
+        }
+        if (f.getOptions() != null && !f.getOptions().isBlank()) {
+            TranslationService.Bilingual ob = translator.toBoth(f.getOptions());
+            f.setOptionsEn(ob.en());
+            f.setOptionsAr(ob.ar());
+        }
+        return f;
     }
 
     /**
@@ -208,6 +248,61 @@ public class DataSeeder implements CommandLineRunner {
         } catch (Exception e) {
             log.debug("Backfill probe skipped ({}): {}", sql, e.getMessage());
             return null;
+        }
+    }
+
+    /**
+     * One-shot backfill: for rows whose _en / _ar columns are still null after the schema was
+     * upgraded, treat the legacy single column as the source and translate to fill both sides.
+     * Runs every startup but only touches rows that actually need it, so it's cheap after the
+     * first run.
+     */
+    private void backfillTranslations() {
+        try {
+            departmentRepository.findAll().stream()
+                    .filter(d -> d.getNameEn() == null || d.getNameAr() == null)
+                    .forEach(d -> {
+                        TranslationService.Bilingual bi = translator.toBoth(d.getName());
+                        d.setNameEn(bi.en()); d.setNameAr(bi.ar());
+                        departmentRepository.save(d);
+                    });
+
+            subcategoryRepository.findAll().stream()
+                    .filter(s -> s.getNameEn() == null || s.getNameAr() == null)
+                    .forEach(s -> {
+                        TranslationService.Bilingual bi = translator.toBoth(s.getName());
+                        s.setNameEn(bi.en()); s.setNameAr(bi.ar());
+                        subcategoryRepository.save(s);
+                    });
+
+            customFieldRepository.findAll().stream()
+                    .filter(f -> f.getLabelEn() == null || f.getLabelAr() == null)
+                    .forEach(f -> {
+                        TranslationService.Bilingual lb = translator.toBoth(f.getLabel());
+                        f.setLabelEn(lb.en()); f.setLabelAr(lb.ar());
+                        if (f.getPlaceholder() != null && !f.getPlaceholder().isBlank()
+                                && (f.getPlaceholderEn() == null || f.getPlaceholderAr() == null)) {
+                            TranslationService.Bilingual pb = translator.toBoth(f.getPlaceholder());
+                            f.setPlaceholderEn(pb.en()); f.setPlaceholderAr(pb.ar());
+                        }
+                        if (f.getOptions() != null && !f.getOptions().isBlank()
+                                && (f.getOptionsEn() == null || f.getOptionsAr() == null)) {
+                            TranslationService.Bilingual ob = translator.toBoth(f.getOptions());
+                            f.setOptionsEn(ob.en()); f.setOptionsAr(ob.ar());
+                        }
+                        customFieldRepository.save(f);
+                    });
+
+            userRepository.findAll().stream()
+                    .filter(u -> u.getDisplayName() != null && !u.getDisplayName().isBlank()
+                            && (u.getDisplayNameEn() == null || u.getDisplayNameAr() == null))
+                    .forEach(u -> {
+                        TranslationService.Bilingual bi = translator.toBoth(u.getDisplayName());
+                        u.setDisplayNameEn(bi.en()); u.setDisplayNameAr(bi.ar());
+                        userRepository.save(u);
+                    });
+        } catch (Exception e) {
+            log.warn("Translation backfill skipped: {}", e.getMessage());
         }
     }
 }

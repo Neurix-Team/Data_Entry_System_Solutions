@@ -31,6 +31,12 @@ public class Subcategory {
     @Column(nullable = false, length = 150)
     private String name;
 
+    @Column(name = "name_en", length = 150)
+    private String nameEn;
+
+    @Column(name = "name_ar", length = 150)
+    private String nameAr;
+
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;

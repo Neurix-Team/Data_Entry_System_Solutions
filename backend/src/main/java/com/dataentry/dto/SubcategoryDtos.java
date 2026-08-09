@@ -16,7 +16,11 @@ public class SubcategoryDtos {
             Long id,
             Long departmentId,
             String departmentName,
+            String departmentNameEn,
+            String departmentNameAr,
             String name,
+            String nameEn,
+            String nameAr,
             boolean active,
             long ticketCount,
             long fieldCount

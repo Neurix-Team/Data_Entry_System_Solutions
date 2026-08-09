@@ -12,16 +12,27 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final TranslationService translator;
+    private final Localizer localizer;
+    private final AuditService audit;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public UserService(UserRepository userRepository,
+                       PasswordEncoder passwordEncoder,
+                       TranslationService translator,
+                       Localizer localizer,
+                       AuditService audit) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.translator = translator;
+        this.localizer = localizer;
+        this.audit = audit;
     }
 
     public List<UserDtos.UserResponse> list() {
@@ -45,7 +56,11 @@ public class UserService {
                 .role(Role.valueOf(req.role()))
                 .active(true)
                 .build();
-        return toDto(userRepository.save(user));
+        applyDisplayNameTranslation(user, req.displayName());
+        User saved = userRepository.save(user);
+        audit.record(AuditService.Action.CREATE, AuditService.EntityType.USER,
+                saved.getId(), "username=" + saved.getUsername() + " role=" + saved.getRole());
+        return toDto(saved);
     }
 
     @Transactional
@@ -53,14 +68,35 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
-        if (req.displayName() != null) user.setDisplayName(req.displayName());
+        if (req.displayName() != null) {
+            boolean changed = !Objects.equals(user.getDisplayName(), req.displayName());
+            user.setDisplayName(req.displayName());
+            if (changed) applyDisplayNameTranslation(user, req.displayName());
+        }
         if (req.email() != null) user.setEmail(req.email());
         if (req.phone() != null) user.setPhone(req.phone());
         if (req.password() != null && !req.password().isBlank()) {
             user.setPasswordHash(passwordEncoder.encode(req.password()));
         }
         if (req.active() != null) user.setActive(req.active());
-        return toDto(userRepository.save(user));
+        User saved = userRepository.save(user);
+        // Record whether the password/active flag changed — but never log the value itself.
+        String details = "displayName=" + saved.getDisplayName()
+                + " active=" + saved.isActive()
+                + " passwordChanged=" + (req.password() != null && !req.password().isBlank());
+        audit.record(AuditService.Action.UPDATE, AuditService.EntityType.USER, saved.getId(), details);
+        return toDto(saved);
+    }
+
+    private void applyDisplayNameTranslation(User u, String displayName) {
+        if (displayName == null || displayName.isBlank()) {
+            u.setDisplayNameEn(null);
+            u.setDisplayNameAr(null);
+            return;
+        }
+        TranslationService.Bilingual bi = translator.toBoth(displayName);
+        u.setDisplayNameEn(bi.en());
+        u.setDisplayNameAr(bi.ar());
     }
 
     @Transactional
@@ -68,15 +104,19 @@ public class UserService {
         if (id.equals(currentUserId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You cannot delete your own account");
         }
-        if (!userRepository.existsById(id)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
-        }
+        User u = userRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
         userRepository.deleteById(id);
+        audit.record(AuditService.Action.DELETE, AuditService.EntityType.USER, id, "username=" + u.getUsername());
     }
 
     private UserDtos.UserResponse toDto(User u) {
         return new UserDtos.UserResponse(
-                u.getId(), u.getUsername(), u.getDisplayName(),
+                u.getId(),
+                u.getUsername(),
+                localizer.pick(u.getDisplayNameEn(), u.getDisplayNameAr(), u.getDisplayName()),
+                u.getDisplayNameEn(),
+                u.getDisplayNameAr(),
                 u.getEmail(), u.getPhone(),
                 u.getRole().name(), u.isActive(), u.getCreatedAt()
         );

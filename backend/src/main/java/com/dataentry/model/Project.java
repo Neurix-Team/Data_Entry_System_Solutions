@@ -24,8 +24,20 @@ public class Project {
     @Column(nullable = false, length = 200)
     private String name;
 
+    @Column(name = "name_en", length = 200)
+    private String nameEn;
+
+    @Column(name = "name_ar", length = 200)
+    private String nameAr;
+
     @Column(length = 250)
     private String subtitle;
+
+    @Column(name = "subtitle_en", length = 250)
+    private String subtitleEn;
+
+    @Column(name = "subtitle_ar", length = 250)
+    private String subtitleAr;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "department_id", nullable = false)

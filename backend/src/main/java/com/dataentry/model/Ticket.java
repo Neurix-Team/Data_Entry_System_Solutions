@@ -35,11 +35,29 @@ public class Ticket {
     @Column(length = 500)
     private String title;
 
+    @Column(name = "title_en", length = 500)
+    private String titleEn;
+
+    @Column(name = "title_ar", length = 500)
+    private String titleAr;
+
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
+    @Column(name = "content_en", columnDefinition = "TEXT")
+    private String contentEn;
+
+    @Column(name = "content_ar", columnDefinition = "TEXT")
+    private String contentAr;
+
     @Column(length = 250)
     private String websiteName;
+
+    @Column(name = "website_name_en", length = 250)
+    private String websiteNameEn;
+
+    @Column(name = "website_name_ar", length = 250)
+    private String websiteNameAr;
 
     @Column(length = 500)
     private String websiteLink;

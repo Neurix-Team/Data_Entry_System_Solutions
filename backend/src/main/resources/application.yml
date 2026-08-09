@@ -30,9 +30,25 @@ app:
     secret: ${JWT_SECRET:change-me-in-production-a-very-long-random-secret-key-min-32-chars}
     expiration-ms: 86400000  # 24 hours
   cors:
-    # Use "*" (or leave blank) to accept any origin — needed when deploying to arbitrary
-    # server IPs / domains. Override via APP_CORS_ALLOWED_ORIGINS env var for a strict list.
-    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:*}
+    # Comma-separated allowlist of origins that can call this API with credentials.
+    # Set explicitly via APP_CORS_ALLOWED_ORIGINS.  Default is a safe local-dev origin —
+    # DO NOT ship "*" in production; combined with allowCredentials(true) that lets any
+    # site with a logged-in user's browser cookie call the API.
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:8082}
+  auth:
+    # Set to false ONLY when running the API over plain HTTP in local dev — browsers refuse to
+    # send Secure cookies over HTTP, so login would silently break.  Docker/prod: leave true.
+    cookie-secure: ${APP_AUTH_COOKIE_SECURE:true}
+  uploads:
+    # Per-user rolling 24h upload byte cap. Prevents any one agent from filling the OCR queue.
+    per-user-daily-bytes: ${APP_UPLOADS_PER_USER_DAILY_BYTES:524288000}
+  security:
+    login-rate:
+      # "memory" → per-instance counters (default; correct for a single backend replica).
+      # "database" → shared counters via login_attempts table — flip to this if you scale out.
+      storage: ${APP_LOGIN_RATE_STORAGE:memory}
+      max-attempts: 10
+      window-seconds: 300
   seed:
     enabled: true
     admin-username: admin
@@ -43,6 +59,14 @@ app:
   ocr:
     tessdata-path: /usr/share/tesseract-ocr/4.00/tessdata/
     languages: ara+eng
+  translation:
+    # LibreTranslate endpoint. Public: https://libretranslate.com  (rate-limited; needs api-key for real use)
+    # Self-hosted: run `docker run -p 5001:5000 libretranslate/libretranslate` and set base-url to http://libretranslate:5000
+    base-url: ${TRANSLATION_BASE_URL:https://libretranslate.com}
+    api-key: ${TRANSLATION_API_KEY:}
+    timeout-ms: 8000
+    # If translation call fails, keep the original text in both columns instead of erroring the save.
+    fail-open: true
 
 logging:
   level:

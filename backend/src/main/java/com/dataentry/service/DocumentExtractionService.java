@@ -101,12 +101,30 @@ public class DocumentExtractionService {
 
     private PdfDtos.ExtractedContentResponse extractWithTika(MultipartFile file, String originalName) {
         List<String> warnings = new ArrayList<>();
+        // Cross-check the declared MIME against what Tika actually detects in the bytes — blocks
+        // .exe-renamed-to-.pdf spoofing.  Detection reads the first few KB from a buffered copy.
+        String detected;
+        try (InputStream detectIn = file.getInputStream()) {
+            detected = tika.detect(detectIn, originalName);
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Could not read uploaded file: " + e.getMessage());
+        }
+        if (detected != null && (detected.startsWith("application/x-msdownload")
+                || detected.startsWith("application/x-executable")
+                || detected.startsWith("application/x-sharedlib")
+                || detected.startsWith("application/x-mach-binary"))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Executable files are not accepted.");
+        }
         try (InputStream in = file.getInputStream()) {
             BodyContentHandler handler = new BodyContentHandler(Math.max(maxChars * 4, 1_000_000));
             Metadata metadata = new Metadata();
             metadata.set(Metadata.CONTENT_TYPE, file.getContentType() == null ? MimeTypes.OCTET_STREAM : file.getContentType());
             metadata.set(TikaCoreProperties.RESOURCE_NAME_KEY, originalName);
-            new AutoDetectParser().parse(in, handler, metadata, new ParseContext());
+            // Harden the parse context against XXE / entity-expansion attacks in Office / RTF /
+            // XML documents.  Tika's default ParseContext trusts DOCTYPEs and external entities.
+            new AutoDetectParser().parse(in, handler, metadata, hardenedParseContext());
             String text = handler.toString();
 
             if (text == null || text.isBlank()) {
@@ -207,5 +225,32 @@ public class DocumentExtractionService {
     private String safeName(String name) {
         String base = name.replaceAll("[\\\\/:*?\"<>|]", "_");
         return base.length() > 80 ? base.substring(0, 80) : base;
+    }
+
+    /**
+     * A ParseContext with a SAX parser factory that refuses to resolve external entities and
+     * DTDs.  Blocks XXE / XML-bomb payloads hidden in Office / OpenDocument / RTF files.
+     */
+    private ParseContext hardenedParseContext() {
+        ParseContext ctx = new ParseContext();
+        try {
+            javax.xml.parsers.SAXParserFactory spf = javax.xml.parsers.SAXParserFactory.newInstance();
+            spf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            spf.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            spf.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            spf.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+            spf.setXIncludeAware(false);
+            spf.setNamespaceAware(true);
+            ctx.set(javax.xml.parsers.SAXParserFactory.class, spf);
+
+            javax.xml.parsers.DocumentBuilderFactory dbf = javax.xml.parsers.DocumentBuilderFactory.newInstance();
+            dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            dbf.setXIncludeAware(false);
+            dbf.setExpandEntityReferences(false);
+            ctx.set(javax.xml.parsers.DocumentBuilderFactory.class, dbf);
+        } catch (Exception e) {
+            log.warn("Could not fully harden XML parser factories: {}", e.getMessage());
+        }
+        return ctx;
     }
 }

@@ -23,15 +23,23 @@ public class ProjectDtos {
     public record ProjectMember(
             Long id,
             String username,
-            String displayName
+            String displayName,
+            String displayNameEn,
+            String displayNameAr
     ) {}
 
     public record ProjectResponse(
             Long id,
             String name,
+            String nameEn,
+            String nameAr,
             String subtitle,
+            String subtitleEn,
+            String subtitleAr,
             Long departmentId,
             String departmentName,
+            String departmentNameEn,
+            String departmentNameAr,
             List<ProjectMember> members,
             LocalDate startDate,
             LocalDate endDate,

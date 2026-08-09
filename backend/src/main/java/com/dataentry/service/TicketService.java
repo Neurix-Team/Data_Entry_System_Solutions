@@ -16,8 +16,10 @@ import org.springframework.web.server.ResponseStatusException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class TicketService {
@@ -26,15 +28,29 @@ public class TicketService {
     private final DepartmentRepository departmentRepository;
     private final SubcategoryRepository subcategoryRepository;
     private final CustomFieldRepository customFieldRepository;
+    private final TranslationService translator;
+    private final Localizer localizer;
+    private final AuditService audit;
+
+    /** Types where the value is human-language text and worth translating.  Numbers/URLs/dates
+     *  keep the same value on both sides. */
+    private static final Set<FieldType> TRANSLATABLE_TYPES =
+            EnumSet.of(FieldType.TEXT, FieldType.TEXTAREA, FieldType.SELECT);
 
     public TicketService(TicketRepository ticketRepository,
                          DepartmentRepository departmentRepository,
                          SubcategoryRepository subcategoryRepository,
-                         CustomFieldRepository customFieldRepository) {
+                         CustomFieldRepository customFieldRepository,
+                         TranslationService translator,
+                         Localizer localizer,
+                         AuditService audit) {
         this.ticketRepository = ticketRepository;
         this.departmentRepository = departmentRepository;
         this.subcategoryRepository = subcategoryRepository;
         this.customFieldRepository = customFieldRepository;
+        this.translator = translator;
+        this.localizer = localizer;
+        this.audit = audit;
     }
 
     @Transactional
@@ -100,17 +116,32 @@ public class TicketService {
         // Empty string (not null) so pre-existing NOT NULL constraints on the SQLite table
         // don't reject inserts from legacy databases.
         String cleanName = websiteName == null ? "" : websiteName.trim();
+        String cleanTitle = title == null ? "" : title.trim();
+        String cleanContent = content.trim();
 
-        return Ticket.builder()
+        Ticket t = Ticket.builder()
                 .submittedBy(currentUser)
                 .department(dept)
                 .subcategory(sub)
-                .title(title == null ? "" : title.trim())
-                .content(content.trim())
+                .title(cleanTitle)
+                .content(cleanContent)
                 .websiteName(cleanName)
                 .websiteLink(cleanUrl)
                 .status(TicketStatus.IN_PROGRESS)
                 .build();
+
+        TranslationService.Bilingual titleBi = translator.toBoth(cleanTitle);
+        t.setTitleEn(titleBi.en());
+        t.setTitleAr(titleBi.ar());
+        TranslationService.Bilingual contentBi = translator.toBoth(cleanContent);
+        t.setContentEn(contentBi.en());
+        t.setContentAr(contentBi.ar());
+        if (!cleanName.isBlank()) {
+            TranslationService.Bilingual nameBi = translator.toBoth(cleanName);
+            t.setWebsiteNameEn(nameBi.en());
+            t.setWebsiteNameAr(nameBi.ar());
+        }
+        return t;
     }
 
     private void applyCustomValues(Ticket ticket, Subcategory sub, Map<String, String> inputs) {
@@ -127,11 +158,20 @@ public class TicketService {
             if (value != null && !value.isBlank()) {
                 validateFieldValue(field, value);
             }
+            String stored = value == null ? "" : value;
             TicketFieldValue tfv = TicketFieldValue.builder()
                     .ticket(ticket)
                     .field(field)
-                    .value(value == null ? "" : value)
+                    .value(stored)
                     .build();
+            if (TRANSLATABLE_TYPES.contains(field.getType()) && !stored.isBlank()) {
+                TranslationService.Bilingual bi = translator.toBoth(stored);
+                tfv.setValueEn(bi.en());
+                tfv.setValueAr(bi.ar());
+            } else {
+                tfv.setValueEn(stored);
+                tfv.setValueAr(stored);
+            }
             ticket.getCustomValues().add(tfv);
         }
     }
@@ -160,22 +200,41 @@ public class TicketService {
 
     @Transactional
     public TicketDtos.TicketResponse updateStatus(Long id, String status) {
+        // Belt-and-braces authz — this method is only reachable through /api/admin/**, which
+        // SecurityConfig already gates on ROLE_ADMIN.  If someone ever moves the mapping out
+        // of /admin, this line stops non-admins from silently mutating tickets.
+        assertAdminAuthenticated();
         Ticket t = ticketRepository.findWithDetailsById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ticket not found"));
+        String previous = t.getStatus().name();
         try {
             t.setStatus(TicketStatus.valueOf(status));
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown status");
         }
-        return toDto(ticketRepository.save(t));
+        Ticket saved = ticketRepository.save(t);
+        audit.record(AuditService.Action.STATUS_CHANGE, AuditService.EntityType.TICKET,
+                saved.getId(), previous + " -> " + saved.getStatus().name());
+        return toDto(saved);
+    }
+
+    private void assertAdminAuthenticated() {
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        boolean isAdmin = auth != null && auth.isAuthenticated()
+                && auth.getAuthorities().stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        if (!isAdmin) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
     }
 
     @Transactional
     public void delete(Long id) {
+        assertAdminAuthenticated();
         if (!ticketRepository.existsById(id)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ticket not found");
         }
         ticketRepository.deleteById(id);
+        audit.record(AuditService.Action.DELETE, AuditService.EntityType.TICKET, id, null);
     }
 
     private TicketDtos.TicketPage toPage(Page<Ticket> p) {
@@ -187,28 +246,49 @@ public class TicketService {
 
     private TicketDtos.TicketResponse toDto(Ticket t) {
         User u = t.getSubmittedBy();
+        Department dept = t.getDepartment();
+        Subcategory sub = t.getSubcategory();
         List<TicketDtos.CustomValueResponse> customs = t.getCustomValues().stream()
-                .map(v -> new TicketDtos.CustomValueResponse(
-                        v.getField().getId(),
-                        v.getField().getFieldKey(),
-                        v.getField().getLabel(),
-                        v.getValue()
-                )).toList();
+                .map(v -> {
+                    CustomField f = v.getField();
+                    return new TicketDtos.CustomValueResponse(
+                            f.getId(),
+                            f.getFieldKey(),
+                            localizer.pick(f.getLabelEn(), f.getLabelAr(), f.getLabel()),
+                            f.getLabelEn(),
+                            f.getLabelAr(),
+                            localizer.pick(v.getValueEn(), v.getValueAr(), v.getValue()),
+                            v.getValueEn(),
+                            v.getValueAr()
+                    );
+                }).toList();
         return new TicketDtos.TicketResponse(
                 t.getId(),
-                t.getDepartment().getId(),
-                t.getDepartment().getName(),
-                t.getSubcategory() == null ? null : t.getSubcategory().getId(),
-                t.getSubcategory() == null ? null : t.getSubcategory().getName(),
-                t.getTitle(),
-                t.getContent(),
-                t.getWebsiteName(),
+                dept.getId(),
+                localizer.pick(dept.getNameEn(), dept.getNameAr(), dept.getName()),
+                dept.getNameEn(),
+                dept.getNameAr(),
+                sub == null ? null : sub.getId(),
+                sub == null ? null : localizer.pick(sub.getNameEn(), sub.getNameAr(), sub.getName()),
+                sub == null ? null : sub.getNameEn(),
+                sub == null ? null : sub.getNameAr(),
+                localizer.pick(t.getTitleEn(), t.getTitleAr(), t.getTitle()),
+                t.getTitleEn(),
+                t.getTitleAr(),
+                localizer.pick(t.getContentEn(), t.getContentAr(), t.getContent()),
+                t.getContentEn(),
+                t.getContentAr(),
+                localizer.pick(t.getWebsiteNameEn(), t.getWebsiteNameAr(), t.getWebsiteName()),
+                t.getWebsiteNameEn(),
+                t.getWebsiteNameAr(),
                 t.getWebsiteLink(),
                 t.getStatus().name(),
                 t.getSubmittedAt(),
                 u.getId(),
                 u.getUsername(),
-                u.getDisplayName(),
+                localizer.pick(u.getDisplayNameEn(), u.getDisplayNameAr(), u.getDisplayName()),
+                u.getDisplayNameEn(),
+                u.getDisplayNameAr(),
                 customs
         );
     }
@@ -220,8 +300,26 @@ public class TicketService {
             if (scheme == null || !(scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https"))) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Website link must start with http:// or https://");
             }
-            if (uri.getHost() == null || uri.getHost().isBlank()) {
+            String host = uri.getHost();
+            if (host == null || host.isBlank()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Website link is missing a host");
+            }
+            // SSRF guard — if this app ever fetches the stored URL later, we don't want an
+            // attacker aiming it at the AWS metadata endpoint or an internal service.
+            String h = host.toLowerCase();
+            boolean isPrivate = h.equals("localhost")
+                    || h.equals("0.0.0.0")
+                    || h.equals("169.254.169.254")           // cloud metadata
+                    || h.startsWith("127.")
+                    || h.startsWith("10.")
+                    || h.startsWith("192.168.")
+                    || h.startsWith("169.254.")
+                    || h.matches("^172\\.(1[6-9]|2[0-9]|3[01])\\..*")
+                    || h.endsWith(".local")
+                    || h.endsWith(".internal");
+            if (isPrivate) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Website link must point to a public address");
             }
         } catch (URISyntaxException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Website link is not a valid URL");
