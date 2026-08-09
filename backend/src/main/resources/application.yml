@@ -30,7 +30,9 @@ app:
     secret: ${JWT_SECRET:change-me-in-production-a-very-long-random-secret-key-min-32-chars}
     expiration-ms: 86400000  # 24 hours
   cors:
-    allowed-origins: http://localhost:5173,http://localhost:3000,http://localhost:8081
+    # Use "*" (or leave blank) to accept any origin — needed when deploying to arbitrary
+    # server IPs / domains. Override via APP_CORS_ALLOWED_ORIGINS env var for a strict list.
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:*}
   seed:
     enabled: true
     admin-username: admin

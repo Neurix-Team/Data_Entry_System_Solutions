@@ -58,7 +58,19 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
+        // Use origin patterns instead of a fixed origin list so deployments to arbitrary
+        // hosts (server IPs, custom domains) work without a rebuild. `*` is safe alongside
+        // allowCredentials(true) only via setAllowedOriginPatterns — setAllowedOrigins("*")
+        // would be rejected by Spring.
+        List<String> patterns = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
+        if (patterns.isEmpty() || patterns.contains("*")) {
+            config.setAllowedOriginPatterns(List.of("*"));
+        } else {
+            config.setAllowedOriginPatterns(patterns);
+        }
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
