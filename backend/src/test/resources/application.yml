@@ -1,0 +1,29 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=LEGACY
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+    show-sql: false
+    open-in-view: false
+
+app:
+  jwt:
+    secret: test-secret-key-that-is-long-enough-to-satisfy-hmac-sha256-min-32-chars
+    expiration-ms: 86400000
+  cors:
+    allowed-origins: http://localhost
+  seed:
+    enabled: false
+  pdf:
+    max-chars: 200000
+    output-dir: ${java.io.tmpdir}/dataentry-pdf-test
+  ocr:
+    tessdata-path: /tmp/tessdata/
+    languages: eng

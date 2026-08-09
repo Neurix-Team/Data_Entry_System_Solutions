@@ -23,4 +23,6 @@ public interface CustomFieldRepository extends JpaRepository<CustomField, Long> 
     boolean existsBySubcategoryIdAndFieldKeyIgnoreCase(Long subcategoryId, String fieldKey);
 
     long countBySubcategoryId(Long subcategoryId);
+
+    long countByActiveTrue();
 }

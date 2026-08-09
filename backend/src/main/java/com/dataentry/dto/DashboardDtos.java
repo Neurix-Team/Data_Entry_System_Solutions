@@ -1,5 +1,8 @@
 package com.dataentry.dto;
 
+import com.dataentry.model.TicketStatus;
+
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -7,6 +10,54 @@ import java.util.Map;
 public class DashboardDtos {
 
     public record DailyCount(LocalDate date, long count) {}
+
+    // --- typed JPQL projections (replace Object[] tuples) ---
+
+    public record DepartmentCount(Long departmentId, long total) {}
+
+    public record SubcategoryCount(Long subcategoryId, long total) {}
+
+    public record DepartmentStatusCount(Long departmentId, TicketStatus status, long total) {}
+
+    public record SubcategoryStatusCount(Long subcategoryId, TicketStatus status, long total) {}
+
+    public record StatusCount(TicketStatus status, long total) {}
+
+    public record DepartmentSubmission(Long departmentId, Instant submittedAt) {}
+
+    public record SubcategorySubmission(Long subcategoryId, Instant submittedAt) {}
+
+    public record LeaderboardRowRaw(Long userId, String displayName, String username, long total) {}
+
+    public record UserCount(Long userId, long total) {}
+
+    public record UserBreakdownRaw(Long groupId, String groupName, long total) {}
+
+    // --- output DTOs (replace Map<String, Object>) ---
+
+    public record AdminStats(
+            long totalTickets,
+            long totalDepartments,
+            long activeFields,
+            long totalUsers,
+            long inProgress,
+            long review,
+            long completed,
+            long completedToday
+    ) {}
+
+    public record TopPerformer(
+            Long userId,
+            String username,
+            String displayName,
+            long completed
+    ) {}
+
+    public record ReportData(
+            Map<String, Long> byDay,
+            List<TopPerformer> topPerformers,
+            long completedThisWeek
+    ) {}
 
     public record DomainStats(
             Long departmentId,

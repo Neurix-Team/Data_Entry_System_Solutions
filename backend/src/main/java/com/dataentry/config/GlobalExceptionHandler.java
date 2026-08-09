@@ -1,5 +1,7 @@
 package com.dataentry.config;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -15,6 +17,11 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    /** Safe generic message for 500s so we never leak stack traces / DB errors to clients. */
+    private static final String GENERIC_500_MESSAGE = "Unexpected server error. Please try again later.";
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex) {
@@ -36,12 +43,19 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<Map<String, Object>> handleTooLarge(MaxUploadSizeExceededException ex) {
-        return build(HttpStatus.PAYLOAD_TOO_LARGE, "Uploaded file is too large. Maximum allowed size is 200 MB.", null);
+        return build(HttpStatus.PAYLOAD_TOO_LARGE,
+                "Uploaded file is too large. Maximum allowed size is 200 MB.", null);
     }
 
+    /**
+     * Any unhandled exception. Log the full stack trace server-side, but return a generic
+     * message to the client — never expose ex.getMessage() (may contain stack fragments,
+     * DB constraint text, file paths, etc.).
+     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleOther(Exception ex) {
-        return build(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage(), null);
+        log.error("Unhandled exception: {}", ex.getMessage(), ex);
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, GENERIC_500_MESSAGE, null);
     }
 
     private ResponseEntity<Map<String, Object>> build(HttpStatus status, String message, Object details) {

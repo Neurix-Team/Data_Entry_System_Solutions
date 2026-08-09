@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
@@ -19,13 +20,16 @@ import java.util.Set;
 @Service
 public class ProjectService {
 
+    private final Clock clock;
     private final ProjectRepository repository;
     private final DepartmentRepository departmentRepository;
     private final UserRepository userRepository;
 
-    public ProjectService(ProjectRepository repository,
+    public ProjectService(Clock clock,
+                          ProjectRepository repository,
                           DepartmentRepository departmentRepository,
                           UserRepository userRepository) {
+        this.clock = clock;
         this.repository = repository;
         this.departmentRepository = departmentRepository;
         this.userRepository = userRepository;
@@ -96,7 +100,7 @@ public class ProjectService {
     private ProjectDtos.ProjectResponse toDto(Project p) {
         Integer daysLeft = null;
         if (p.getEndDate() != null && p.getStatus() != ProjectStatus.COMPLETED) {
-            daysLeft = (int) ChronoUnit.DAYS.between(LocalDate.now(), p.getEndDate());
+            daysLeft = (int) ChronoUnit.DAYS.between(LocalDate.now(clock), p.getEndDate());
         }
         List<ProjectDtos.ProjectMember> members = p.getMembers().stream()
                 .map(u -> new ProjectDtos.ProjectMember(u.getId(), u.getUsername(), u.getDisplayName()))

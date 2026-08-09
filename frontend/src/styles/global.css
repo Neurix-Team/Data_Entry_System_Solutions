@@ -1254,6 +1254,68 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ============================================================
+   Submit Ticket page — article cards and form sections
+   ============================================================ */
+
+.form-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+.form-row-end { display: flex; gap: 0.6rem; justify-content: flex-end; margin-top: 1rem; }
+.form-row-mt { margin: 1.5rem 0 0.75rem; align-items: center; }
+
+.field-grow { flex: 1 1 240px; }
+.field-grow-sm { flex: 1 1 220px; }
+.field-grow-lg { flex: 2 1 280px; }
+
+.textarea-md { min-height: 160px; }
+.textarea-lg { min-height: 220px; }
+
+.form-section-heading {
+  margin: 1.25rem 0 0.5rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.article-card {
+  padding: 1rem 1.25rem;
+  margin-bottom: 0.75rem;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.article-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.article-card-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+
+.pre-block {
+  padding: 0.65rem 0.85rem;
+  background: var(--bg-sunken);
+  border-radius: var(--radius);
+  white-space: pre-wrap;
+}
+.pre-block-success {
+  padding: 0.65rem 0.85rem;
+  background: var(--success-soft);
+  border: 1px solid var(--success-soft-border);
+  border-radius: var(--radius);
+  white-space: pre-wrap;
+  color: var(--text-primary);
+}
+
+.inline-list { margin: 0.4rem 0 0 1.25rem; padding: 0; }
+.inline-list-flush { margin: 0; padding-inline-start: 1.25rem; }
+.mb-half { margin-bottom: 0.5rem; }
+.mb-tight { margin-bottom: 0.35rem; }
+.mt-tight { margin-top: 0.75rem; }
+
 /* Responsive */
 @media (max-width: 900px) {
   .app-shell { grid-template-columns: 1fr; }

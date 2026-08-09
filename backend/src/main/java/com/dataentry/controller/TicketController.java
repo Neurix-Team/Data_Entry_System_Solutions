@@ -1,24 +1,26 @@
 package com.dataentry.controller;
 
+import com.dataentry.dto.DashboardDtos;
 import com.dataentry.dto.TicketDtos;
 import com.dataentry.model.Role;
 import com.dataentry.model.User;
+import com.dataentry.service.DashboardService;
 import com.dataentry.service.TicketService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
-
 @RestController
 @RequestMapping("/api")
 public class TicketController {
 
     private final TicketService service;
+    private final DashboardService dashboardService;
 
-    public TicketController(TicketService service) {
+    public TicketController(TicketService service, DashboardService dashboardService) {
         this.service = service;
+        this.dashboardService = dashboardService;
     }
 
     @PostMapping("/user/tickets")
@@ -70,13 +72,15 @@ public class TicketController {
         return ResponseEntity.noContent().build();
     }
 
+    // ----- Stats & reports (delegate to DashboardService) -----
+
     @GetMapping("/admin/stats")
-    public Map<String, Object> stats() {
-        return service.adminStats();
+    public DashboardDtos.AdminStats stats() {
+        return dashboardService.adminStats();
     }
 
     @GetMapping("/admin/reports")
-    public Map<String, Object> reports() {
-        return service.report();
+    public DashboardDtos.ReportData reports() {
+        return dashboardService.report();
     }
 }

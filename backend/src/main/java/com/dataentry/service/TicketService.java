@@ -6,7 +6,6 @@ import com.dataentry.repository.CustomFieldRepository;
 import com.dataentry.repository.DepartmentRepository;
 import com.dataentry.repository.SubcategoryRepository;
 import com.dataentry.repository.TicketRepository;
-import com.dataentry.repository.UserRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -16,11 +15,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.temporal.ChronoUnit;
-import java.util.*;
-
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 @Service
 public class TicketService {
@@ -29,18 +26,15 @@ public class TicketService {
     private final DepartmentRepository departmentRepository;
     private final SubcategoryRepository subcategoryRepository;
     private final CustomFieldRepository customFieldRepository;
-    private final UserRepository userRepository;
 
     public TicketService(TicketRepository ticketRepository,
                          DepartmentRepository departmentRepository,
                          SubcategoryRepository subcategoryRepository,
-                         CustomFieldRepository customFieldRepository,
-                         UserRepository userRepository) {
+                         CustomFieldRepository customFieldRepository) {
         this.ticketRepository = ticketRepository;
         this.departmentRepository = departmentRepository;
         this.subcategoryRepository = subcategoryRepository;
         this.customFieldRepository = customFieldRepository;
-        this.userRepository = userRepository;
     }
 
     @Transactional
@@ -182,85 +176,6 @@ public class TicketService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ticket not found");
         }
         ticketRepository.deleteById(id);
-    }
-
-    @Transactional(readOnly = true)
-    public Map<String, Object> adminStats() {
-        List<Ticket> all = ticketRepository.findAll();
-        long inProgress = all.stream().filter(t -> t.getStatus() == TicketStatus.IN_PROGRESS).count();
-        long review = all.stream().filter(t -> t.getStatus() == TicketStatus.REVIEW).count();
-        long completed = all.stream().filter(t -> t.getStatus() == TicketStatus.COMPLETED).count();
-        LocalDate today = LocalDate.now();
-        long completedToday = all.stream()
-                .filter(t -> t.getStatus() == TicketStatus.COMPLETED)
-                .filter(t -> t.getSubmittedAt().atZone(ZoneId.systemDefault()).toLocalDate().equals(today))
-                .count();
-
-        Map<String, Object> m = new HashMap<>();
-        m.put("totalTickets", all.size());
-        m.put("totalDepartments", departmentRepository.count());
-        m.put("activeFields", customFieldRepository.findAllByActiveTrueOrderByDisplayOrderAscIdAsc().size());
-        m.put("totalUsers", userRepository.count());
-        m.put("inProgress", inProgress);
-        m.put("review", review);
-        m.put("completed", completed);
-        m.put("completedToday", completedToday);
-        return m;
-    }
-
-    /**
-     * Reports data — task distribution by weekday + top performers.
-     */
-    @Transactional(readOnly = true)
-    public Map<String, Object> report() {
-        List<Ticket> all = ticketRepository.findAll();
-        LocalDate today = LocalDate.now();
-        LocalDate sixDaysAgo = today.minusDays(6);
-        ZoneId zone = ZoneId.systemDefault();
-
-        Map<String, Long> byDay = new LinkedHashMap<>();
-        for (int i = 0; i < 7; i++) {
-            LocalDate d = sixDaysAgo.plusDays(i);
-            byDay.put(d.toString(), 0L);
-        }
-        all.forEach(t -> {
-            LocalDate ld = t.getSubmittedAt().atZone(zone).toLocalDate();
-            if (!ld.isBefore(sixDaysAgo) && !ld.isAfter(today)) {
-                byDay.merge(ld.toString(), 1L, Long::sum);
-            }
-        });
-
-        Map<Long, Long> byUser = new HashMap<>();
-        all.stream()
-                .filter(t -> t.getStatus() == TicketStatus.COMPLETED)
-                .forEach(t -> byUser.merge(t.getSubmittedBy().getId(), 1L, Long::sum));
-
-        List<Map<String, Object>> topPerformers = byUser.entrySet().stream()
-                .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
-                .limit(5)
-                .map(e -> {
-                    User u = userRepository.findById(e.getKey()).orElse(null);
-                    Map<String, Object> row = new HashMap<>();
-                    row.put("userId", e.getKey());
-                    row.put("username", u == null ? "?" : u.getUsername());
-                    row.put("displayName", u == null ? "?" : (u.getDisplayName() != null ? u.getDisplayName() : u.getUsername()));
-                    row.put("completed", e.getValue());
-                    return row;
-                })
-                .toList();
-
-        long completedThisWeek = all.stream()
-                .filter(t -> t.getStatus() == TicketStatus.COMPLETED)
-                .filter(t -> {
-                    LocalDate ld = t.getSubmittedAt().atZone(zone).toLocalDate();
-                    return ChronoUnit.DAYS.between(ld, today) < 7;
-                }).count();
-
-        Map<String, Object> out = new HashMap<>();
-        out.put("byDay", byDay);
-        out.put("topPerformers", topPerformers);
-        out.put("completedThisWeek", completedThisWeek);
-        return out;
     }
 
     private TicketDtos.TicketPage toPage(Page<Ticket> p) {

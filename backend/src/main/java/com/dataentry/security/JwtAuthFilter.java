@@ -8,6 +8,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -21,6 +23,8 @@ import java.util.Optional;
 
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
+
+    private static final Logger log = LoggerFactory.getLogger(JwtAuthFilter.class);
 
     private final JwtService jwtService;
     private final UserRepository userRepository;
@@ -43,7 +47,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                     Optional<User> userOpt = userRepository.findByUsername(username);
                     if (userOpt.isPresent() && userOpt.get().isActive()) {
-                        User user = userOpt.get(); 
+                        User user = userOpt.get();
                         var authToken = new UsernamePasswordAuthenticationToken(
                                 user,
                                 null,
@@ -53,8 +57,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                         SecurityContextHolder.getContext().setAuthentication(authToken);
                     }
                 }
-            } catch (JwtException ignored) {
-                // Invalid token — leave context unauthenticated
+            } catch (JwtException e) {
+                // Invalid/expired token — leave context unauthenticated, but log so we can
+                // diagnose auth issues from server logs instead of guessing.
+                log.debug("Rejected JWT for {} {}: {}",
+                        request.getMethod(), request.getRequestURI(), e.getMessage());
             }
         }
         chain.doFilter(request, response);
