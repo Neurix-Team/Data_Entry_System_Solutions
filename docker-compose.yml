@@ -18,6 +18,10 @@ services:
       APP_AUTH_COOKIE_SECURE: "${APP_AUTH_COOKIE_SECURE:-true}"
       # Rolling 24h upload cap per user (bytes). 500 MB default.
       APP_UPLOADS_PER_USER_DAILY_BYTES: "${APP_UPLOADS_PER_USER_DAILY_BYTES:-524288000}"
+      # Point at the self-hosted LibreTranslate service below (no API key, no rate limit).
+      # Override with TRANSLATION_BASE_URL if you swap in a paid endpoint later.
+      TRANSLATION_BASE_URL: "${TRANSLATION_BASE_URL:-http://libretranslate:5000}"
+      TRANSLATION_API_KEY: "${TRANSLATION_API_KEY:-}"
     volumes:
       # Persist the SQLite database on the host
       - dems-data:/app/data
@@ -25,6 +29,10 @@ services:
       - "8080"
     ports:
       - "8083:8080"
+    depends_on:
+      # LibreTranslate is optional at runtime (fail-open), but declaring the dep means compose
+      # starts it in parallel so the first requests aren't racing the model download.
+      - libretranslate
     restart: unless-stopped
     labels:
       # Neurix reverse proxy → auto-SSL. Domain gets an https cert; port is the host port above.
@@ -45,6 +53,31 @@ services:
       - "neurix.proxy.domain=dataentry.neurix.uk"
       - "neurix.proxy.port=8082"
 
+  libretranslate:
+    # Self-hosted translation — no API key, no rate limits.  Only loads the two language
+    # packs we actually use (en, ar) so the image stays small and boot is fast.  Downloaded
+    # models are cached in the named volume so subsequent restarts don't re-download.
+    image: libretranslate/libretranslate:latest
+    container_name: dems-libretranslate
+    environment:
+      LT_LOAD_ONLY: "en,ar"
+      LT_DISABLE_WEB_UI: "true"
+      LT_UPDATE_MODELS: "false"
+    volumes:
+      - libretranslate-models:/home/libretranslate/.local
+    expose:
+      - "5000"
+    # Not published to the host — only the backend needs to reach it.
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5000/languages"]
+      interval: 30s
+      timeout: 5s
+      retries: 20
+      start_period: 120s
+
 volumes:
   dems-data:
+    driver: local
+  libretranslate-models:
     driver: local

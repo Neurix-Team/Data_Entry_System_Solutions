@@ -60,12 +60,15 @@ app:
     tessdata-path: /usr/share/tesseract-ocr/4.00/tessdata/
     languages: ara+eng
   translation:
-    # LibreTranslate endpoint. Public: https://libretranslate.com  (rate-limited; needs api-key for real use)
-    # Self-hosted: run `docker run -p 5001:5000 libretranslate/libretranslate` and set base-url to http://libretranslate:5000
-    base-url: ${TRANSLATION_BASE_URL:https://libretranslate.com}
+    # LibreTranslate endpoint. Docker-compose wires this to a self-hosted `libretranslate`
+    # service (no key, no rate limit). Leave blank to disable translation entirely — the
+    # bilingual columns will just mirror the original text and no external calls are made.
+    # The public https://libretranslate.com now requires a paid API key, so it's NOT the default.
+    base-url: ${TRANSLATION_BASE_URL:}
     api-key: ${TRANSLATION_API_KEY:}
     timeout-ms: 8000
-    # If translation call fails, keep the original text in both columns instead of erroring the save.
+    # If translation call fails (network / timeout / 5xx), keep the original text in both
+    # columns instead of erroring the save.
     fail-open: true
 
 logging:

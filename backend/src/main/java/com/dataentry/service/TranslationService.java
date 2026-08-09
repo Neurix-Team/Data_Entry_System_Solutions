@@ -32,35 +32,43 @@ public class TranslationService {
 
     private static final Logger log = LoggerFactory.getLogger(TranslationService.class);
 
-    private final RestClient http;
+    private final RestClient http;   // null when translation is disabled (base-url blank)
     private final ObjectMapper mapper = new ObjectMapper();
     private final String baseUrl;
     private final String apiKey;
     private final boolean failOpen;
+    private final boolean enabled;
 
     public TranslationService(
-            @Value("${app.translation.base-url:https://libretranslate.com}") String baseUrl,
+            @Value("${app.translation.base-url:}") String baseUrl,
             @Value("${app.translation.api-key:}") String apiKey,
             @Value("${app.translation.timeout-ms:8000}") int timeoutMs,
             @Value("${app.translation.fail-open:true}") boolean failOpen
     ) {
         String cleaned = baseUrl == null ? "" : baseUrl.trim().replaceAll("/+$", "");
-        // Fail fast on a misconfigured base URL rather than letting the app start with a
-        // half-broken translation pipeline that silently fails-open on every request.
-        if (cleaned.isEmpty() || !(cleaned.startsWith("http://") || cleaned.startsWith("https://"))) {
+        // Empty URL is a valid config: translation is turned off — bilingual columns will just
+        // mirror the input.  A non-empty URL must still look like http(s).
+        if (!cleaned.isEmpty() && !(cleaned.startsWith("http://") || cleaned.startsWith("https://"))) {
             throw new IllegalStateException(
                     "app.translation.base-url must be a full http(s) URL, got: '" + baseUrl + "'");
         }
         this.baseUrl = cleaned;
         this.apiKey = apiKey == null ? "" : apiKey.trim();
         this.failOpen = failOpen;
-        this.http = RestClient.builder()
-                .baseUrl(this.baseUrl)
-                .requestFactory(new org.springframework.http.client.SimpleClientHttpRequestFactory() {{
-                    setConnectTimeout((int) Duration.ofMillis(timeoutMs).toMillis());
-                    setReadTimeout((int) Duration.ofMillis(timeoutMs).toMillis());
-                }})
-                .build();
+        this.enabled = !cleaned.isEmpty();
+        if (this.enabled) {
+            this.http = RestClient.builder()
+                    .baseUrl(this.baseUrl)
+                    .requestFactory(new org.springframework.http.client.SimpleClientHttpRequestFactory() {{
+                        setConnectTimeout((int) Duration.ofMillis(timeoutMs).toMillis());
+                        setReadTimeout((int) Duration.ofMillis(timeoutMs).toMillis());
+                    }})
+                    .build();
+        } else {
+            this.http = null;
+            log.info("TranslationService disabled — bilingual columns will mirror the input. "
+                    + "Set TRANSLATION_BASE_URL to enable (e.g. http://libretranslate:5000).");
+        }
     }
 
     /**
@@ -98,6 +106,7 @@ public class TranslationService {
      */
     public String translate(String text, Lang from, Lang to) {
         if (text == null || text.isBlank() || from == to) return text;
+        if (!enabled) return text;
         try {
             ObjectNode body = mapper.createObjectNode();
             body.put("q", text);
