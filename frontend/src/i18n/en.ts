@@ -45,6 +45,7 @@ export const en = {
     username: 'Username',
     password: 'Password',
     signIn: 'Sign in',
+    signingIn: 'Signing in…',
     hint: "Contact your administrator if you don't have an account.",
     fillFields: 'Please enter your username and password.',
     failed: 'Login failed',
