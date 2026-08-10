@@ -178,6 +178,24 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
   --shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
+
+  /* Department mini-stat tints: light pastels look wrong on a dark surface, so drop them to
+     deep, low-saturation tints of the same hue.  The department colored top-strip stays as-is. */
+  --dept-mini-1: #182236;
+  --dept-mini-2: #2a230f;
+  --dept-mini-3: #2d1919;
+  --dept-mini-4: #221b33;
+  --dept-mini-5: #142a22;
+  --dept-mini-6: #2c210f;
+
+  /* Avatar bubbles: keep the color-family identity but darken the plate so light text on it
+     retains contrast; foreground tints brighten to keep the initials legible. */
+  --avatar-1-bg: #4a3a11; --avatar-1-fg: #f5c95a;
+  --avatar-2-bg: #133b2a; --avatar-2-fg: #6fdcaa;
+  --avatar-3-bg: #1a2c53; --avatar-3-fg: #8ab2f5;
+  --avatar-4-bg: #451530; --avatar-4-fg: #f79ac4;
+  --avatar-5-bg: #2c1f52; --avatar-5-fg: #b19cf5;
+  --avatar-6-bg: #451c1c; --avatar-6-fg: #f39292;
 }
 
 * { box-sizing: border-box; }
@@ -491,6 +509,17 @@ html[dir='rtl'] .side-section { text-transform: none; letter-spacing: 0; font-si
 }
 .side-link.active:hover { background: var(--brand-hover); }
 
+/* Native <button> variant of .side-link — strips default button chrome so it inherits the
+   nav-link look, and takes the full row width (used for sidebar Sign out in the footer). */
+.side-link-btn {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: start;
+}
+
 /* Topbar */
 .topbar {
   background: var(--bg-surface);
@@ -694,7 +723,7 @@ html[dir='rtl'] .stat-card-label { text-transform: none; letter-spacing: 0; font
 .stat-card-trend.up { color: var(--success); }
 .stat-card-trend.down { color: var(--danger); }
 
-/* Hero stat variants */
+/* Hero stat variants — light-mode pastels; dark overrides live under [data-theme='dark'] */
 .stat-card.hero-yellow {
   background: linear-gradient(135deg, #fef3d4 0%, #fef8e8 100%);
   border-color: var(--brand-border);
@@ -711,6 +740,17 @@ html[dir='rtl'] .stat-card-label { text-transform: none; letter-spacing: 0; font
 .stat-card.hero-amber .stat-card-label { color: rgba(255,255,255,0.85); }
 .stat-card.hero-amber .stat-card-value { color: var(--accent-deep-text); }
 .stat-card.hero-amber .stat-card-icon { background: rgba(255,255,255,0.15); color: white; }
+
+/* Dark-mode adjustments: pastel hero gradients invert to deep tints of the same hue so the
+   card still reads as an accented surface (not a bright light patch on a dark page). */
+:root[data-theme='dark'] .stat-card.hero-yellow {
+  background: linear-gradient(135deg, #3a2e12 0%, #2a2109 100%);
+  border-color: var(--brand-border);
+}
+:root[data-theme='dark'] .stat-card.hero-blue {
+  background: linear-gradient(135deg, #1a2745 0%, #131f38 100%);
+  border-color: #2d3d5f;
+}
 
 /* ============================================================
    Table
@@ -1593,13 +1633,15 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
   background: var(--accent);
   opacity: 0.85;
 }
-/* Warm accent palette — softer, muted, easier on the eyes than pure saturated tones */
-.udash-kpi[data-accent="blue"]   { --accent: #5b8def; --accent-soft: #eef3fd; }
-.udash-kpi[data-accent="green"]  { --accent: #3f9d78; --accent-soft: #e6f5ee; }
-.udash-kpi[data-accent="amber"]  { --accent: #d99a4a; --accent-soft: #fdf3e2; }
-.udash-kpi[data-accent="rose"]   { --accent: #c76a7d; --accent-soft: #fbeaef; }
-.udash-kpi[data-accent="purple"] { --accent: #8578c9; --accent-soft: #f0edf9; }
-.udash-kpi[data-accent="teal"]   { --accent: #4faaa1; --accent-soft: #e6f4f2; }
+/* Warm accent palette — softer, muted, easier on the eyes than pure saturated tones.
+   Uses color-mix so the soft chip background is a semi-transparent tint of the accent, which
+   automatically re-tints itself against light vs dark surfaces (no dark-mode override needed). */
+.udash-kpi[data-accent="blue"]   { --accent: #5b8def; --accent-soft: color-mix(in srgb, #5b8def 14%, transparent); }
+.udash-kpi[data-accent="green"]  { --accent: #3f9d78; --accent-soft: color-mix(in srgb, #3f9d78 14%, transparent); }
+.udash-kpi[data-accent="amber"]  { --accent: #d99a4a; --accent-soft: color-mix(in srgb, #d99a4a 14%, transparent); }
+.udash-kpi[data-accent="rose"]   { --accent: #c76a7d; --accent-soft: color-mix(in srgb, #c76a7d 14%, transparent); }
+.udash-kpi[data-accent="purple"] { --accent: #8578c9; --accent-soft: color-mix(in srgb, #8578c9 14%, transparent); }
+.udash-kpi[data-accent="teal"]   { --accent: #4faaa1; --accent-soft: color-mix(in srgb, #4faaa1 14%, transparent); }
 
 .udash-kpi-head {
   display: flex;
@@ -1635,6 +1677,11 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
 .udash-kpi-trend.up   { background: color-mix(in srgb, #10b981 12%, transparent); color: #059669; }
 .udash-kpi-trend.down { background: color-mix(in srgb, #f43f5e 12%, transparent); color: #e11d48; }
 .udash-kpi-trend.flat { background: color-mix(in srgb, #64748b 12%, transparent); color: #475569; }
+/* Lift the trend text on dark surfaces — the saturated darks above are hard to read against
+   deep bg-surface; brighter tints keep the same semantic hue but hit contrast targets. */
+:root[data-theme='dark'] .udash-kpi-trend.up   { color: #34d399; }
+:root[data-theme='dark'] .udash-kpi-trend.down { color: #fb7185; }
+:root[data-theme='dark'] .udash-kpi-trend.flat { color: #94a3b8; }
 
 .udash-grid-2 {
   display: grid;
@@ -1820,13 +1867,23 @@ html[dir='rtl'] .udash-recent-item:hover { transform: translateX(-4px); }
   font-size: 0.9rem;
 }
 
+/* Wider laptops: 4 KPIs squeeze awkwardly past 900px once the sidebar drawer opens.
+   Step down to a 2×2 grid at that width. */
 @media (max-width: 1100px) {
   .udash-kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .udash-grid-2, .udash-grid-2-alt { grid-template-columns: 1fr; }
 }
+/* Phones: single column so numbers keep their weight instead of shrinking to unreadable */
 @media (max-width: 600px) {
   .udash-kpi-grid { grid-template-columns: 1fr; }
-  .udash-hero { flex-direction: column; align-items: flex-start; }
+  .udash-hero {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 1.35rem 1.25rem;
+  }
+  .udash-hero-greet { font-size: 1.15rem; }
+  .udash-range-picker { align-self: stretch; }
+  .udash-range-picker button { flex: 1; }
 }
 
 /* ============================================================
@@ -1921,7 +1978,11 @@ html[dir='rtl'] .udash-recent-item:hover { transform: translateX(-4px); }
     transform: translateX(100%);
     box-shadow: -8px 0 32px -12px rgba(0, 0, 0, 0.25);
   }
-  .sidebar.open { transform: translateX(0); }
+  /* Two rules for the open state — LTR uses `.sidebar.open` (specificity 0,2,0) and RTL needs
+     its own `html[dir='rtl'] .sidebar.open` because the RTL closed-state rule above already
+     matches at 0,2,1 and would otherwise win the cascade, keeping the drawer off-screen. */
+  .sidebar.open,
+  html[dir='rtl'] .sidebar.open { transform: translateX(0); }
   .app-shell.sidebar-open .sidebar-backdrop { display: block; }
 
   .sidebar-close-btn { display: inline-flex; }
@@ -1938,6 +1999,18 @@ html[dir='rtl'] .udash-recent-item:hover { transform: translateX(-4px); }
 
   .page { padding: 1.25rem; }
   h1 { font-size: 1.5rem; }
+
+  /* Tables get horizontal scroll starting at the tablet width — the surrounding wrap
+     switches from clipping to scrolling so wide data tables don't force the whole page
+     to scroll horizontally under a narrow sidebar drawer. */
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .data { min-width: 620px; }
+
+  /* Toolbar rows wrap on tablet before they cram into a single line */
+  .toolbar { flex-wrap: wrap; }
 }
 
 /* ---------------- Phones (≤ 640px) ---------------- */
@@ -1956,14 +2029,18 @@ html[dir='rtl'] .udash-recent-item:hover { transform: translateX(-4px); }
   .card, .udash-panel, .stat-card, .dept-card, .udash-kpi { padding: 1rem; }
   .udash-hero { padding: 1.25rem 1.15rem; }
 
-  /* Tables — horizontal scroll instead of squeezing */
+  /* Tables — bleed to page edges for extra horizontal room on tight phones. Base
+     horizontal-scroll behaviour already comes from the ≤900 breakpoint above. */
   .table-wrap {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    margin: 0 -0.85rem;   /* bleed to page edges for more room */
+    margin: 0 -0.85rem;
     padding: 0 0.85rem;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
   }
-  .data { min-width: 640px; }
+  .data { min-width: 560px; }
+  /* Tighter cell padding on phones so 5-column tables don't waste space */
+  table.data th, table.data td { padding: 0.7rem 0.85rem; }
 
   /* Modals — full-width on phones */
   .modal {

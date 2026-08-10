@@ -5,7 +5,7 @@ import { useT } from '../i18n';
 import { Avatar } from './Avatar';
 import {
   IconBell, IconBuilding, IconChart, IconClose, IconDashboard, IconFolder,
-  IconMembers, IconSearch, IconSettings, IconTasks,
+  IconLogout, IconMembers, IconSearch, IconSettings, IconTasks,
 } from './Icons';
 import { PreferencesToggle } from './PreferencesToggle';
 
@@ -87,6 +87,10 @@ export function Layout() {
                 <span className="side-icon"><IconSettings /></span>
                 {t('nav.submit')}
               </NavLink>
+              <button type="button" className="side-link side-link-btn" onClick={logout}>
+                <span className="side-icon"><IconLogout /></span>
+                {t('common.signOut')}
+              </button>
             </div>
           </>
         ) : (
@@ -103,6 +107,12 @@ export function Layout() {
               <span className="side-icon"><IconFolder /></span>
               {t('nav.myTasks')}
             </NavLink>
+            <div className="sidebar-footer-links">
+              <button type="button" className="side-link side-link-btn" onClick={logout}>
+                <span className="side-icon"><IconLogout /></span>
+                {t('common.signOut')}
+              </button>
+            </div>
           </>
         )}
       </aside>
