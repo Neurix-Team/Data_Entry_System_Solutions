@@ -36,7 +36,15 @@ export function Layout() {
 
       <aside className={`sidebar${sidebarOpen ? ' open' : ''}`}>
         <div className="sidebar-brand">
-          <div className="sidebar-brand-mark" />
+          <img
+            className="sidebar-brand-img"
+            src="/neurix-mark.png"
+            alt=""
+            width={28}
+            height={28}
+            aria-hidden="true"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+          />
           <span>{t('brand')}</span>
           <button
             type="button"

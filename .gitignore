@@ -60,6 +60,9 @@ ehthumbs.db
 .claude/plans/
 .claude/logs/
 .claude/*.local.json
+.claude/skills/
+# Local design-tooling working directory (screenshots, caches)
+.impeccable/
 
 # ===== Editor backups =====
 *.swp

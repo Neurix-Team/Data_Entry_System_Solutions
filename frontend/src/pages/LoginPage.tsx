@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { extractError } from '../api/client';
+import { LoginBackground } from '../components/auth/LoginBackground';
 import { IconCheck } from '../components/Icons';
 import { PreferencesToggle } from '../components/PreferencesToggle';
 import { useAuth } from '../context/AuthContext';
@@ -21,8 +22,6 @@ export function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Redirect an already-logged-in user *after* render, not during it — calling navigate()
-  // inside the render body triggers React's "cannot update during render" warning.
   useEffect(() => {
     if (user) navigate(homeFor(user.role), { replace: true });
   }, [user, navigate]);
@@ -49,7 +48,7 @@ export function LoginPage() {
 
   const isAr = lang === 'ar';
   const headline = isAr
-    ? 'أدر عمليات إدخال البيانات بكفاءة عالية'
+    ? 'أدر عمليات إدخال البيانات بثقة'
     : 'Manage data entry with confidence';
   const tagline = isAr
     ? 'منصّة موحّدة لتنظيم فرق إدخال البيانات، تتبّع المهام، ومراقبة الأداء لحظة بلحظة.'
@@ -58,11 +57,13 @@ export function LoginPage() {
     ? ['تتبّع كل مهمة من التقديم للاعتماد', 'حقول مخصّصة يديرها المشرف', 'تقارير أداء وتحليلات مباشرة']
     : ['Track every task from submit to sign-off', 'Custom fields managed by the admin', 'Live performance reports & analytics'];
 
-  // Demo credentials are useful in local dev but leak the default admin password to anyone
-  // who lands on the login page in production.  Gate on a Vite env var (falsy by default).
   const showDemoCreds = import.meta.env.VITE_SHOW_DEMO_CREDS === 'true';
-
   const hasError = Boolean(error);
+
+  // Split the headline so its final word can be accented in cyan.
+  const words = headline.trim().split(' ');
+  const headlineHead = words.slice(0, -1).join(' ');
+  const headlineTail = words[words.length - 1];
 
   return (
     <div className="auth-shell">
@@ -71,13 +72,20 @@ export function LoginPage() {
       </div>
 
       <aside className="auth-brand-panel">
-        <div className="auth-brand-top">
-          <div className="bar" />
-          <div className="name">{t('brand')}</div>
-        </div>
+        <img
+          className="auth-brand-mark-bg"
+          src="/neurix-mark.png"
+          alt=""
+          aria-hidden="true"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+        />
+        <LoginBackground />
 
         <div className="auth-brand-content">
-          <h1 className="auth-brand-headline">{headline}</h1>
+          <h1 className="auth-brand-headline">
+            {headlineHead}{' '}
+            <span className="accent">{headlineTail}</span>
+          </h1>
           <p className="auth-brand-tagline">{tagline}</p>
 
           <ul className="auth-brand-features">
@@ -91,15 +99,20 @@ export function LoginPage() {
         </div>
 
         <div className="auth-brand-footer">
-          © {new Date().getFullYear()} DataEntry — {isAr ? 'كل الحقوق محفوظة' : 'All rights reserved'}
+          © {new Date().getFullYear()} Neurix — {isAr ? 'كل الحقوق محفوظة' : 'All rights reserved'}
         </div>
       </aside>
 
       <main className="auth-form-panel">
         <div className="auth-card">
-          <div className="brand-mark-logo">
-            <div className="brand-mark-bar" aria-hidden="true" />
-            <div className="brand-mark-name">{t('brand')}</div>
+          <div className="auth-form-logo">
+            <img
+              src="/neurix-logo.png"
+              alt="Neurix"
+              width={240}
+              height={72}
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+            />
           </div>
 
           <h1 className="auth-title">{t('auth.welcome')}</h1>

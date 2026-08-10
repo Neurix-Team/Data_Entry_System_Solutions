@@ -12,6 +12,12 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 function readInitial(): Theme {
+  // ?theme=light|dark URL override — used by headless QA and shareable preview links.
+  // Does not persist; leaves the user's stored preference untouched.
+  if (typeof window !== 'undefined') {
+    const q = new URLSearchParams(window.location.search).get('theme');
+    if (q === 'light' || q === 'dark') return q;
+  }
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored === 'light' || stored === 'dark') return stored;
   if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches) {

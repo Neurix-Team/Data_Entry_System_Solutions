@@ -1,99 +1,109 @@
 /* ============================================================
-   Design tokens — DataEntry design system (golden/amber, warm neutral)
-   Matches the Figma design: light warm greys, gold primary accent,
-   amber for prominent CTAs, soft muted backgrounds.
+   Design tokens — Neurix design system (electric blue / cyan / deep navy)
+   Palette sampled from the Neurix logo: royal blue primary, cyan accent,
+   deep navy for anchoring text and inverted surfaces.
    ============================================================ */
 :root {
-  /* Neutrals — very light warm bg, white surfaces */
-  --bg-app: #f4f5f9;
+  /* Neutrals — very light with a cool cast, white surfaces */
+  --bg-app: #f4f7fc;
   --bg-surface: #ffffff;
-  --bg-muted: #f1f2f7;
-  --bg-hover: #eef0f5;
-  --bg-sunken: #f8f9fc;
+  --bg-muted: #eef2f9;
+  --bg-hover: #e6ecf5;
+  --bg-sunken: #f7f9fd;
 
-  /* Text */
-  --text-primary: #14161f;
-  --text-secondary: #4a4e5c;
-  --text-tertiary: #7f8494;
+  /* Text — deep navy from the Neurix wordmark */
+  --text-primary: #0d1a33;
+  --text-secondary: #455270;
+  --text-tertiary: #7c869e;
   --text-inverse: #ffffff;
 
-  /* Primary golden yellow (sidebar-active, primary button) */
-  --brand: #f5b93c;
-  --brand-hover: #edad24;
-  --brand-soft: #fef3d4;
-  --brand-soft-text: #7a5a10;
-  --brand-border: #f0d590;
+  /* Primary — electric blue from the logo N mark */
+  --brand: #0f5fd1;
+  --brand-hover: #0a4db2;
+  --brand-soft: #e3efff;
+  --brand-soft-text: #0a3f9c;
+  --brand-border: #b6d0f5;
 
-  /* Deep amber for prominent "hero" stat CTA */
-  --accent-deep: #8b6a15;
-  --accent-deep-hover: #7a5c11;
+  /* Deep navy anchor — the wordmark colour; use for high-emphasis CTAs and hero surfaces */
+  --accent-deep: #0d1a33;
+  --accent-deep-hover: #1b2a4a;
   --accent-deep-text: #ffffff;
 
-  /* Status colors (matched to Figma) */
-  --status-progress: #4f86ff;
-  --status-progress-soft: #e6efff;
-  --status-progress-text: #2a5edb;
+  /* Cyan accent — the highlight/energy colour from the circuit dots */
+  --accent-cyan: #22c3d9;
+  --accent-cyan-hover: #14aec3;
+  --accent-cyan-soft: #e0f7fb;
+  --accent-cyan-soft-text: #0a6570;
 
-  --status-review: #f5b93c;
-  --status-review-soft: #fef3d4;
-  --status-review-text: #7a5a10;
+  /* Signature Neurix gradient — from primary blue through cyan (used sparingly on hero surfaces) */
+  --brand-gradient: linear-gradient(135deg, #0a3f9c 0%, #0f5fd1 45%, #22c3d9 100%);
+  --brand-gradient-soft: linear-gradient(135deg, #e3efff 0%, #e0f7fb 100%);
 
-  --status-completed: #7f8494;
-  --status-completed-soft: #ecedf1;
-  --status-completed-text: #4a4e5c;
+  /* Status colors */
+  --status-progress: #0f5fd1;
+  --status-progress-soft: #e3efff;
+  --status-progress-text: #0a3f9c;
 
-  --status-overdue: #d95757;
-  --status-overdue-soft: #fceaea;
-  --status-overdue-text: #a63838;
+  --status-review: #22c3d9;
+  --status-review-soft: #e0f7fb;
+  --status-review-text: #0a6570;
 
-  /* Success (green) */
-  --success: #3f9d78;
-  --success-soft: #e6f5ee;
-  --success-soft-text: #2b6a52;
-  --success-soft-border: #b8e0cc;
+  --status-completed: #7c869e;
+  --status-completed-soft: #eaeef6;
+  --status-completed-text: #455270;
 
-  /* Warning / info reuse */
-  --warning: #d99a4a;
-  --warning-soft: #fdf3e2;
-  --warning-soft-text: #8a5f22;
-  --danger: #d95757;
-  --danger-hover: #c74a4a;
-  --danger-soft: #fceaea;
-  --danger-soft-text: #a63838;
-  --danger-soft-border: #f0c8c8;
+  --status-overdue: #e04562;
+  --status-overdue-soft: #fde8ec;
+  --status-overdue-text: #a1233b;
 
-  --border: #e4e6ee;
-  --border-strong: #d0d4de;
+  /* Success (cool green) */
+  --success: #0e9f7c;
+  --success-soft: #dcf5ec;
+  --success-soft-text: #0a6b52;
+  --success-soft-border: #b0e0cf;
 
-  /* Department card top-border color palette — matches Figma exactly */
-  --dept-color-1: #2f6fd6;   /* blue    (Engineering) */
-  --dept-color-2: #8b6a15;   /* olive/gold (Marketing) */
-  --dept-color-3: #c94a4a;   /* red     (Operations) */
-  --dept-color-4: #7f56d9;   /* purple  */
-  --dept-color-5: #10b981;   /* green   */
-  --dept-color-6: #f59e0b;   /* amber   */
+  /* Warning / info */
+  --warning: #f0a020;
+  --warning-soft: #fdf1d9;
+  --warning-soft-text: #8a5a0e;
+  --danger: #e04562;
+  --danger-hover: #c43653;
+  --danger-soft: #fde8ec;
+  --danger-soft-text: #a1233b;
+  --danger-soft-border: #f4c4cf;
+
+  --border: #dde3ef;
+  --border-strong: #c3cadb;
+
+  /* Department card top-border color palette — cool-forward, brand-consistent */
+  --dept-color-1: #0f5fd1;   /* electric blue */
+  --dept-color-2: #22c3d9;   /* cyan          */
+  --dept-color-3: #7c56d9;   /* violet        */
+  --dept-color-4: #0e9f7c;   /* green         */
+  --dept-color-5: #e04562;   /* coral         */
+  --dept-color-6: #f0a020;   /* warm amber    */
 
   /* Soft tinted backgrounds for mini stat cards inside a department card */
-  --dept-mini-1: #edf3fd;
-  --dept-mini-2: #f8ecd6;
-  --dept-mini-3: #fbeaea;
-  --dept-mini-4: #f0ebfa;
-  --dept-mini-5: #e6f5ee;
-  --dept-mini-6: #fef1d9;
+  --dept-mini-1: #e3efff;
+  --dept-mini-2: #e0f7fb;
+  --dept-mini-3: #ece5fa;
+  --dept-mini-4: #dcf5ec;
+  --dept-mini-5: #fde8ec;
+  --dept-mini-6: #fdf1d9;
 
-  /* Avatar palette */
-  --avatar-1-bg: #fde68a;
-  --avatar-1-fg: #7a5a10;
-  --avatar-2-bg: #d1fae5;
-  --avatar-2-fg: #065f46;
-  --avatar-3-bg: #dbeafe;
-  --avatar-3-fg: #1e40af;
-  --avatar-4-bg: #fce7f3;
-  --avatar-4-fg: #9d174d;
-  --avatar-5-bg: #ede9fe;
-  --avatar-5-fg: #5b21b6;
-  --avatar-6-bg: #fee2e2;
-  --avatar-6-fg: #991b1b;
+  /* Avatar palette — cool-first, brand-aligned */
+  --avatar-1-bg: #d9e6ff;
+  --avatar-1-fg: #0a3f9c;
+  --avatar-2-bg: #d1f2f7;
+  --avatar-2-fg: #076675;
+  --avatar-3-bg: #e2dcfa;
+  --avatar-3-fg: #4a2fa8;
+  --avatar-4-bg: #d3f0e6;
+  --avatar-4-fg: #0a6b52;
+  --avatar-5-bg: #fce0e6;
+  --avatar-5-fg: #a01a35;
+  --avatar-6-bg: #fceecd;
+  --avatar-6-fg: #8a5a0e;
 
   /* Shape */
   --radius-sm: 6px;
@@ -129,73 +139,81 @@
 }
 
 :root[data-theme='dark'] {
-  --bg-app: #0e1119;
-  --bg-surface: #171a24;
-  --bg-muted: #1c2030;
-  --bg-hover: #232842;
-  --bg-sunken: #131622;
+  /* Deep navy grounds — the wordmark color extended to a full surface scale */
+  --bg-app: #060b1a;
+  --bg-surface: #0f172c;
+  --bg-muted: #141d38;
+  --bg-hover: #1c2745;
+  --bg-sunken: #0a1024;
 
-  --text-primary: #e6e8f2;
-  --text-secondary: #b2b7c8;
-  --text-tertiary: #8a90a5;
+  --text-primary: #eaf0ff;
+  --text-secondary: #a9b4d0;
+  --text-tertiary: #7c86a5;
 
-  --brand: #f5b93c;
-  --brand-hover: #f9c964;
-  --brand-soft: #3a2e12;
-  --brand-soft-text: #f5b93c;
-  --brand-border: #5a4818;
+  /* Primary lifts on dark to keep contrast against deep-navy surfaces */
+  --brand: #4b8fee;
+  --brand-hover: #6ba3f2;
+  --brand-soft: #122747;
+  --brand-soft-text: #8fbaf5;
+  --brand-border: #254777;
 
-  --accent-deep: #a37f1c;
-  --accent-deep-hover: #b58f22;
+  --accent-deep: #4b8fee;
+  --accent-deep-hover: #6ba3f2;
 
-  --status-progress: #6b9dff;
-  --status-progress-soft: #1a2745;
-  --status-progress-text: #a7c1ff;
-  --status-review: #f5b93c;
-  --status-review-soft: #3a2e12;
-  --status-review-text: #f5b93c;
-  --status-completed: #a4a9b8;
-  --status-completed-soft: #232838;
-  --status-completed-text: #b2b7c8;
-  --status-overdue: #e6797a;
-  --status-overdue-soft: #3a1e1f;
-  --status-overdue-text: #f5a5a7;
+  --accent-cyan: #4ed6e6;
+  --accent-cyan-hover: #6fe0ee;
+  --accent-cyan-soft: #0f2a35;
+  --accent-cyan-soft-text: #9ee3ec;
 
-  --success: #6fbf9a;
-  --success-soft: #1a3229;
-  --success-soft-text: #a7dbc0;
-  --success-soft-border: #285142;
+  --brand-gradient: linear-gradient(135deg, #0a3f9c 0%, #0f5fd1 45%, #22c3d9 100%);
+  --brand-gradient-soft: linear-gradient(135deg, #122747 0%, #0f2a35 100%);
 
-  --danger: #e2848a;
-  --danger-hover: #eb9298;
-  --danger-soft: #3a1f24;
-  --danger-soft-text: #f0adb1;
-  --danger-soft-border: #5c2f34;
+  --status-progress: #6ba3f2;
+  --status-progress-soft: #122747;
+  --status-progress-text: #bad4f8;
+  --status-review: #4ed6e6;
+  --status-review-soft: #0f2a35;
+  --status-review-text: #9ee3ec;
+  --status-completed: #a9b4d0;
+  --status-completed-soft: #1a2338;
+  --status-completed-text: #c8cfe0;
+  --status-overdue: #ee7a8f;
+  --status-overdue-soft: #351724;
+  --status-overdue-text: #f5aab6;
 
-  --border: #262a3a;
-  --border-strong: #363c50;
+  --success: #4ec9a4;
+  --success-soft: #0f2e26;
+  --success-soft-text: #9ee0c6;
+  --success-soft-border: #24503f;
+
+  --danger: #ee7a8f;
+  --danger-hover: #f28fa1;
+  --danger-soft: #351724;
+  --danger-soft-text: #f5aab6;
+  --danger-soft-border: #5a2434;
+
+  --border: #1e2942;
+  --border-strong: #2d3b5c;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
-  --shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
 
-  /* Department mini-stat tints: light pastels look wrong on a dark surface, so drop them to
-     deep, low-saturation tints of the same hue.  The department colored top-strip stays as-is. */
-  --dept-mini-1: #182236;
-  --dept-mini-2: #2a230f;
-  --dept-mini-3: #2d1919;
-  --dept-mini-4: #221b33;
-  --dept-mini-5: #142a22;
-  --dept-mini-6: #2c210f;
+  /* Department mini-stat tints: deep, low-saturation tints of each hue for legibility on navy. */
+  --dept-mini-1: #122747;
+  --dept-mini-2: #0f2a35;
+  --dept-mini-3: #1e1738;
+  --dept-mini-4: #0f2e26;
+  --dept-mini-5: #351724;
+  --dept-mini-6: #2e2210;
 
-  /* Avatar bubbles: keep the color-family identity but darken the plate so light text on it
-     retains contrast; foreground tints brighten to keep the initials legible. */
-  --avatar-1-bg: #4a3a11; --avatar-1-fg: #f5c95a;
-  --avatar-2-bg: #133b2a; --avatar-2-fg: #6fdcaa;
-  --avatar-3-bg: #1a2c53; --avatar-3-fg: #8ab2f5;
-  --avatar-4-bg: #451530; --avatar-4-fg: #f79ac4;
-  --avatar-5-bg: #2c1f52; --avatar-5-fg: #b19cf5;
-  --avatar-6-bg: #451c1c; --avatar-6-fg: #f39292;
+  /* Avatar bubbles keep colour identity, plate darkened, initials brightened for contrast. */
+  --avatar-1-bg: #122c55; --avatar-1-fg: #9ec1f5;
+  --avatar-2-bg: #0f3742; --avatar-2-fg: #7ee0ee;
+  --avatar-3-bg: #26195c; --avatar-3-fg: #b39cf5;
+  --avatar-4-bg: #123c30; --avatar-4-fg: #78dcb4;
+  --avatar-5-bg: #431525; --avatar-5-fg: #f5a0b1;
+  --avatar-6-bg: #3a2810; --avatar-6-fg: #f2c774;
 }
 
 * { box-sizing: border-box; }
@@ -477,6 +495,11 @@ html[dir='rtl'] .side-link:not(.active):hover { transform: none !important; }
   width: 4px; height: 24px; border-radius: 2px;
   background: var(--brand);
 }
+.sidebar-brand-img {
+  width: 28px; height: 28px;
+  display: block;
+  flex-shrink: 0;
+}
 .side-section {
   font-size: var(--fs-xs);
   text-transform: uppercase;
@@ -504,10 +527,11 @@ html[dir='rtl'] .side-section { text-transform: none; letter-spacing: 0; font-si
 .side-link:hover { background: var(--bg-hover); color: var(--text-primary); text-decoration: none; }
 .side-link.active {
   background: var(--brand);
-  color: var(--text-primary);
+  color: #ffffff;
   font-weight: 600;
+  box-shadow: 0 4px 12px -6px rgba(15, 95, 209, 0.5);
 }
-.side-link.active:hover { background: var(--brand-hover); }
+.side-link.active:hover { background: var(--brand-hover); color: #ffffff; }
 
 /* Native <button> variant of .side-link — strips default button chrome so it inherits the
    nav-link look, and takes the full row width (used for sidebar Sign out in the footer). */
@@ -725,31 +749,36 @@ html[dir='rtl'] .stat-card-label { text-transform: none; letter-spacing: 0; font
 
 /* Hero stat variants — light-mode pastels; dark overrides live under [data-theme='dark'] */
 .stat-card.hero-yellow {
-  background: linear-gradient(135deg, #fef3d4 0%, #fef8e8 100%);
-  border-color: var(--brand-border);
+  /* Legacy class kept for compat — now a soft cyan wash on light, cyan-navy on dark */
+  background: linear-gradient(135deg, var(--accent-cyan-soft) 0%, #eefbfd 100%);
+  border-color: var(--accent-cyan-soft);
 }
 .stat-card.hero-blue {
-  background: linear-gradient(135deg, #e6efff 0%, #f2f7ff 100%);
-  border-color: #c3d7ff;
+  background: linear-gradient(135deg, var(--brand-soft) 0%, #f0f6ff 100%);
+  border-color: var(--brand-border);
 }
 .stat-card.hero-amber {
-  background: var(--accent-deep);
+  /* Prominent hero card — the signature Neurix gradient */
+  background: var(--brand-gradient);
   color: var(--accent-deep-text);
-  border-color: var(--accent-deep);
+  border-color: transparent;
+  box-shadow: 0 8px 24px -12px rgba(15, 95, 209, 0.45);
 }
 .stat-card.hero-amber .stat-card-label { color: rgba(255,255,255,0.85); }
 .stat-card.hero-amber .stat-card-value { color: var(--accent-deep-text); }
-.stat-card.hero-amber .stat-card-icon { background: rgba(255,255,255,0.15); color: white; }
+.stat-card.hero-amber .stat-card-icon { background: rgba(255,255,255,0.18); color: white; }
 
-/* Dark-mode adjustments: pastel hero gradients invert to deep tints of the same hue so the
-   card still reads as an accented surface (not a bright light patch on a dark page). */
+/* Dark-mode adjustments: pastel washes invert to deep tints of the same hue. */
 :root[data-theme='dark'] .stat-card.hero-yellow {
-  background: linear-gradient(135deg, #3a2e12 0%, #2a2109 100%);
-  border-color: var(--brand-border);
+  background: linear-gradient(135deg, #0f2a35 0%, #0a1e28 100%);
+  border-color: #1a3945;
 }
 :root[data-theme='dark'] .stat-card.hero-blue {
-  background: linear-gradient(135deg, #1a2745 0%, #131f38 100%);
-  border-color: #2d3d5f;
+  background: linear-gradient(135deg, #122747 0%, #0d1e3d 100%);
+  border-color: #1e3255;
+}
+:root[data-theme='dark'] .stat-card.hero-amber {
+  box-shadow: 0 8px 24px -12px rgba(15, 95, 209, 0.65);
 }
 
 /* ============================================================
@@ -1003,6 +1032,9 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
 
 /* ============================================================
    Auth page — split screen (brand panel + form)
+   Left: deep-navy brand stage with the animated data-flow canvas behind
+   the full Neurix logo, headline, tagline, and features.
+   Right: light form panel with the dark-wordmark logo on top.
    ============================================================ */
 .auth-shell {
   min-height: 100vh;
@@ -1010,51 +1042,62 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
   grid-template-columns: 1.05fr 1fr;
   background: var(--bg-surface);
 }
-@media (max-width: 900px) {
-  .auth-shell { grid-template-columns: 1fr; }
-  .auth-brand-panel { display: none; }
-}
 
-/* Left: golden brand panel */
 .auth-brand-panel {
   position: relative;
   padding: 2.75rem;
   background:
-    radial-gradient(circle at 15% 20%, rgba(255,255,255,0.15) 0%, transparent 45%),
-    radial-gradient(circle at 85% 75%, rgba(139,106,21,0.35) 0%, transparent 55%),
-    linear-gradient(135deg, #f5b93c 0%, #d99a1e 55%, #8b6a15 100%);
-  color: #1a1207;
+    radial-gradient(circle at 12% 18%, rgba(34, 195, 217, 0.22) 0%, transparent 42%),
+    radial-gradient(circle at 88% 82%, rgba(15, 95, 209, 0.35) 0%, transparent 55%),
+    linear-gradient(135deg, #061029 0%, #0a1a3d 50%, #0d2557 100%);
+  color: #eaf0ff;
   display: flex; flex-direction: column;
   overflow: hidden;
+  isolation: isolate;
 }
-.auth-brand-panel::before,
+/* Ghosted mark — the big N icon sitting behind the animation, centered.
+   It's a background element, so it's blurred and low-opacity; the network
+   canvas draws over it, and the text content sits over both. */
+.auth-brand-mark-bg {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(78%, 640px);
+  height: auto;
+  z-index: 0;
+  opacity: 0.14;
+  filter: blur(3px) saturate(120%);
+  pointer-events: none;
+  user-select: none;
+  animation: neurixMarkPulse 8s ease-in-out infinite;
+}
+/* Particle-network canvas — above the blurred mark, below the text */
+.auth-brand-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 1;
+}
+/* Soft vignette so text content always has enough contrast over the animation */
 .auth-brand-panel::after {
   content: '';
   position: absolute;
-  border-radius: 50%;
-  filter: blur(60px);
+  inset: 0;
+  z-index: 2;
+  background:
+    radial-gradient(ellipse at 30% 60%, rgba(6, 16, 41, 0) 0%, rgba(6, 16, 41, 0.35) 75%);
   pointer-events: none;
 }
-.auth-brand-panel::before {
-  top: -80px; inset-inline-start: -80px;
-  width: 340px; height: 340px;
-  background: rgba(255,255,255,0.28);
-}
-.auth-brand-panel::after {
-  bottom: -100px; inset-inline-end: -80px;
-  width: 400px; height: 400px;
-  background: rgba(74,55,10,0.5);
-}
-.auth-brand-top {
-  display: flex; align-items: center; gap: 0.65rem;
-  position: relative; z-index: 2;
-}
-.auth-brand-top .bar { width: 5px; height: 30px; border-radius: 3px; background: #1a1207; }
-.auth-brand-top .name { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; color: #1a1207; }
+
 .auth-brand-content {
   margin-top: auto;
-  position: relative; z-index: 2;
+  position: relative; z-index: 3;
   max-width: 480px;
+  animation: neurixFadeUp 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) 0.1s both;
 }
 .auth-brand-headline {
   font-size: 2.75rem;
@@ -1062,49 +1105,64 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
   font-weight: 800;
   letter-spacing: -0.03em;
   margin-bottom: 1rem;
-  color: #1a1207;
+  color: #ffffff;
+  text-wrap: balance;
 }
+.auth-brand-headline .accent { color: #4ed6e6; }
 .auth-brand-tagline {
   font-size: 1.05rem;
-  line-height: 1.6;
-  color: rgba(26,18,7,0.75);
+  line-height: 1.65;
+  color: rgba(234, 240, 255, 0.72);
   margin: 0;
-  max-width: 420px;
+  max-width: 440px;
 }
 .auth-brand-features {
-  display: flex; flex-direction: column; gap: 0.65rem;
-  /* Replaces the inline list reset this element used to carry — without these the
-     browser's default ul padding-inline-start (40px) and bottom margin come back. */
+  display: flex; flex-direction: column; gap: 0.75rem;
   list-style: none;
   padding: 0;
   margin: 2rem 0 0;
 }
 .auth-brand-features li {
-  display: flex; align-items: center; gap: 0.65rem;
+  display: flex; align-items: center; gap: 0.75rem;
   font-size: 0.95rem;
-  color: #1a1207;
+  color: rgba(234, 240, 255, 0.9);
   font-weight: 500;
+  opacity: 0;
+  animation: neurixFadeInLeft 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
+html[dir='rtl'] .auth-brand-features li { animation-name: neurixFadeInRight; }
+.auth-brand-features li:nth-child(1) { animation-delay: 0.35s; }
+.auth-brand-features li:nth-child(2) { animation-delay: 0.45s; }
+.auth-brand-features li:nth-child(3) { animation-delay: 0.55s; }
 .auth-brand-features li .dot {
-  width: 22px; height: 22px; border-radius: 50%;
-  background: rgba(26,18,7,0.9);
-  color: #f5b93c;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: linear-gradient(135deg, #0f5fd1, #22c3d9);
+  color: #ffffff;
   display: inline-flex; align-items: center; justify-content: center;
   flex-shrink: 0;
+  box-shadow: 0 0 0 4px rgba(34, 195, 217, 0.10);
 }
 .auth-brand-footer {
-  position: relative; z-index: 2;
+  position: relative; z-index: 3;
   margin-top: 2.5rem;
-  color: rgba(26,18,7,0.7);
+  color: rgba(234, 240, 255, 0.55);
   font-size: var(--fs-xs);
+  animation: neurixFadeUp 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) 0.6s both;
 }
 
-/* Right: form side */
+/* ---------- Form side ---------- */
 .auth-form-panel {
   display: flex; align-items: center; justify-content: center;
   padding: 2.5rem 1.5rem;
   background: var(--bg-surface);
   position: relative;
+}
+.auth-corner {
+  position: absolute;
+  top: 1rem;
+  inset-inline-end: 1rem;
+  display: flex; gap: 0.4rem;
+  z-index: 5;
 }
 .auth-card {
   background: transparent;
@@ -1113,7 +1171,26 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
   box-shadow: none;
   max-width: 400px;
   width: 100%;
+  animation: neurixFadeUp 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
+.auth-form-logo {
+  margin-bottom: 2.25rem;
+  display: flex; justify-content: center;
+}
+.auth-form-logo img {
+  height: 72px;
+  width: auto;
+  max-width: 100%;
+  display: block;
+}
+@media (max-width: 480px) {
+  .auth-form-logo img { height: 60px; }
+}
+/* On dark theme the light form panel is dark too — swap to the light-wordmark logo */
+:root[data-theme='dark'] .auth-form-logo img {
+  content: url('/neurix-logo-light.png');
+}
+
 .auth-title {
   text-align: start;
   margin-bottom: 0.35rem;
@@ -1126,20 +1203,37 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
   margin-bottom: 2rem;
   font-size: var(--fs-sm);
 }
-.auth-corner {
-  position: absolute;
-  top: 1rem;
-  inset-inline-end: 1rem;
-  display: flex; gap: 0.4rem;
-  z-index: 5;
+.auth-card .input:focus {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 3px var(--accent-cyan-soft);
 }
-.brand-mark-logo {
-  display: flex; align-items: center; gap: 0.5rem;
-  justify-content: flex-start;
-  margin-bottom: 2rem;
+.auth-submit.btn-primary {
+  background: var(--accent-deep);
+  color: #ffffff;
+  border-color: transparent;
+  transition:
+    background 0.18s ease, transform 0.15s ease, box-shadow 0.2s ease;
 }
-.brand-mark-bar { width: 5px; height: 32px; border-radius: 3px; background: var(--brand); }
-.brand-mark-name { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
+.auth-submit.btn-primary:hover:not(:disabled) {
+  background: #12234a;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px -12px rgba(15, 95, 209, 0.55);
+}
+.auth-submit.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 4px 12px -6px rgba(15, 95, 209, 0.45);
+}
+.auth-submit.btn-primary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-cyan-soft), 0 0 0 5px var(--accent-cyan);
+}
+.auth-submit .spinner {
+  width: 18px; height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: neurixSpin 0.7s linear infinite;
+}
 
 /* Small credential-hint card at the bottom of the form */
 .demo-creds {
@@ -1162,8 +1256,6 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
 }
 .demo-creds-row { margin-top: 4px; }
 
-/* Auth submit button: full-width, keeps a stable height while the spinner replaces the
-   label so the layout doesn't jump between idle and loading states. */
 .auth-submit {
   width: 100%;
   margin-top: 0.5rem;
@@ -1177,6 +1269,40 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
   text-align: center;
   margin-top: 1.5rem;
   margin-bottom: 0;
+}
+
+/* ---------- Keyframes ---------- */
+@keyframes neurixFadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes neurixFadeInLeft {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes neurixFadeInRight {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes neurixSpin { to { transform: rotate(360deg); } }
+@keyframes neurixMarkPulse {
+  0%, 100% { opacity: 0.13; transform: translate(-50%, -50%) scale(1); }
+  50%      { opacity: 0.17; transform: translate(-50%, -50%) scale(1.02); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-brand-mark-bg,
+  .auth-brand-content,
+  .auth-brand-features li,
+  .auth-brand-footer,
+  .auth-card { animation: none !important; }
+  .auth-brand-canvas { display: none; }
+}
+
+/* Mobile: collapse to a single column and hide the brand stage — the form is the whole page. */
+@media (max-width: 900px) {
+  .auth-shell { grid-template-columns: 1fr; }
+  .auth-brand-panel { display: none; }
 }
 
 /* Screen-reader-only text — used for a11y labels that must not appear visually
@@ -1556,13 +1682,13 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
   align-items: center;
   padding: 1.75rem 2rem;
   margin-bottom: 1.25rem;
-  /* Warm amber gradient — matches the golden brand tone of the app */
+  /* Neurix signature gradient — deep navy through electric blue to cyan */
   background:
-    radial-gradient(circle at 100% 0%, rgba(255, 255, 255, 0.18), transparent 55%),
-    linear-gradient(135deg, #8b6a15 0%, #b8892a 45%, #f5b93c 100%);
+    radial-gradient(circle at 100% 0%, rgba(255, 255, 255, 0.16), transparent 55%),
+    linear-gradient(135deg, #0a1a3d 0%, #0f5fd1 55%, #22c3d9 100%);
   color: #fff;
   border-radius: var(--radius-lg);
-  box-shadow: 0 8px 24px -12px rgba(139, 106, 21, 0.35);
+  box-shadow: 0 8px 24px -12px rgba(15, 95, 209, 0.45);
   flex-wrap: wrap;
   gap: 1rem;
 }
@@ -1601,7 +1727,7 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
 }
 .udash-range-picker button.active {
   background: #fff;
-  color: #8b6a15;
+  color: #0a3f9c;
 }
 
 .udash-kpi-grid {
@@ -1636,12 +1762,12 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
 /* Warm accent palette — softer, muted, easier on the eyes than pure saturated tones.
    Uses color-mix so the soft chip background is a semi-transparent tint of the accent, which
    automatically re-tints itself against light vs dark surfaces (no dark-mode override needed). */
-.udash-kpi[data-accent="blue"]   { --accent: #5b8def; --accent-soft: color-mix(in srgb, #5b8def 14%, transparent); }
-.udash-kpi[data-accent="green"]  { --accent: #3f9d78; --accent-soft: color-mix(in srgb, #3f9d78 14%, transparent); }
-.udash-kpi[data-accent="amber"]  { --accent: #d99a4a; --accent-soft: color-mix(in srgb, #d99a4a 14%, transparent); }
-.udash-kpi[data-accent="rose"]   { --accent: #c76a7d; --accent-soft: color-mix(in srgb, #c76a7d 14%, transparent); }
-.udash-kpi[data-accent="purple"] { --accent: #8578c9; --accent-soft: color-mix(in srgb, #8578c9 14%, transparent); }
-.udash-kpi[data-accent="teal"]   { --accent: #4faaa1; --accent-soft: color-mix(in srgb, #4faaa1 14%, transparent); }
+.udash-kpi[data-accent="blue"]   { --accent: #0f5fd1; --accent-soft: color-mix(in srgb, #0f5fd1 12%, transparent); }
+.udash-kpi[data-accent="green"]  { --accent: #0e9f7c; --accent-soft: color-mix(in srgb, #0e9f7c 12%, transparent); }
+.udash-kpi[data-accent="amber"]  { --accent: #f0a020; --accent-soft: color-mix(in srgb, #f0a020 12%, transparent); }
+.udash-kpi[data-accent="rose"]   { --accent: #e04562; --accent-soft: color-mix(in srgb, #e04562 12%, transparent); }
+.udash-kpi[data-accent="purple"] { --accent: #7c56d9; --accent-soft: color-mix(in srgb, #7c56d9 12%, transparent); }
+.udash-kpi[data-accent="teal"]   { --accent: #22c3d9; --accent-soft: color-mix(in srgb, #22c3d9 12%, transparent); }
 
 .udash-kpi-head {
   display: flex;
@@ -1723,17 +1849,17 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
 .udash-trend-bar {
   flex: 1;
   min-width: 4px;
-  background: linear-gradient(180deg, #d9a04a 0%, #f0c876 100%);
+  background: linear-gradient(180deg, #2a7ce0 0%, #7fc8f0 100%);
   border-radius: 4px 4px 0 0;
   position: relative;
   transition: filter 0.18s ease;
   cursor: pointer;
 }
 .udash-trend-bar:hover {
-  filter: brightness(0.92) saturate(1.05);
+  filter: brightness(1.05) saturate(1.05);
 }
 .udash-trend-bar.today {
-  background: linear-gradient(180deg, #8b6a15 0%, #d99a4a 100%);
+  background: linear-gradient(180deg, #0a3f9c 0%, #22c3d9 100%);
 }
 .udash-trend-bar.zero {
   background: color-mix(in srgb, var(--border) 60%, transparent);
@@ -1819,7 +1945,7 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
 }
 .udash-breakdown-fill {
   height: 100%;
-  background: linear-gradient(90deg, #d99a4a 0%, #f5b93c 100%);
+  background: linear-gradient(90deg, #0f5fd1 0%, #22c3d9 100%);
   border-radius: 999px;
   transition: width 0.5s ease;
 }
@@ -1840,7 +1966,7 @@ html[dir='rtl'] .udash-recent-item:hover { transform: translateX(-4px); }
 .udash-recent-mark {
   width: 40px; height: 40px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #8b6a15, #d99a4a);
+  background: linear-gradient(135deg, #0a3f9c, #22c3d9);
   color: #fff;
   display: flex;
   align-items: center;
