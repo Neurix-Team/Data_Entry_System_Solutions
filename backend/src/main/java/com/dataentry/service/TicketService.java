@@ -69,6 +69,7 @@ public class TicketService {
                 req.websiteName(), req.websiteLink()
         );
         applyCustomValues(ticket, sub, req.customValues());
+        applyResources(ticket, req.resources());
         return toDto(ticketRepository.save(ticket));
     }
 
@@ -86,9 +87,36 @@ public class TicketService {
                     article.websiteName(), article.websiteLink()
             );
             applyCustomValues(ticket, sub, req.customValues());
+            applyResources(ticket, article.resources());
             saved.add(toDto(ticketRepository.save(ticket)));
         }
         return new TicketDtos.BulkCreateResponse(saved.size(), saved);
+    }
+
+    private void applyResources(Ticket ticket, List<TicketDtos.ResourceRequest> resources) {
+        if (resources == null || resources.isEmpty()) return;
+        int order = 0;
+        for (TicketDtos.ResourceRequest r : resources) {
+            String url = r.url() == null ? "" : r.url().trim();
+            if (url.isEmpty()) continue;
+            validateUrl(url);
+            String name = r.name() == null ? "" : r.name().trim();
+            TicketResource res = TicketResource.builder()
+                    .ticket(ticket)
+                    .name(name)
+                    .url(url)
+                    .displayOrder(order++)
+                    .build();
+            if (!name.isBlank()) {
+                TranslationService.Bilingual nameBi = translator.toBoth(name);
+                res.setNameEn(nameBi.en());
+                res.setNameAr(nameBi.ar());
+            } else {
+                res.setNameEn(name);
+                res.setNameAr(name);
+            }
+            ticket.getResources().add(res);
+        }
     }
 
     private Project loadOptionalProject(Long id) {
@@ -276,6 +304,24 @@ public class TicketService {
                             v.getValueAr()
                     );
                 }).toList();
+        List<TicketDtos.ResourceResponse> resources = t.getResources().stream()
+                .map(r -> new TicketDtos.ResourceResponse(
+                        r.getId(),
+                        localizer.pick(r.getNameEn(), r.getNameAr(), r.getName()),
+                        r.getNameEn(),
+                        r.getNameAr(),
+                        r.getUrl(),
+                        r.getDisplayOrder()
+                )).toList();
+        List<TicketDtos.DocumentResponse> documents = t.getDocuments().stream()
+                .map(d -> new TicketDtos.DocumentResponse(
+                        d.getId(),
+                        d.getName(),
+                        d.getOriginalFilename(),
+                        d.getContentType(),
+                        d.getSizeBytes(),
+                        d.getUploadedAt()
+                )).toList();
         return new TicketDtos.TicketResponse(
                 t.getId(),
                 dept.getId(),
@@ -305,7 +351,9 @@ public class TicketService {
                 localizer.pick(u.getDisplayNameEn(), u.getDisplayNameAr(), u.getDisplayName()),
                 u.getDisplayNameEn(),
                 u.getDisplayNameAr(),
-                customs
+                customs,
+                resources,
+                documents
         );
     }
 

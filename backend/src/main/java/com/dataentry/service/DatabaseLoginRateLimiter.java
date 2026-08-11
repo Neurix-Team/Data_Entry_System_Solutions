@@ -9,15 +9,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * DB-backed limiter — all backend instances share the same counters via the
- * {@code login_attempts} table.  Use this when running behind a load balancer with more than
- * one backend replica; the in-memory version would let attackers rotate hits across nodes.
- *
- * Every tryAcquire call reads a COUNT within the window, then INSERTs one row on allow.  On the
- * happy path the whole thing is one small transaction.  Old rows are pruned opportunistically
- * (about every 500 calls) so the table doesn't grow forever.
- */
+
 public class DatabaseLoginRateLimiter implements LoginRateLimiter {
 
     private final LoginAttemptRepository repository;

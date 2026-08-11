@@ -21,7 +21,32 @@ public class TicketDtos {
             @NotBlank @Size(max = 200000) String content,
             @Size(max = 250) String websiteName,
             @Size(max = 500) String websiteLink,
+            @Valid List<ResourceRequest> resources,
             Map<String, String> customValues
+    ) {}
+
+    public record ResourceResponse(
+            Long id,
+            String name,
+            String nameEn,
+            String nameAr,
+            String url,
+            int displayOrder
+    ) {}
+
+    public record DocumentResponse(
+            Long id,
+            String name,
+            String originalFilename,
+            String contentType,
+            long sizeBytes,
+            Instant uploadedAt
+    ) {}
+
+    /** A single (name, url) resource attached to an article. */
+    public record ResourceRequest(
+            @Size(max = 250) String name,
+            @NotBlank @Size(max = 500) String url
     ) {}
 
     /** A single article within a bulk submission. */
@@ -29,7 +54,8 @@ public class TicketDtos {
             @NotBlank @Size(max = 500) String title,
             @NotBlank @Size(max = 200000) String content,
             @Size(max = 250) String websiteName,
-            @Size(max = 500) String websiteLink
+            @Size(max = 500) String websiteLink,
+            @Valid List<ResourceRequest> resources
     ) {}
 
     /** Bulk-create request: shared metadata + N articles, each becoming its own Ticket. */
@@ -87,7 +113,9 @@ public class TicketDtos {
             String submittedByDisplayName,
             String submittedByDisplayNameEn,
             String submittedByDisplayNameAr,
-            List<CustomValueResponse> customValues
+            List<CustomValueResponse> customValues,
+            List<ResourceResponse> resources,
+            List<DocumentResponse> documents
     ) {}
 
     public record BulkCreateResponse(

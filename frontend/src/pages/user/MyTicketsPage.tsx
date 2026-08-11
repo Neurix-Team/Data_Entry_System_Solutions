@@ -132,9 +132,44 @@ export function MyTicketsPage() {
             )}
             <Detail label={t('ticket.submittedAt')} value={new Date(selected.submittedAt).toLocaleString(lang === 'ar' ? 'ar-EG' : undefined)} />
             {selected.title && <Detail label={t('ticket.titleLabel')} value={selected.title} />}
-            {selected.websiteName && <Detail label={t('ticket.website')} value={selected.websiteName} />}
-            {selected.websiteLink && (
-              <Detail label={t('ticket.link')} value={<a href={selected.websiteLink} target="_blank" rel="noreferrer">{selected.websiteLink}</a>} />
+            {selected.resources && selected.resources.length > 0 ? (
+              <Detail
+                label={t('ticket.resources')}
+                value={
+                  <ul className="inline-list-flush">
+                    {selected.resources.map((r) => (
+                      <li key={r.id}>
+                        {r.name && <span>{r.name}: </span>}
+                        <a href={r.url} target="_blank" rel="noreferrer" dir="ltr">{r.url}</a>
+                      </li>
+                    ))}
+                  </ul>
+                }
+              />
+            ) : (
+              <>
+                {selected.websiteName && <Detail label={t('ticket.website')} value={selected.websiteName} />}
+                {selected.websiteLink && (
+                  <Detail label={t('ticket.link')} value={<a href={selected.websiteLink} target="_blank" rel="noreferrer">{selected.websiteLink}</a>} />
+                )}
+              </>
+            )}
+            {selected.documents && selected.documents.length > 0 && (
+              <Detail
+                label={t('ticket.documents')}
+                value={
+                  <ul className="inline-list-flush">
+                    {selected.documents.map((d) => (
+                      <li key={d.id}>
+                        <a href={ticketsApi.documentDownloadUrl(selected.id, d.id)} target="_blank" rel="noreferrer">
+                          {d.name || d.originalFilename}
+                        </a>
+                        <span className="muted small"> · {formatBytes(d.sizeBytes)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                }
+              />
             )}
             {selected.customValues.map((cv) => (
               <Detail key={cv.fieldId} label={cv.label} value={cv.value || <span className="muted">—</span>} />
@@ -160,4 +195,10 @@ function Detail({ label, value }: { label: string; value: React.ReactNode }) {
       <div>{value}</div>
     </div>
   );
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }

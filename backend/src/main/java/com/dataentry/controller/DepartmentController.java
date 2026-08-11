@@ -1,9 +1,13 @@
 package com.dataentry.controller;
 
 import com.dataentry.dto.DepartmentDtos;
+import com.dataentry.model.Role;
+import com.dataentry.model.User;
+import com.dataentry.repository.ProjectRepository;
 import com.dataentry.service.DepartmentService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -13,9 +17,11 @@ import java.util.List;
 public class DepartmentController {
 
     private final DepartmentService service;
+    private final ProjectRepository projectRepository;
 
-    public DepartmentController(DepartmentService service) {
+    public DepartmentController(DepartmentService service, ProjectRepository projectRepository) {
         this.service = service;
+        this.projectRepository = projectRepository;
     }
 
     // Admin: full list including inactive
@@ -43,9 +49,31 @@ public class DepartmentController {
         return ResponseEntity.noContent().build();
     }
 
-    // Any authenticated user: only active departments for use in the form
+    // Any authenticated user: only active departments for use in the form.
+    // Cascading filters:
+    //   - projectId given          → only departments of that project (scoped to member for USER)
+    //   - USER with no projectId   → union of departments of every project the user is a member of
+    //   - ADMIN with no projectId  → all active departments
     @GetMapping("/departments")
-    public List<DepartmentDtos.DepartmentResponse> userList() {
-        return service.listActive();
+    public List<DepartmentDtos.DepartmentResponse> userList(
+            @RequestParam(required = false) Long projectId,
+            @AuthenticationPrincipal User current) {
+        boolean isAdmin = current != null && current.getRole() == Role.ADMIN;
+        if (projectId != null) {
+            if (!isAdmin && !isMemberOf(current, projectId)) {
+                return List.of();
+            }
+            return service.listActiveByProject(projectId);
+        }
+        if (isAdmin) return service.listActive();
+        List<Long> memberProjectIds = projectRepository.findAllByMemberId(current.getId())
+                .stream().map(p -> p.getId()).toList();
+        return service.listActiveByProjects(memberProjectIds);
+    }
+
+    private boolean isMemberOf(User user, Long projectId) {
+        if (user == null) return false;
+        return projectRepository.findAllByMemberId(user.getId()).stream()
+                .anyMatch(p -> p.getId().equals(projectId));
     }
 }

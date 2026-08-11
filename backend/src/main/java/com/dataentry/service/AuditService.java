@@ -8,12 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
-/**
- * Thin wrapper around {@link AuditLogRepository}: pulls the acting user out of the security
- * context so callers don't have to plumb the principal into every service call.  Log calls
- * are best-effort — a persistence failure is logged and swallowed rather than rolling back the
- * business action that just succeeded.
- */
+ 
 @Service
 public class AuditService {
 

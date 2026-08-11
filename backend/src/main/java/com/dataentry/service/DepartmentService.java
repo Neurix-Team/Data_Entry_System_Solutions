@@ -40,6 +40,19 @@ public class DepartmentService {
         return repository.findAllByActiveTrueOrderByNameAsc().stream().map(this::toDto).toList();
     }
 
+    /** Active departments belonging to a specific project. */
+    public List<DepartmentDtos.DepartmentResponse> listActiveByProject(Long projectId) {
+        return repository.findAllByActiveTrueAndProjectIdOrderByNameAsc(projectId)
+                .stream().map(this::toDto).toList();
+    }
+
+    /** Active departments belonging to any of the given projects. Empty input → empty result. */
+    public List<DepartmentDtos.DepartmentResponse> listActiveByProjects(java.util.Collection<Long> projectIds) {
+        if (projectIds == null || projectIds.isEmpty()) return List.of();
+        return repository.findAllByActiveTrueAndProjectIdInOrderByNameAsc(projectIds)
+                .stream().map(this::toDto).toList();
+    }
+
     @Transactional
     public DepartmentDtos.DepartmentResponse create(DepartmentDtos.UpsertDepartmentRequest req) {
         String raw = req.name().trim();

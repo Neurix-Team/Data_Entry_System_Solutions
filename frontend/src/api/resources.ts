@@ -18,6 +18,7 @@ import type {
   Subcategory,
   SubcategoryStats,
   Ticket,
+  TicketDocument,
   TicketPage,
   TicketStatus,
   UserActivity,
@@ -41,7 +42,11 @@ export const usersApi = {
 // Departments
 export const departmentsApi = {
   adminList: () => api.get<Department[]>('/admin/departments').then(r => r.data),
-  userList: () => api.get<Department[]>('/departments').then(r => r.data),
+  /** projectId → only departments in that project (cascading dropdown in submit form). */
+  userList: (projectId?: number | null) =>
+    api.get<Department[]>('/departments', {
+      params: projectId ? { projectId } : {},
+    }).then(r => r.data),
   create: (name: string, active = true) =>
     api.post<Department>('/admin/departments', { name, active }).then(r => r.data),
   update: (id: number, payload: { name: string; active?: boolean }) =>
@@ -112,6 +117,20 @@ export const ticketsApi = {
     api.patch<Ticket>(`/admin/tickets/${id}/status`, { status }).then(r => r.data),
   stats: () => api.get<AdminStats>('/admin/stats').then(r => r.data),
   reports: () => api.get<ReportData>('/admin/reports').then(r => r.data),
+
+  // Attachments (per-ticket file uploads)
+  uploadDocument: (ticketId: number, name: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('name', name);
+    return api.post<TicketDocument>(`/tickets/${ticketId}/documents`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then(r => r.data);
+  },
+  documentDownloadUrl: (ticketId: number, docId: number) =>
+    `/api/tickets/${ticketId}/documents/${docId}`,
+  removeDocument: (ticketId: number, docId: number) =>
+    api.delete(`/tickets/${ticketId}/documents/${docId}`).then(() => undefined),
 };
 
 // Dashboard

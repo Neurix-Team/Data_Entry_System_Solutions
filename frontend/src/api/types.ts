@@ -114,6 +114,13 @@ export interface Ticket {
   submittedByDisplayNameEn?: string | null;
   submittedByDisplayNameAr?: string | null;
   customValues: CustomValue[];
+  resources?: TicketResource[];
+  documents?: TicketDocument[];
+}
+
+export interface ResourceInput {
+  name?: string;
+  url: string;
 }
 
 export interface ArticleInput {
@@ -121,6 +128,25 @@ export interface ArticleInput {
   content: string;
   websiteName?: string;
   websiteLink?: string;
+  resources?: ResourceInput[];
+}
+
+export interface TicketResource {
+  id: number;
+  name: string | null;
+  nameEn?: string | null;
+  nameAr?: string | null;
+  url: string;
+  displayOrder: number;
+}
+
+export interface TicketDocument {
+  id: number;
+  name: string;
+  originalFilename: string;
+  contentType: string | null;
+  sizeBytes: number;
+  uploadedAt: string;
 }
 
 export interface BulkCreateResponse {

@@ -16,12 +16,21 @@ import type {
   Department,
   ExtractedPdf,
   Project,
+  ResourceInput,
   Subcategory,
 } from '../../api/types';
 import { IconPlus } from '../../components/Icons';
 import { useT } from '../../i18n';
 import { AiCheckDialog, type AiResult } from './submit/AiCheckDialog';
-import { ArticleCard, articleErrorKey, type ArticleRow } from './submit/ArticleCard';
+import {
+  ArticleCard,
+  articleErrorKey,
+  documentErrorKey,
+  resourceErrorKey,
+  type ArticleRow,
+  type DocumentRow,
+  type ResourceRow,
+} from './submit/ArticleCard';
 import { CustomFieldsSection } from './submit/CustomFieldsSection';
 import { DocumentUploadDialog } from './submit/DocumentUploadDialog';
 import { useArticles } from './submit/useArticles';
@@ -68,7 +77,13 @@ export function SubmitTicketPage() {
   // -- form state --
   const [core, setCore] = useState<CoreForm>(initialCore);
   const [customValues, setCustomValues] = useState<Record<string, string>>({});
-  const { articles, add: addArticle, remove: removeArticle, update: updateArticle, reset: resetArticles } = useArticles();
+  const {
+    articles,
+    add: addArticle, remove: removeArticle, update: updateArticle,
+    addResource, removeResource, updateResource,
+    addDocument, removeDocument, updateDocument,
+    reset: resetArticles,
+  } = useArticles();
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -82,7 +97,7 @@ export function SubmitTicketPage() {
   const [aiResult, setAiResult] = useState<AiResult | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
 
-  // -- document upload dialog --
+  // -- document extract dialog (legacy — extracts text into an article) --
   const [docOpen, setDocOpen] = useState(false);
   const [docTargetId, setDocTargetId] = useState<number | null>(null);
   const [docLoading, setDocLoading] = useState(false);
@@ -98,11 +113,20 @@ export function SubmitTicketPage() {
   }, []);
 
   useEffect(() => {
-    departmentsApi.userList()
+    const pid = core.projectId ? Number(core.projectId) : undefined;
+    departmentsApi.userList(pid)
       .then(setDepartments)
       .catch((e) => setLoadError(extractError(e)))
       .finally(() => setLoading(false));
-  }, []);
+  }, [core.projectId]);
+
+  // Reset department & downstream state whenever the project scope changes.
+  useEffect(() => {
+    setCore((c) => (c.departmentId || c.subcategoryId ? { ...c, departmentId: '', subcategoryId: '' } : c));
+    setSubcategories([]);
+    setFields([]);
+    setCustomValues({});
+  }, [core.projectId]);
 
   // Fetch subcategories whenever department changes
   useEffect(() => {
@@ -169,9 +193,14 @@ export function SubmitTicketPage() {
     for (const a of articles) {
       if (!a.title.trim()) errs[articleErrorKey(a.id, 'title')] = t('user.submit.errTitle');
       if (!a.content.trim()) errs[articleErrorKey(a.id, 'content')] = t('user.submit.errContent');
-      if (a.websiteLink.trim() && !isValidUrl(a.websiteLink.trim())) {
-        errs[articleErrorKey(a.id, 'websiteLink')] = t('user.submit.errUrlInvalid');
+      for (const r of a.resources) {
+        const link = r.link.trim();
+        if (link && !isValidUrl(link)) {
+          errs[resourceErrorKey(a.id, r.id, 'link')] = t('user.submit.errUrlInvalid');
+        }
       }
+      // documents: a row with a name but no file, or a file with no name, is fine to submit
+      // (we upload whatever has a file; the name defaults to the filename).
     }
 
     setErrors(errs);
@@ -179,6 +208,36 @@ export function SubmitTicketPage() {
   }
 
   // ---- submit ----
+
+  function buildResources(row: ArticleRow): ResourceInput[] {
+    return row.resources
+      .map((r) => ({ name: r.name.trim() || undefined, url: r.link.trim() }))
+      .filter((r) => r.url.length > 0);
+  }
+
+  function pickPrimaryResource(row: ArticleRow): { name?: string; url?: string } {
+    const first = row.resources.find((r) => r.link.trim().length > 0);
+    return {
+      name: first?.name.trim() || undefined,
+      url: first?.link.trim() || undefined,
+    };
+  }
+
+  async function uploadArticleDocuments(ticketId: number, docs: DocumentRow[]): Promise<{ ok: number; failed: string[] }> {
+    let ok = 0;
+    const failed: string[] = [];
+    for (const d of docs) {
+      if (!d.file) continue;
+      const name = d.name.trim() || d.file.name;
+      try {
+        await ticketsApi.uploadDocument(ticketId, name, d.file);
+        ok += 1;
+      } catch {
+        failed.push(name);
+      }
+    }
+    return { ok, failed };
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -193,12 +252,16 @@ export function SubmitTicketPage() {
         trimmedCustom[k] = (v ?? '').trim();
       });
 
-      const payloadArticles: ArticleInput[] = articles.map((a) => ({
-        title: a.title.trim(),
-        content: a.content.trim(),
-        websiteName: a.websiteName.trim() || undefined,
-        websiteLink: a.websiteLink.trim() || undefined,
-      }));
+      const payloadArticles: ArticleInput[] = articles.map((a) => {
+        const primary = pickPrimaryResource(a);
+        return {
+          title: a.title.trim(),
+          content: a.content.trim(),
+          websiteName: primary.name,
+          websiteLink: primary.url,
+          resources: buildResources(a),
+        };
+      });
 
       const res = await ticketsApi.submitBulk({
         departmentId: Number(core.departmentId),
@@ -207,9 +270,27 @@ export function SubmitTicketPage() {
         articles: payloadArticles,
         customValues: trimmedCustom,
       });
+
+      // Upload documents per article, aligned by index with the returned tickets.
+      let uploaded = 0;
+      const allFailed: string[] = [];
+      for (let i = 0; i < res.tickets.length && i < articles.length; i++) {
+        const ticket = res.tickets[i];
+        const docs = articles[i].documents;
+        const outcome = await uploadArticleDocuments(ticket.id, docs);
+        uploaded += outcome.ok;
+        allFailed.push(...outcome.failed);
+      }
+
       const msg = t('user.submit.bulkSuccess', { count: res.created });
       setSuccess(msg);
       toast.success(msg);
+      if (uploaded > 0) {
+        toast.success(t('user.submit.documentUploadedCount', { count: uploaded }));
+      }
+      for (const name of allFailed) {
+        toast.error(t('user.submit.documentUploadFailed', { name }));
+      }
       resetArticles();
       setErrors({});
     } catch (err) {
@@ -315,12 +396,31 @@ export function SubmitTicketPage() {
             </div>
             <div className="field field-grow">
               <label className="field-label">
+                {lang === 'ar' ? 'المشروع' : 'Project'}
+              </label>
+              <select
+                className="select"
+                value={core.projectId}
+                onChange={(e) => setCore({ ...core, projectId: e.target.value })}
+                disabled={projects.length === 0}
+              >
+                <option value="">
+                  {lang === 'ar' ? 'بدون مشروع (اختياري)' : 'No project (optional)'}
+                </option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field field-grow">
+              <label className="field-label">
                 {t('user.submit.department')} <span className="req">*</span>
               </label>
               <select
                 className={`select ${errors.departmentId ? 'has-error' : ''}`}
                 value={core.departmentId}
                 onChange={(e) => setCore({ ...core, departmentId: e.target.value })}
+                disabled={departments.length === 0}
               >
                 <option value="">{t('user.submit.chooseDepartment')}</option>
                 {departments.map((d) => (
@@ -345,24 +445,6 @@ export function SubmitTicketPage() {
                 ))}
               </select>
               {errors.subcategoryId && <span className="field-error">{errors.subcategoryId}</span>}
-            </div>
-            <div className="field field-grow">
-              <label className="field-label">
-                {lang === 'ar' ? 'المشروع' : 'Project'}
-              </label>
-              <select
-                className="select"
-                value={core.projectId}
-                onChange={(e) => setCore({ ...core, projectId: e.target.value })}
-                disabled={projects.length === 0}
-              >
-                <option value="">
-                  {lang === 'ar' ? 'بدون مشروع (اختياري)' : 'No project (optional)'}
-                </option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
             </div>
           </div>
 
@@ -399,6 +481,12 @@ export function SubmitTicketPage() {
               onRemove={() => removeArticle(a.id)}
               onUploadDoc={() => openDocModalFor(a.id)}
               onAiCheck={() => openAiCheck(a.id)}
+              onAddResource={() => addResource(a.id)}
+              onRemoveResource={(rid: number) => removeResource(a.id, rid)}
+              onUpdateResource={(rid: number, patch: Partial<ResourceRow>) => updateResource(a.id, rid, patch)}
+              onAddDocument={() => addDocument(a.id)}
+              onRemoveDocument={(did: number) => removeDocument(a.id, did)}
+              onUpdateDocument={(did: number, patch: Partial<DocumentRow>) => updateDocument(a.id, did, patch)}
             />
           ))}
 

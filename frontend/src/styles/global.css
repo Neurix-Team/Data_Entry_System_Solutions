@@ -2422,6 +2422,16 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
 .textarea-md { min-height: 160px; }
 .textarea-lg { min-height: 220px; }
 
+/* Grouped repeatable rows (resources, documents) inside an article card. */
+.field-group {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
 .form-section-heading {
   margin: 1.25rem 0 0.5rem;
   font-weight: 600;

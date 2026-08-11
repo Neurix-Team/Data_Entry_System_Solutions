@@ -52,6 +52,13 @@ public class ProjectService {
         return repository.findAllByOrderByCreatedAtDesc().stream().map(this::toDto).toList();
     }
 
+    /** Only the projects a specific user is a member of. Returns [] for null userId. */
+    @Transactional(readOnly = true)
+    public List<ProjectDtos.ProjectResponse> listForMember(Long userId) {
+        if (userId == null) return List.of();
+        return repository.findAllByMemberId(userId).stream().map(this::toDto).toList();
+    }
+
     @Transactional
     public ProjectDtos.ProjectResponse create(ProjectDtos.UpsertProjectRequest req) {
         List<Department> depts = loadDepartments(effectiveDepartmentIds(req));
