@@ -120,10 +120,43 @@ export function AdminUsersPage() {
     }
   }
 
+  const isAr = lang === 'ar';
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
   async function onDelete(u: AdminUser) {
     if (!confirm(t('common.confirmDelete', { name: u.username }))) return;
-    try { await usersApi.remove(u.id); refresh(); }
-    catch (e) { alert(extractError(e)); }
+    try {
+      await usersApi.remove(u.id);
+      toast.success(isAr ? 'تم حذف المستخدم' : 'User deleted');
+      refresh();
+    } catch (e) {
+      toast.error(extractError(e));
+    }
+  }
+
+  function toggleUserSelected(id: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function onBulkDeleteUsers() {
+    const ids = Array.from(selected).filter((id) => id !== current?.id);
+    if (ids.length === 0) return;
+    if (!confirm(isAr ? `تأكيد حذف ${ids.length} مستخدم؟` : `Delete ${ids.length} user${ids.length === 1 ? '' : 's'}?`)) return;
+    setBulkDeleting(true);
+    let ok = 0; let fail = 0;
+    for (const id of ids) {
+      try { await usersApi.remove(id); ok++; } catch { fail++; }
+    }
+    setBulkDeleting(false);
+    if (fail === 0) toast.success(isAr ? `تم حذف ${ok} مستخدم` : `Deleted ${ok} user${ok === 1 ? '' : 's'}`);
+    else toast.warning(isAr ? `تم حذف ${ok}، فشل ${fail}` : `Deleted ${ok}, ${fail} failed`);
+    setSelected(new Set());
+    refresh();
   }
 
   const tasksByUser = (userId: number) => tickets.filter(x => x.submittedById === userId).length;
@@ -167,10 +200,36 @@ export function AdminUsersPage() {
         </div>
       </div>
 
+      {selected.size > 0 && (
+        <div className="bulk-action-bar">
+          <label className="bulk-action-select-all">
+            {isAr ? `${selected.size} مختار` : `${selected.size} selected`}
+          </label>
+          <button className="btn btn-danger btn-sm" onClick={onBulkDeleteUsers} disabled={bulkDeleting}>
+            {bulkDeleting ? (isAr ? 'جارٍ الحذف…' : 'Deleting…') : (isAr ? `حذف المختار (${selected.size})` : `Delete selected (${selected.size})`)}
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setSelected(new Set())}>
+            {isAr ? 'إلغاء التحديد' : 'Clear'}
+          </button>
+        </div>
+      )}
+
       <div className="table-wrap">
         <table className="data">
           <thead>
             <tr>
+              <th className="row-check">
+                <input
+                  type="checkbox"
+                  checked={selected.size > 0 && selected.size === users.filter(u => u.id !== current?.id).length}
+                  onChange={() => {
+                    const others = users.filter(u => u.id !== current?.id).map(u => u.id);
+                    if (selected.size === others.length) setSelected(new Set());
+                    else setSelected(new Set(others));
+                  }}
+                  aria-label={isAr ? 'تحديد الكل' : 'Select all'}
+                />
+              </th>
               <th>{t('admin.users.colDisplayName')}</th>
               <th>{t('admin.users.colEmail')}</th>
               <th>{t('admin.users.colRole')}</th>
@@ -182,11 +241,21 @@ export function AdminUsersPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="empty-state">{t('common.loading')}</td></tr>
+              <tr><td colSpan={8} className="empty-state">{t('common.loading')}</td></tr>
             ) : users.length === 0 ? (
-              <tr><td colSpan={7} className="empty-state">{t('admin.users.empty')}</td></tr>
+              <tr><td colSpan={8} className="empty-state">{t('admin.users.empty')}</td></tr>
             ) : users.map((u) => (
               <tr key={u.id}>
+                <td className="row-check">
+                  {u.id !== current?.id && (
+                    <input
+                      type="checkbox"
+                      checked={selected.has(u.id)}
+                      onChange={() => toggleUserSelected(u.id)}
+                      aria-label={isAr ? 'تحديد' : 'Select'}
+                    />
+                  )}
+                </td>
                 <td>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <Avatar name={u.displayName || u.username} src={avatarUrl(u.id, u.avatarUpdatedAt)} />

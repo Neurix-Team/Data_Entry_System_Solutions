@@ -4,6 +4,7 @@ import { departmentsApi, fieldsApi, subcategoriesApi } from '../../api/resources
 import type { CustomField, Department, FieldType, Subcategory } from '../../api/types';
 import { IconFolder } from '../../components/Icons';
 import { Modal } from '../../components/Modal';
+import { useToast } from '../../components/toast/ToastContext';
 import { useT } from '../../i18n';
 
 interface FormState {
@@ -36,7 +37,11 @@ function slugify(s: string): string {
 }
 
 export function AdminFieldsPage() {
-  const { t } = useT();
+  const { t, lang } = useT();
+  const toast = useToast();
+  const isAr = lang === 'ar';
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [items, setItems] = useState<CustomField[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
@@ -167,8 +172,37 @@ export function AdminFieldsPage() {
 
   async function onDelete(f: CustomField) {
     if (!confirm(t('admin.fields.confirmDelete', { name: f.label }))) return;
-    try { await fieldsApi.remove(f.id); refresh(); }
-    catch (e) { alert(extractError(e)); }
+    try {
+      await fieldsApi.remove(f.id);
+      toast.success(isAr ? 'تم حذف الحقل' : 'Field deleted');
+      refresh();
+    } catch (e) {
+      toast.error(extractError(e));
+    }
+  }
+
+  function toggleFieldSelected(id: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function onBulkDeleteFields() {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    if (!confirm(isAr ? `تأكيد حذف ${ids.length} حقل؟` : `Delete ${ids.length} field${ids.length === 1 ? '' : 's'}?`)) return;
+    setBulkDeleting(true);
+    let ok = 0; let fail = 0;
+    for (const id of ids) {
+      try { await fieldsApi.remove(id); ok++; } catch { fail++; }
+    }
+    setBulkDeleting(false);
+    if (fail === 0) toast.success(isAr ? `تم حذف ${ok} حقل` : `Deleted ${ok}`);
+    else toast.warning(isAr ? `تم حذف ${ok}، فشل ${fail}` : `Deleted ${ok}, ${fail} failed`);
+    setSelected(new Set());
+    refresh();
   }
 
   const noFilterActive = filterDept === '' && filterSub === '';
@@ -254,6 +288,20 @@ export function AdminFieldsPage() {
         </select>
       </div>
 
+      {selected.size > 0 && (
+        <div className="bulk-action-bar">
+          <label className="bulk-action-select-all">
+            {isAr ? `${selected.size} مختار` : `${selected.size} selected`}
+          </label>
+          <button className="btn btn-danger btn-sm" onClick={onBulkDeleteFields} disabled={bulkDeleting}>
+            {bulkDeleting ? (isAr ? 'جارٍ الحذف…' : 'Deleting…') : (isAr ? `حذف المختار (${selected.size})` : `Delete selected (${selected.size})`)}
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setSelected(new Set())}>
+            {isAr ? 'إلغاء التحديد' : 'Clear'}
+          </button>
+        </div>
+      )}
+
       {showEmptyHero ? (
         <div className="empty-hero">
           <div className="empty-hero-icon">📝</div>
@@ -268,6 +316,17 @@ export function AdminFieldsPage() {
         <table className="data">
           <thead>
             <tr>
+              <th className="row-check">
+                <input
+                  type="checkbox"
+                  checked={selected.size > 0 && selected.size === items.length}
+                  onChange={() => {
+                    if (selected.size === items.length) setSelected(new Set());
+                    else setSelected(new Set(items.map(i => i.id)));
+                  }}
+                  aria-label={isAr ? 'تحديد الكل' : 'Select all'}
+                />
+              </th>
               <th style={{ width: 60 }}>{t('admin.fields.colOrder')}</th>
               <th>{t('admin.fields.colLabel')}</th>
               <th>{t('admin.fields.colKey')}</th>
@@ -280,11 +339,19 @@ export function AdminFieldsPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} className="empty-state">{t('common.loading')}</td></tr>
+              <tr><td colSpan={9} className="empty-state">{t('common.loading')}</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={8} className="empty-state">{t('admin.fields.empty')}</td></tr>
+              <tr><td colSpan={9} className="empty-state">{t('admin.fields.empty')}</td></tr>
             ) : items.map((f) => (
               <tr key={f.id}>
+                <td className="row-check">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(f.id)}
+                    onChange={() => toggleFieldSelected(f.id)}
+                    aria-label={isAr ? 'تحديد' : 'Select'}
+                  />
+                </td>
                 <td className="muted">{f.displayOrder}</td>
                 <td style={{ fontWeight: 500 }}>{f.label}</td>
                 <td><code className="mono small">{f.fieldKey}</code></td>

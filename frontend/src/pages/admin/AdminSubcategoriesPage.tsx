@@ -2,8 +2,10 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { extractError } from '../../api/client';
 import { departmentsApi, subcategoriesApi } from '../../api/resources';
 import type { Department, Subcategory } from '../../api/types';
+import { BulkAddModal } from '../../components/BulkAddModal';
 import { IconFolder } from '../../components/Icons';
 import { Modal } from '../../components/Modal';
+import { useToast } from '../../components/toast/ToastContext';
 import { useT } from '../../i18n';
 
 interface FormState {
@@ -16,16 +18,21 @@ interface FormState {
 const empty: FormState = { departmentId: '', name: '', active: true };
 
 export function AdminSubcategoriesPage() {
-  const { t } = useT();
+  const { t, lang } = useT();
+  const toast = useToast();
+  const isAr = lang === 'ar';
   const [departments, setDepartments] = useState<Department[]>([]);
   const [items, setItems] = useState<Subcategory[]>([]);
   const [filterDept, setFilterDept] = useState<number | ''>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [form, setForm] = useState<FormState>(empty);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   async function refresh() {
     setLoading(true);
@@ -37,6 +44,7 @@ export function AdminSubcategoriesPage() {
       ]);
       setDepartments(dLoad);
       setItems(sLoad);
+      setSelected(new Set());
     } catch (e) {
       setError(extractError(e));
     } finally {
@@ -71,17 +79,21 @@ export function AdminSubcategoriesPage() {
           name,
           active: form.active,
         });
+        toast.success(isAr ? 'تم تحديث التصنيف' : 'Subcategory updated');
       } else {
         await subcategoriesApi.create({
           departmentId: form.departmentId as number,
           name,
           active: form.active,
         });
+        toast.success(isAr ? 'تم إضافة التصنيف 🎉' : 'Subcategory added 🎉');
       }
       setModalOpen(false);
       await refresh();
     } catch (err) {
-      setFormError(extractError(err));
+      const msg = extractError(err);
+      setFormError(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -91,10 +103,37 @@ export function AdminSubcategoriesPage() {
     if (!confirm(t('common.confirmDelete', { name: s.name }))) return;
     try {
       await subcategoriesApi.remove(s.id);
+      toast.success(isAr ? 'تم حذف التصنيف' : 'Subcategory deleted');
       refresh();
     } catch (e) {
-      alert(extractError(e));
+      toast.error(extractError(e));
     }
+  }
+
+  function toggleSelected(id: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function onBulkDelete() {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    if (!confirm(isAr
+      ? `تأكيد حذف ${ids.length} تصنيف؟`
+      : `Delete ${ids.length} subcategor${ids.length === 1 ? 'y' : 'ies'}?`
+    )) return;
+    setBulkDeleting(true);
+    let ok = 0; let fail = 0;
+    for (const id of ids) {
+      try { await subcategoriesApi.remove(id); ok++; } catch { fail++; }
+    }
+    setBulkDeleting(false);
+    if (fail === 0) toast.success(isAr ? `تم حذف ${ok} تصنيف` : `Deleted ${ok}`);
+    else toast.warning(isAr ? `تم حذف ${ok}، فشل ${fail}` : `Deleted ${ok}, ${fail} failed`);
+    refresh();
   }
 
   const grouped = useMemo(() => {
@@ -115,12 +154,31 @@ export function AdminSubcategoriesPage() {
           <h1>{t('admin.subcategories.title')}</h1>
           <p className="subtitle">{t('admin.subcategories.subtitle')}</p>
         </div>
-        <button className="btn btn-primary" onClick={openCreate}>
+        <button
+          className="btn btn-primary"
+          onClick={() => setBulkOpen(true)}
+          disabled={filterDept === ''}
+          title={filterDept === '' ? (isAr ? 'اختار قسم أولاً من الفلتر' : 'Pick a department in the filter first') : ''}
+        >
           <IconFolder size={16} /> {t('admin.subcategories.newBtn')}
         </button>
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
+
+      {selected.size > 0 && (
+        <div className="bulk-action-bar">
+          <label className="bulk-action-select-all">
+            {isAr ? `${selected.size} مختار` : `${selected.size} selected`}
+          </label>
+          <button className="btn btn-danger btn-sm" onClick={onBulkDelete} disabled={bulkDeleting}>
+            {bulkDeleting ? (isAr ? 'جارٍ الحذف…' : 'Deleting…') : (isAr ? `حذف المختار (${selected.size})` : `Delete selected (${selected.size})`)}
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setSelected(new Set())}>
+            {isAr ? 'إلغاء التحديد' : 'Clear'}
+          </button>
+        </div>
+      )}
 
       <div className="card" style={{ padding: '0.75rem 1rem', marginBottom: '1rem', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <label className="field-label" style={{ margin: 0 }}>{t('admin.subcategories.filterDept')}</label>
@@ -149,7 +207,14 @@ export function AdminSubcategoriesPage() {
               {group.items.map((s, idx) => {
                 const color = (((gi * 3 + idx) % 6) + 1);
                 return (
-                  <div key={s.id} className="dept-card" data-color={color}>
+                  <div key={s.id} className={`dept-card${selected.has(s.id) ? ' is-selected' : ''}`} data-color={color}>
+                    <label className="dept-card-check">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(s.id)}
+                        onChange={() => toggleSelected(s.id)}
+                      />
+                    </label>
                     <div className="dept-card-head">
                       <div className="dept-card-name">{s.name}</div>
                       <span className={`badge ${s.active ? 'badge-active' : 'badge-inactive'}`}>
@@ -231,6 +296,26 @@ export function AdminSubcategoriesPage() {
           </div>
         </form>
       </Modal>
+
+      <BulkAddModal
+        open={bulkOpen}
+        title={isAr ? 'إضافة تصنيفات دفعة واحدة' : 'Add subcategories in bulk'}
+        placeholder={isAr ? 'تصنيف أ\nتصنيف ب\nتصنيف ج' : 'Type A\nType B\nType C'}
+        hint={isAr
+          ? `كل التصنيفات هتتضاف تحت القسم المختار في الفلتر أعلى الصفحة.`
+          : `All will be added under the department picked in the filter above.`}
+        onClose={() => setBulkOpen(false)}
+        onCreateEach={async (name) => {
+          if (filterDept === '') throw new Error('No department picked');
+          await subcategoriesApi.create({ departmentId: filterDept as number, name, active: true });
+        }}
+        onDone={(res) => {
+          setBulkOpen(false);
+          if (res.failed === 0) toast.success(isAr ? `تم إضافة ${res.created} تصنيف 🎉` : `Added ${res.created} 🎉`);
+          else toast.warning(isAr ? `تم إضافة ${res.created}، فشل ${res.failed}` : `Added ${res.created}, ${res.failed} failed`);
+          refresh();
+        }}
+      />
     </div>
   );
 }

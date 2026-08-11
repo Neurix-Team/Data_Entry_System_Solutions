@@ -6,6 +6,7 @@ import { Avatar } from '../../components/Avatar';
 import { IconAlert, IconCheck, IconClock, IconPlus } from '../../components/Icons';
 import { Modal } from '../../components/Modal';
 import { StatusPill } from '../../components/StatusPill';
+import { useToast } from '../../components/toast/ToastContext';
 import { useT } from '../../i18n';
 
 interface Filters {
@@ -20,6 +21,10 @@ const emptyFilters: Filters = { q: '', departmentId: '', status: '', from: '', t
 
 export function AdminTicketsPage() {
   const { t, lang } = useT();
+  const toast = useToast();
+  const isAr = lang === 'ar';
+  const [bulkSel, setBulkSel] = useState<Set<number>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [data, setData] = useState<TicketPage | null>(null);
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [page, setPage] = useState(0);
@@ -78,13 +83,41 @@ export function AdminTicketsPage() {
     try {
       const updated = await ticketsApi.updateStatus(tk.id, next);
       setData((d) => d ? { ...d, items: d.items.map(x => x.id === tk.id ? updated : x) } : d);
-    } catch (e) { alert(extractError(e)); }
+      toast.success(isAr ? 'تم تحديث الحالة' : 'Status updated');
+    } catch (e) { toast.error(extractError(e)); }
   }
 
   async function onDelete(tk: Ticket) {
     if (!confirm(t('common.confirmDelete', { name: `#${tk.id}` }))) return;
-    try { await ticketsApi.remove(tk.id); refresh(); }
-    catch (e) { alert(extractError(e)); }
+    try {
+      await ticketsApi.remove(tk.id);
+      toast.success(isAr ? 'تم حذف التذكرة' : 'Ticket deleted');
+      refresh();
+    } catch (e) { toast.error(extractError(e)); }
+  }
+
+  function toggleTicketSelected(id: number) {
+    setBulkSel((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function onBulkDeleteTickets() {
+    const ids = Array.from(bulkSel);
+    if (ids.length === 0) return;
+    if (!confirm(isAr ? `تأكيد حذف ${ids.length} تذكرة؟` : `Delete ${ids.length} ticket${ids.length === 1 ? '' : 's'}?`)) return;
+    setBulkDeleting(true);
+    let ok = 0; let fail = 0;
+    for (const id of ids) {
+      try { await ticketsApi.remove(id); ok++; } catch { fail++; }
+    }
+    setBulkDeleting(false);
+    if (fail === 0) toast.success(isAr ? `تم حذف ${ok} تذكرة` : `Deleted ${ok}`);
+    else toast.warning(isAr ? `تم حذف ${ok}، فشل ${fail}` : `Deleted ${ok}, ${fail} failed`);
+    setBulkSel(new Set());
+    refresh();
   }
 
   const hasFilters = filters.q || filters.departmentId || filters.status || filters.from || filters.to;
@@ -190,10 +223,35 @@ export function AdminTicketsPage() {
         )}
       </div>
 
+      {bulkSel.size > 0 && (
+        <div className="bulk-action-bar">
+          <label className="bulk-action-select-all">
+            {isAr ? `${bulkSel.size} مختار` : `${bulkSel.size} selected`}
+          </label>
+          <button className="btn btn-danger btn-sm" onClick={onBulkDeleteTickets} disabled={bulkDeleting}>
+            {bulkDeleting ? (isAr ? 'جارٍ الحذف…' : 'Deleting…') : (isAr ? `حذف المختار (${bulkSel.size})` : `Delete selected (${bulkSel.size})`)}
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setBulkSel(new Set())}>
+            {isAr ? 'إلغاء التحديد' : 'Clear'}
+          </button>
+        </div>
+      )}
+
       <div className="table-wrap">
         <table className="data">
           <thead>
             <tr>
+              <th className="row-check">
+                <input
+                  type="checkbox"
+                  checked={bulkSel.size > 0 && bulkSel.size === filtered.length}
+                  onChange={() => {
+                    if (bulkSel.size === filtered.length) setBulkSel(new Set());
+                    else setBulkSel(new Set(filtered.map(t => t.id)));
+                  }}
+                  aria-label={isAr ? 'تحديد الكل' : 'Select all'}
+                />
+              </th>
               <th>{t('admin.tickets.colContent')}</th>
               <th>{t('admin.tickets.colSubmittedBy')}</th>
               <th>{t('admin.tickets.colDepartment')}</th>
@@ -205,13 +263,21 @@ export function AdminTicketsPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="empty-state">{t('common.loading')}</td></tr>
+              <tr><td colSpan={8} className="empty-state">{t('common.loading')}</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={7} className="empty-state">
+              <tr><td colSpan={8} className="empty-state">
                 {hasFilters ? t('admin.tickets.noMatches') : t('admin.tickets.empty')}
               </td></tr>
             ) : filtered.map((tk) => (
               <tr key={tk.id}>
+                <td className="row-check">
+                  <input
+                    type="checkbox"
+                    checked={bulkSel.has(tk.id)}
+                    onChange={() => toggleTicketSelected(tk.id)}
+                    aria-label={isAr ? 'تحديد' : 'Select'}
+                  />
+                </td>
                 <td>
                   <div style={{ fontWeight: 500 }}>
                     #{tk.id} · {tk.title || tk.websiteName || t('admin.tickets.untitled')}

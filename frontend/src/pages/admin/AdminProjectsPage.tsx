@@ -7,6 +7,7 @@ import type {
 import { Avatar } from '../../components/Avatar';
 import { IconFilter, IconFolder, IconSearch } from '../../components/Icons';
 import { Modal } from '../../components/Modal';
+import { useToast } from '../../components/toast/ToastContext';
 import { useT } from '../../i18n';
 
 interface FormState {
@@ -34,6 +35,10 @@ function hashHue(name: string): number {
 
 export function AdminProjectsPage() {
   const { t, lang } = useT();
+  const toast = useToast();
+  const isAr = lang === 'ar';
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [items, setItems] = useState<Project[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -139,8 +144,37 @@ export function AdminProjectsPage() {
 
   async function onDelete(p: Project) {
     if (!confirm(t('common.confirmDelete', { name: p.name }))) return;
-    try { await projectsApi.remove(p.id); refresh(); }
-    catch (e) { alert(extractError(e)); }
+    try {
+      await projectsApi.remove(p.id);
+      toast.success(isAr ? 'تم حذف المشروع' : 'Project deleted');
+      refresh();
+    } catch (e) {
+      toast.error(extractError(e));
+    }
+  }
+
+  function toggleProjSelected(id: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function onBulkDeleteProjects() {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    if (!confirm(isAr ? `تأكيد حذف ${ids.length} مشروع؟` : `Delete ${ids.length} project${ids.length === 1 ? '' : 's'}?`)) return;
+    setBulkDeleting(true);
+    let ok = 0; let fail = 0;
+    for (const id of ids) {
+      try { await projectsApi.remove(id); ok++; } catch { fail++; }
+    }
+    setBulkDeleting(false);
+    if (fail === 0) toast.success(isAr ? `تم حذف ${ok} مشروع` : `Deleted ${ok}`);
+    else toast.warning(isAr ? `تم حذف ${ok}، فشل ${fail}` : `Deleted ${ok}, ${fail} failed`);
+    setSelected(new Set());
+    refresh();
   }
 
   function toggleMember(id: number) {
@@ -217,10 +251,35 @@ export function AdminProjectsPage() {
         </div>
       </div>
 
+      {selected.size > 0 && (
+        <div className="bulk-action-bar">
+          <label className="bulk-action-select-all">
+            {isAr ? `${selected.size} مختار` : `${selected.size} selected`}
+          </label>
+          <button className="btn btn-danger btn-sm" onClick={onBulkDeleteProjects} disabled={bulkDeleting}>
+            {bulkDeleting ? (isAr ? 'جارٍ الحذف…' : 'Deleting…') : (isAr ? `حذف المختار (${selected.size})` : `Delete selected (${selected.size})`)}
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setSelected(new Set())}>
+            {isAr ? 'إلغاء التحديد' : 'Clear'}
+          </button>
+        </div>
+      )}
+
       <div className="table-wrap">
         <table className="data">
           <thead>
             <tr>
+              <th className="row-check">
+                <input
+                  type="checkbox"
+                  checked={selected.size > 0 && selected.size === filtered.length}
+                  onChange={() => {
+                    if (selected.size === filtered.length) setSelected(new Set());
+                    else setSelected(new Set(filtered.map(p => p.id)));
+                  }}
+                  aria-label={isAr ? 'تحديد الكل' : 'Select all'}
+                />
+              </th>
               <th>{t('projects.colName')}</th>
               <th>{t('projects.colDepartment')}</th>
               <th>{t('projects.colMembers')}</th>
@@ -232,9 +291,9 @@ export function AdminProjectsPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="empty-state">{t('common.loading')}</td></tr>
+              <tr><td colSpan={8} className="empty-state">{t('common.loading')}</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={7} className="empty-state">{t('projects.empty')}</td></tr>
+              <tr><td colSpan={8} className="empty-state">{t('projects.empty')}</td></tr>
             ) : filtered.map((p) => {
               const hue = hashHue(p.name);
               const initial = p.name.trim().charAt(0).toUpperCase();
@@ -244,6 +303,14 @@ export function AdminProjectsPage() {
                 overdue ? 'amber' : 'blue';
               return (
                 <tr key={p.id}>
+                  <td className="row-check">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(p.id)}
+                      onChange={() => toggleProjSelected(p.id)}
+                      aria-label={isAr ? 'تحديد' : 'Select'}
+                    />
+                  </td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                       <span className="project-avatar" data-hue={hue}>{initial}</span>
