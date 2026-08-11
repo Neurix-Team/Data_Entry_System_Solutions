@@ -2,18 +2,44 @@ import { useEffect, useMemo, useState } from 'react';
 import { extractError } from '../../api/client';
 import { ticketsApi } from '../../api/resources';
 import type { Ticket, TicketPage } from '../../api/types';
+import { IconClose } from '../../components/Icons';
 import { Modal } from '../../components/Modal';
 import { StatusPill } from '../../components/StatusPill';
+import { useToast } from '../../components/toast/ToastContext';
 import { useT } from '../../i18n';
 
 export function MyTicketsPage() {
   const { t, lang } = useT();
+  const toast = useToast();
   const [data, setData] = useState<TicketPage | null>(null);
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [q, setQ] = useState('');
+  const [deletingDocId, setDeletingDocId] = useState<number | null>(null);
+
+  async function onDeleteDocument(ticketId: number, docId: number) {
+    if (!window.confirm(t('ticket.confirmDeleteDocument'))) return;
+    setDeletingDocId(docId);
+    try {
+      await ticketsApi.removeDocument(ticketId, docId);
+      setSelected((cur) => (cur && cur.id === ticketId && cur.documents
+        ? { ...cur, documents: cur.documents.filter((d) => d.id !== docId) }
+        : cur));
+      setData((cur) => cur ? {
+        ...cur,
+        items: cur.items.map((tk) => tk.id === ticketId && tk.documents
+          ? { ...tk, documents: tk.documents.filter((d) => d.id !== docId) }
+          : tk),
+      } : cur);
+      toast.success(t('ticket.documentDeleted'));
+    } catch (e) {
+      toast.error(extractError(e));
+    } finally {
+      setDeletingDocId(null);
+    }
+  }
 
   useEffect(() => {
     setLoading(true);
@@ -28,8 +54,14 @@ export function MyTicketsPage() {
     const query = q.trim().toLowerCase();
     if (!query) return data.items;
     return data.items.filter((tk) => {
-      const hay = [tk.title ?? '', tk.content, tk.websiteName ?? '', tk.websiteLink ?? '', tk.departmentName].join(' ').toLowerCase();
-      return hay.includes(query);
+      const parts = [
+        tk.title ?? '', tk.content,
+        tk.websiteName ?? '', tk.websiteLink ?? '',
+        tk.departmentName,
+      ];
+      for (const r of tk.resources ?? []) parts.push(r.name ?? '', r.url);
+      for (const d of tk.documents ?? []) parts.push(d.name, d.originalFilename);
+      return parts.join(' ').toLowerCase().includes(query);
     });
   }, [data, q]);
 
@@ -160,11 +192,21 @@ export function MyTicketsPage() {
                 value={
                   <ul className="inline-list-flush">
                     {selected.documents.map((d) => (
-                      <li key={d.id}>
+                      <li key={d.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <a href={ticketsApi.documentDownloadUrl(selected.id, d.id)} target="_blank" rel="noreferrer">
                           {d.name || d.originalFilename}
                         </a>
-                        <span className="muted small"> · {formatBytes(d.sizeBytes)}</span>
+                        <span className="muted small">· {formatBytes(d.sizeBytes)}</span>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => onDeleteDocument(selected.id, d.id)}
+                          disabled={deletingDocId === d.id}
+                          title={t('ticket.deleteDocument')}
+                          aria-label={t('ticket.deleteDocument')}
+                        >
+                          <IconClose size={12} />
+                        </button>
                       </li>
                     ))}
                   </ul>

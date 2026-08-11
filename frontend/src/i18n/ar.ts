@@ -356,7 +356,7 @@ export const ar: Dict = {
       errFieldUrl: '{label} يجب أن يكون رابطاً صحيحاً.',
       errFieldEmail: '{label} يجب أن يكون بريداً إلكترونياً صحيحاً.',
       uploadPdf: '📄 رفع ملف PDF',
-      uploadDoc: '📎 رفع مستند',
+      uploadDoc: '✨ استخراج نص من ملف',
       pdfTitle: 'استيراد المحتوى من PDF',
       docTitle: 'استيراد المحتوى من مستند',
       pdfHint: 'ارفع ملف PDF (حتى ٢٥ ميجا) — سيتم استخراج النص تلقائياً مع تشغيل الـ OCR للملفات الممسوحة ضوئياً.',
@@ -464,6 +464,9 @@ export const ar: Dict = {
     resources: 'المصادر',
     documents: 'المستندات المرفقة',
     downloadDocument: 'تحميل',
+    deleteDocument: 'حذف المستند',
+    confirmDeleteDocument: 'هل تريد حذف هذا المستند؟',
+    documentDeleted: 'تم حذف المستند.',
   },
 
   theme: {

@@ -3,7 +3,7 @@ import { extractError } from '../../api/client';
 import { departmentsApi, ticketsApi } from '../../api/resources';
 import type { AdminStats, Department, Ticket, TicketPage, TicketStatus } from '../../api/types';
 import { Avatar } from '../../components/Avatar';
-import { IconAlert, IconCheck, IconClock, IconPlus } from '../../components/Icons';
+import { IconAlert, IconCheck, IconClock, IconClose, IconPlus } from '../../components/Icons';
 import { Modal } from '../../components/Modal';
 import { StatusPill } from '../../components/StatusPill';
 import { useToast } from '../../components/toast/ToastContext';
@@ -34,6 +34,29 @@ export function AdminTicketsPage() {
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [filters, setFilters] = useState<Filters>(emptyFilters);
+  const [deletingDocId, setDeletingDocId] = useState<number | null>(null);
+
+  async function onDeleteDocument(ticketId: number, docId: number) {
+    if (!window.confirm(t('ticket.confirmDeleteDocument'))) return;
+    setDeletingDocId(docId);
+    try {
+      await ticketsApi.removeDocument(ticketId, docId);
+      setSelected((cur) => (cur && cur.id === ticketId && cur.documents
+        ? { ...cur, documents: cur.documents.filter((d) => d.id !== docId) }
+        : cur));
+      setData((cur) => cur ? {
+        ...cur,
+        items: cur.items.map((tk) => tk.id === ticketId && tk.documents
+          ? { ...tk, documents: tk.documents.filter((d) => d.id !== docId) }
+          : tk),
+      } : cur);
+      toast.success(t('ticket.documentDeleted'));
+    } catch (e) {
+      toast.error(extractError(e));
+    } finally {
+      setDeletingDocId(null);
+    }
+  }
 
   async function refresh() {
     setLoading(true);
@@ -68,12 +91,14 @@ export function AdminTicketsPage() {
       if (from != null && ts < from) return false;
       if (to != null && ts > to) return false;
       if (q) {
-        const hay = [
+        const parts = [
           tk.title ?? '', tk.content, tk.websiteName ?? '', tk.websiteLink ?? '',
           tk.submittedByUsername, tk.submittedByDisplayName ?? '',
           tk.departmentName,
-        ].join(' ').toLowerCase();
-        if (!hay.includes(q)) return false;
+        ];
+        for (const r of tk.resources ?? []) parts.push(r.name ?? '', r.url);
+        for (const d of tk.documents ?? []) parts.push(d.name, d.originalFilename);
+        if (!parts.join(' ').toLowerCase().includes(q)) return false;
       }
       return true;
     });
@@ -356,7 +381,13 @@ export function AdminTicketsPage() {
         onClose={() => setSelected(null)}
         footer={<button className="btn btn-secondary" onClick={() => setSelected(null)}>{t('common.close')}</button>}
       >
-        {selected && <TicketDetails ticket={selected} />}
+        {selected && (
+          <TicketDetails
+            ticket={selected}
+            deletingDocId={deletingDocId}
+            onDeleteDocument={onDeleteDocument}
+          />
+        )}
       </Modal>
     </div>
   );
@@ -389,7 +420,13 @@ function StatCard({
   );
 }
 
-function TicketDetails({ ticket }: { ticket: Ticket }) {
+function TicketDetails({
+  ticket, deletingDocId, onDeleteDocument,
+}: {
+  ticket: Ticket;
+  deletingDocId: number | null;
+  onDeleteDocument: (ticketId: number, docId: number) => void;
+}) {
   const { t, lang } = useT();
   return (
     <div>
@@ -436,11 +473,21 @@ function TicketDetails({ ticket }: { ticket: Ticket }) {
           value={
             <ul className="inline-list-flush">
               {ticket.documents.map((d) => (
-                <li key={d.id}>
+                <li key={d.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <a href={ticketsApi.documentDownloadUrl(ticket.id, d.id)} target="_blank" rel="noreferrer">
                     {d.name || d.originalFilename}
                   </a>
-                  <span className="muted small"> · {formatBytes(d.sizeBytes)}</span>
+                  <span className="muted small">· {formatBytes(d.sizeBytes)}</span>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => onDeleteDocument(ticket.id, d.id)}
+                    disabled={deletingDocId === d.id}
+                    title={t('ticket.deleteDocument')}
+                    aria-label={t('ticket.deleteDocument')}
+                  >
+                    <IconClose size={12} />
+                  </button>
                 </li>
               ))}
             </ul>

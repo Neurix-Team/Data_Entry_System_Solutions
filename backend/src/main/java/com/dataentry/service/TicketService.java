@@ -33,6 +33,7 @@ public class TicketService {
     private final TranslationService translator;
     private final Localizer localizer;
     private final AuditService audit;
+    private final org.springframework.beans.factory.ObjectProvider<TicketDocumentService> documentServiceProvider;
 
     /** Types where the value is human-language text and worth translating.  Numbers/URLs/dates
      *  keep the same value on both sides. */
@@ -46,7 +47,8 @@ public class TicketService {
                          CustomFieldRepository customFieldRepository,
                          TranslationService translator,
                          Localizer localizer,
-                         AuditService audit) {
+                         AuditService audit,
+                         org.springframework.beans.factory.ObjectProvider<TicketDocumentService> documentServiceProvider) {
         this.ticketRepository = ticketRepository;
         this.departmentRepository = departmentRepository;
         this.subcategoryRepository = subcategoryRepository;
@@ -55,6 +57,7 @@ public class TicketService {
         this.translator = translator;
         this.localizer = localizer;
         this.audit = audit;
+        this.documentServiceProvider = documentServiceProvider;
     }
 
     @Transactional
@@ -275,6 +278,14 @@ public class TicketService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ticket not found");
         }
         ticketRepository.deleteById(id);
+        // Files on disk aren't managed by JPA — sweep them after the DB rows are gone.
+        // ObjectProvider avoids a circular-dependency cycle with TicketDocumentService,
+        // which depends on TicketRepository too. Null-safe for tests where the provider
+        // isn't wired.
+        if (documentServiceProvider != null) {
+            TicketDocumentService docs = documentServiceProvider.getIfAvailable();
+            if (docs != null) docs.purgeTicketDirectory(id);
+        }
         audit.record(AuditService.Action.DELETE, AuditService.EntityType.TICKET, id, null);
     }
 

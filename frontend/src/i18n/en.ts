@@ -354,7 +354,7 @@ export const en = {
       errFieldUrl: '{label} must be a valid URL.',
       errFieldEmail: '{label} must be a valid email.',
       uploadPdf: '📄 Upload PDF',
-      uploadDoc: '📎 Upload document',
+      uploadDoc: '✨ Extract text from file',
       pdfTitle: 'Import content from PDF',
       docTitle: 'Import content from document',
       pdfHint: 'Upload a PDF (up to 25 MB) — text is extracted (OCR runs automatically for scanned pages) and pasted into the content field.',
@@ -462,6 +462,9 @@ export const en = {
     resources: 'Resources',
     documents: 'Attached documents',
     downloadDocument: 'Download',
+    deleteDocument: 'Delete document',
+    confirmDeleteDocument: 'Delete this document?',
+    documentDeleted: 'Document deleted.',
   },
 
   theme: {
