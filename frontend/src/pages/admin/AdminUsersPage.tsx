@@ -4,7 +4,10 @@ import { ticketsApi, usersApi } from '../../api/resources';
 import type { AdminStats, AdminUser, Role, Ticket } from '../../api/types';
 import { Avatar } from '../../components/Avatar';
 import { IconCamera, IconChart, IconFolder, IconMembers } from '../../components/Icons';
+import { PasswordInput } from '../../components/PasswordInput';
 import { SidePanel } from '../../components/SidePanel';
+import { useToast } from '../../components/toast/ToastContext';
+import { avatarUrl } from '../../api/profile';
 import { useAuth } from '../../context/AuthContext';
 import { useT } from '../../i18n';
 
@@ -27,6 +30,7 @@ const empty: FormState = {
 export function AdminUsersPage() {
   const { user: current } = useAuth();
   const { t, lang } = useT();
+  const toast = useToast();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -93,6 +97,7 @@ export function AdminUsersPage() {
           password: form.password || undefined,
           active: form.active,
         });
+        toast.success(t('admin.users.updatedToast') || 'User updated');
       } else {
         await usersApi.create({
           username: form.username.trim(),
@@ -102,11 +107,14 @@ export function AdminUsersPage() {
           phone: form.phone || undefined,
           role: form.role,
         });
+        toast.success(t('admin.users.createdToast') || 'User created');
       }
       setPanelOpen(false);
       refresh();
     } catch (err) {
-      setFormError(extractError(err));
+      const msg = extractError(err);
+      setFormError(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -181,7 +189,7 @@ export function AdminUsersPage() {
               <tr key={u.id}>
                 <td>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <Avatar name={u.displayName || u.username} />
+                    <Avatar name={u.displayName || u.username} src={avatarUrl(u.id, u.avatarUpdatedAt)} />
                     <div>
                       <div style={{ fontWeight: 600 }}>
                         {u.displayName || u.username}
@@ -294,12 +302,12 @@ export function AdminUsersPage() {
             <label className="field-label">
               {isEdit ? t('admin.users.newPasswordLabel') : <>{t('auth.password')} <span className="req">*</span></>}
             </label>
-            <input
-              type="password"
-              className="input"
+            <PasswordInput
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
               placeholder={isEdit ? '••••••' : t('admin.users.passwordHint')}
+              showLabel={lang === 'ar' ? 'إظهار كلمة المرور' : 'Show password'}
+              hideLabel={lang === 'ar' ? 'إخفاء كلمة المرور' : 'Hide password'}
             />
           </div>
           {!isEdit && (

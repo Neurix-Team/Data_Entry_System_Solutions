@@ -8,6 +8,9 @@ interface AuthContextValue {
   loading: boolean;
   login: (username: string, password: string) => Promise<User>;
   logout: () => void;
+  /** Re-fetch the current user from the server. Called after profile mutations
+   *  (avatar upload, display name change) so the UI reflects the new state. */
+  refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -48,9 +51,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return res.user;
   }, []);
 
+  const refresh = useCallback(async () => {
+    try {
+      const me = await authApi.me();
+      setUser(me);
+    } catch {
+      // If refresh fails (session expired etc.), the standard 401 handler will clear state.
+    }
+  }, []);
+
   const value = useMemo(
-    () => ({ user, loading, login, logout }),
-    [user, loading, login, logout]
+    () => ({ user, loading, login, logout, refresh }),
+    [user, loading, login, logout, refresh]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

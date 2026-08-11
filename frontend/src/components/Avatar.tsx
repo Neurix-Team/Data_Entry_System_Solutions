@@ -2,6 +2,8 @@ interface AvatarProps {
   name?: string | null;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   hue?: number;
+  /** If set, an <img> is rendered; the initials show through only if the image errors out. */
+  src?: string | null;
 }
 
 function initials(name: string): string {
@@ -17,17 +19,28 @@ function hashHue(name: string): number {
   return (Math.abs(h) % 6) + 1;
 }
 
-export function Avatar({ name, size = 'md', hue }: AvatarProps) {
+export function Avatar({ name, size = 'md', hue, src }: AvatarProps) {
   const label = name?.trim() || '?';
   const h = hue ?? hashHue(label);
   return (
     <span
-      className={`avatar avatar-${size}`}
+      className={`avatar avatar-${size}${src ? ' avatar-has-image' : ''}`}
       data-hue={h}
       title={label}
       aria-label={label}
     >
-      {initials(label)}
+      {src ? (
+        // The image sits on top of the colored plate; if it fails to load we hide it and
+        // the initials underneath become visible again.
+        <img
+          className="avatar-img"
+          src={src}
+          alt=""
+          aria-hidden="true"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+        />
+      ) : null}
+      <span className="avatar-initials">{initials(label)}</span>
     </span>
   );
 }

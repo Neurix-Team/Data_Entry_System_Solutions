@@ -669,6 +669,95 @@ html[dir='rtl'] .user-chip-info { align-items: flex-start; }
 .avatar-icon {
   width: 60%; height: 60%; opacity: 0.7;
 }
+/* When the avatar has an image, hide the initials underneath. Position relative so the
+   absolutely-positioned image can cover the whole circle. */
+.avatar { position: relative; overflow: hidden; }
+.avatar-initials { position: relative; z-index: 1; }
+.avatar-has-image .avatar-initials { visibility: hidden; }
+.avatar-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  z-index: 2;
+}
+
+/* User chip becomes clickable when it opens the profile modal */
+.user-chip.is-button {
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  font: inherit;
+  color: inherit;
+  transition: background 0.15s ease;
+}
+.user-chip.is-button:hover { background: var(--bg-hover); }
+.user-chip.is-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-cyan-soft);
+}
+
+/* -------- Profile modal -------- */
+.profile-modal { max-width: 380px; text-align: center; }
+.profile-body { padding: 0.5rem 0 1rem; }
+.profile-avatar-wrap {
+  position: relative;
+  display: inline-block;
+  margin: 0.5rem 0 1rem;
+}
+.profile-avatar-wrap .avatar {
+  --sz: 96px;
+  box-shadow: 0 4px 20px -8px rgba(15, 95, 209, 0.25);
+}
+.profile-avatar-edit {
+  position: absolute;
+  bottom: 2px;
+  inset-inline-end: 2px;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--brand);
+  color: #ffffff;
+  border: 3px solid var(--bg-surface);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.profile-avatar-edit:hover:not(:disabled) { background: var(--brand-hover); transform: scale(1.05); }
+.profile-avatar-edit:disabled { opacity: 0.6; cursor: not-allowed; }
+.profile-avatar-edit:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-cyan-soft);
+}
+.profile-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.15rem;
+}
+.profile-username {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text-tertiary);
+  margin-bottom: 1.25rem;
+}
+.profile-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+.profile-hint {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  margin: 0.5rem 0 0;
+}
+.profile-error { text-align: start; margin: 0 0 1rem; }
+
 
 /* Main content area */
 .main-content { display: flex; flex-direction: column; min-width: 0; }
@@ -814,7 +903,49 @@ table.data th {
 html[dir='rtl'] table.data th { text-transform: none; letter-spacing: 0; font-size: var(--fs-sm); }
 table.data tr:last-child td { border-bottom: none; }
 table.data tr:hover td { background: var(--bg-hover); }
-.actions-cell { display: flex; gap: 0.4rem; justify-content: flex-end; }
+/* Actions column — the td keeps normal table-cell layout (vertical-align: middle),
+   the inner div is the flex row for the buttons. Using display:flex on a <td> throws off
+   the row's vertical alignment against neighboring cells; the wrapper avoids that. */
+.actions-cell { text-align: end; white-space: nowrap; }
+.actions-cell-inner {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  justify-content: flex-end;
+  vertical-align: middle;
+}
+html[dir='rtl'] .actions-cell { text-align: start; }
+.actions-col-header { text-align: end; }
+html[dir='rtl'] .actions-col-header { text-align: start; }
+
+/* Compact select inside the actions row — height matches the .btn-sm buttons so the
+   whole row lines up cleanly. */
+.actions-select {
+  height: 34px;
+  min-height: 34px;
+  padding: 0 0.75rem;
+  padding-inline-end: 1.75rem;
+  width: auto;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  border-radius: var(--radius-pill);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+}
+
+/* Reusable chip for compact tag-like values (e.g. subcategory in the tickets table) */
+.chip {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-muted);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
 html[dir='rtl'] .actions-cell { justify-content: flex-start; }
 
 /* ============================================================
@@ -1303,6 +1434,532 @@ html[dir='rtl'] .auth-brand-features li { animation-name: neurixFadeInRight; }
 @media (max-width: 900px) {
   .auth-shell { grid-template-columns: 1fr; }
   .auth-brand-panel { display: none; }
+}
+
+/* ============================================================
+   Neurix chat assistant
+   Floating circular trigger + slide-in glass panel with message list,
+   action buttons, and a compact input row.
+   ============================================================ */
+.chat-fab {
+  position: fixed;
+  bottom: 24px;
+  inset-inline-end: 24px;
+  width: 56px;
+  height: 56px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  background: linear-gradient(135deg, #0a3f9c 0%, #0f5fd1 55%, #22c3d9 100%);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  box-shadow:
+    0 12px 28px -10px rgba(15, 95, 209, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.10) inset;
+  transition:
+    transform 0.2s cubic-bezier(0.2, 0.7, 0.2, 1),
+    box-shadow 0.2s ease,
+    filter 0.2s ease;
+}
+.chat-fab:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+  box-shadow:
+    0 18px 36px -12px rgba(15, 95, 209, 0.7),
+    0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+}
+.chat-fab:active { transform: translateY(0); }
+.chat-fab:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 3px var(--bg-surface),
+    0 0 0 5px var(--accent-cyan),
+    0 12px 28px -10px rgba(15, 95, 209, 0.55);
+}
+.chat-fab.is-open {
+  background: var(--accent-deep);
+}
+/* Subtle attention pulse — draws the eye without being obnoxious. */
+.chat-fab-pulse {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid rgba(34, 195, 217, 0.55);
+  animation: chatPulse 2.6s cubic-bezier(0.2, 0.7, 0.2, 1) infinite;
+  pointer-events: none;
+}
+@keyframes chatPulse {
+  0%   { transform: scale(0.85); opacity: 0.7; }
+  70%  { transform: scale(1.35); opacity: 0; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+
+/* The panel */
+.chat-panel {
+  position: fixed;
+  bottom: 92px;
+  inset-inline-end: 24px;
+  width: 380px;
+  max-width: calc(100vw - 32px);
+  height: 560px;
+  max-height: calc(100vh - 120px);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow:
+    0 24px 64px -20px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(15, 95, 209, 0.05);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 199;
+  animation: chatPanelIn 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+:root[data-theme='dark'] .chat-panel {
+  box-shadow:
+    0 24px 64px -20px rgba(0, 0, 0, 0.7),
+    0 0 0 1px rgba(34, 195, 217, 0.10);
+}
+@keyframes chatPanelIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); transform-origin: bottom right; }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (max-width: 480px) {
+  .chat-panel {
+    inset-inline: 12px;
+    width: auto;
+    bottom: 88px;
+  }
+}
+
+.chat-header {
+  padding: 0.85rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: var(--brand-gradient);
+  color: #ffffff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+.chat-header-brand {
+  display: flex; align-items: center; gap: 0.65rem;
+  min-width: 0;
+}
+.chat-header-brand img {
+  width: 32px; height: 32px;
+  display: block;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.14);
+  padding: 3px;
+  flex-shrink: 0;
+}
+.chat-header-title { font-weight: 700; font-size: 0.95rem; letter-spacing: -0.01em; }
+.chat-header-status {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.72rem;
+  opacity: 0.85;
+  margin-top: 1px;
+}
+.chat-status-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.25);
+}
+.chat-header-actions {
+  display: inline-flex; gap: 0.15rem;
+}
+.chat-icon-btn {
+  width: 30px; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.chat-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+.chat-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  background: var(--bg-sunken);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+.chat-body::-webkit-scrollbar { width: 6px; }
+.chat-body::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+.chat-msg {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  max-width: 100%;
+}
+.chat-msg-user {
+  justify-content: flex-end;
+}
+.chat-avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--brand-gradient);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  padding: 3px;
+}
+.chat-avatar img { width: 100%; height: 100%; display: block; }
+.chat-msg-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-width: 82%;
+}
+.chat-msg-user .chat-msg-content { align-items: flex-end; }
+.chat-bubble {
+  padding: 0.6rem 0.85rem;
+  border-radius: 14px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+.chat-msg-assistant .chat-bubble {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 4px;
+}
+html[dir='rtl'] .chat-msg-assistant .chat-bubble {
+  border-bottom-left-radius: 14px;
+  border-bottom-right-radius: 4px;
+}
+.chat-msg-user .chat-bubble {
+  background: var(--brand);
+  color: #ffffff;
+  border-bottom-right-radius: 4px;
+}
+html[dir='rtl'] .chat-msg-user .chat-bubble {
+  border-bottom-right-radius: 14px;
+  border-bottom-left-radius: 4px;
+}
+
+/* Action buttons — cyan-bordered pills below the bot's message */
+.chat-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.chat-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  background: var(--brand-soft);
+  color: var(--brand-soft-text);
+  border: 1px solid var(--brand-border);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+}
+.chat-action-btn:hover {
+  background: var(--brand);
+  color: #ffffff;
+  border-color: var(--brand);
+  transform: translateY(-1px);
+}
+
+/* Typing indicator — three dots that scale sequentially */
+.chat-typing {
+  display: inline-flex;
+  gap: 4px;
+  padding: 0.75rem 0.85rem;
+  min-height: 32px;
+  align-items: center;
+}
+.chat-typing span {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--text-tertiary);
+  animation: chatDot 1.2s ease-in-out infinite;
+}
+.chat-typing span:nth-child(2) { animation-delay: 0.15s; }
+.chat-typing span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes chatDot {
+  0%, 60%, 100% { transform: scale(0.7); opacity: 0.5; }
+  30%           { transform: scale(1);   opacity: 1; }
+}
+
+.chat-error {
+  padding: 0.5rem 0.75rem;
+  background: var(--danger-soft);
+  color: var(--danger-soft-text);
+  border: 1px solid var(--danger-soft-border);
+  border-radius: 10px;
+  font-size: 0.8rem;
+}
+
+.chat-input-row {
+  padding: 0.65rem 0.75rem;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border);
+}
+.chat-input {
+  flex: 1;
+  min-height: 40px;
+  max-height: 120px;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-sunken);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  resize: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.chat-input::placeholder { color: var(--text-tertiary); }
+.chat-input:focus {
+  outline: none;
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 3px var(--accent-cyan-soft);
+}
+.chat-send {
+  width: 40px; height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--brand);
+  color: #ffffff;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
+  flex-shrink: 0;
+}
+.chat-send:hover:not(:disabled) { background: var(--brand-hover); transform: translateY(-1px); }
+.chat-send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-fab-pulse,
+  .chat-typing span { animation: none !important; }
+  .chat-panel { animation: none !important; }
+}
+
+/* ============================================================
+   Password field with eye toggle
+   The wrapper is a flex row: input + toggle as real siblings. The wrapper
+   owns the border, background, and focus ring — the input inside is
+   transparent and borderless. This avoids any absolute-positioning /
+   stacking-context issue where the toggle could get hidden.
+   ============================================================ */
+.password-field {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-height: 44px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  overflow: hidden;
+}
+.password-field:focus-within {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 3px var(--accent-cyan-soft);
+  background: var(--bg-surface);
+}
+.password-field-input.input {
+  flex: 1;
+  min-width: 0;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0.7rem 1rem !important;
+  min-height: unset !important;
+  color: var(--text-primary);
+}
+.password-field-input.input:focus { box-shadow: none !important; }
+.password-field-toggle {
+  flex-shrink: 0;
+  width: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-inline-start: 1px solid var(--border);
+  cursor: pointer;
+  color: var(--brand);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.password-field-toggle svg { width: 22px; height: 22px; display: block; }
+.password-field-toggle:hover {
+  color: var(--brand-hover);
+  background: var(--brand-soft);
+}
+.password-field-toggle:focus-visible {
+  outline: none;
+  color: var(--brand-hover);
+  background: var(--brand-soft);
+}
+
+/* ============================================================
+   Toast notifications + celebratory confetti
+   Stacked top-center on desktop, full-width on mobile. Success toasts
+   fire a short particle burst behind the pill.
+   ============================================================ */
+.toast-container {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 250;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  pointer-events: none;
+  max-width: min(460px, calc(100vw - 32px));
+  width: 100%;
+}
+/* Semi-transparent scrim behind the centered popup — soft, no click-blocking */
+.toast-container::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(6, 16, 41, 0.28), transparent 60%);
+  pointer-events: none;
+  animation: toastScrim 0.35s ease-out both;
+  z-index: -1;
+}
+@keyframes toastScrim {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.toast {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px 1fr 22px;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px 16px 18px;
+  border-radius: 16px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 48px -18px rgba(0, 0, 0, 0.32), 0 4px 12px rgba(0, 0, 0, 0.08);
+  min-width: 320px;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  pointer-events: auto;
+  overflow: hidden;
+  animation: toastIn 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.toast-success {
+  padding: 22px 22px;
+  font-size: 1rem;
+  min-width: 340px;
+}
+.toast-success .toast-icon svg { width: 26px; height: 26px; }
+.toast-success .toast-message { font-weight: 600; }
+:root[data-theme='dark'] .toast {
+  box-shadow: 0 12px 28px -12px rgba(0, 0, 0, 0.6);
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(20px) scale(0.9); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.toast-icon {
+  width: 22px; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.toast-success .toast-icon { color: var(--success); }
+.toast-error   .toast-icon { color: var(--danger); }
+.toast-info    .toast-icon { color: var(--brand); }
+.toast-warning .toast-icon { color: var(--warning); }
+.toast-success { border-color: color-mix(in srgb, var(--success) 40%, var(--border)); }
+.toast-error   { border-color: color-mix(in srgb, var(--danger)  40%, var(--border)); }
+.toast-info    { border-color: color-mix(in srgb, var(--brand)   40%, var(--border)); }
+.toast-warning { border-color: color-mix(in srgb, var(--warning) 40%, var(--border)); }
+.toast-message {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.toast-close {
+  width: 22px; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.toast-close:hover { color: var(--text-primary); background: var(--bg-hover); }
+.toast-close:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-cyan-soft);
+}
+/* Progress bar at the bottom edge that shrinks to zero over the toast's lifetime */
+.toast-progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  background: currentColor;
+  opacity: 0.35;
+  transform-origin: left center;
+  animation: toastProgress linear both;
+}
+html[dir='rtl'] .toast-progress { transform-origin: right center; }
+.toast-success .toast-progress { color: var(--success); }
+.toast-error   .toast-progress { color: var(--danger); }
+.toast-info    .toast-progress { color: var(--brand); }
+.toast-warning .toast-progress { color: var(--warning); }
+@keyframes toastProgress {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+/* Canvas confetti — extends generously above and around the toast so pieces can fly out
+   in all directions before falling. Bigger playfield since the toast is now centered. */
+.toast-confetti {
+  position: absolute;
+  top: -160px;
+  left: -60px;
+  width: calc(100% + 120px);
+  height: 320px;
+  pointer-events: none;
+  z-index: 3;
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+  .toast-progress { animation: none; opacity: 0; }
+  .toast-confetti { display: none; }
+}
+@media (max-width: 480px) {
+  .toast-container { top: 12px; }
+  .toast { border-radius: 12px; }
 }
 
 /* Screen-reader-only text — used for a11y labels that must not appear visually

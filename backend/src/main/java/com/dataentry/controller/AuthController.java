@@ -65,7 +65,8 @@ public class AuthController {
     @GetMapping("/me")
     public ResponseEntity<AuthDtos.UserDto> me(@AuthenticationPrincipal User user) {
         return ResponseEntity.ok(new AuthDtos.UserDto(
-                user.getId(), user.getUsername(), user.getDisplayName(), user.getRole().name()
+                user.getId(), user.getUsername(), user.getDisplayName(), user.getRole().name(),
+                user.getAvatarUpdatedAt()
         ));
     }
 

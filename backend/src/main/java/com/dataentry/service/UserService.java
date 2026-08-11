@@ -118,7 +118,8 @@ public class UserService {
                 u.getDisplayNameEn(),
                 u.getDisplayNameAr(),
                 u.getEmail(), u.getPhone(),
-                u.getRole().name(), u.isActive(), u.getCreatedAt()
+                u.getRole().name(), u.isActive(), u.getCreatedAt(),
+                u.getAvatarUpdatedAt()
         );
     }
 }

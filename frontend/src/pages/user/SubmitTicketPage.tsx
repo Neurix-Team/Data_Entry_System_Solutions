@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { extractError } from '../../api/client';
+import { useToast } from '../../components/toast/ToastContext';
 import {
   aiApi,
   departmentsApi,
@@ -50,6 +51,7 @@ function isValidUrl(s: string): boolean {
 
 export function SubmitTicketPage() {
   const { t, lang } = useT();
+  const toast = useToast();
   const now = useNowTick();
 
   // -- reference data --
@@ -194,7 +196,9 @@ export function SubmitTicketPage() {
         articles: payloadArticles,
         customValues: trimmedCustom,
       });
-      setSuccess(t('user.submit.bulkSuccess', { count: res.created }));
+      const msg = t('user.submit.bulkSuccess', { count: res.created });
+      setSuccess(msg);
+      toast.success(msg);
       resetArticles();
       setErrors({});
     } catch (err) {

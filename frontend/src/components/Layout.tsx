@@ -8,12 +8,17 @@ import {
   IconLogout, IconMembers, IconSearch, IconSettings, IconTasks,
 } from './Icons';
 import { PreferencesToggle } from './PreferencesToggle';
+import { ProfileModal } from './ProfileModal';
+import { avatarUrl } from '../api/profile';
+import { ChatWidget } from './chat/ChatWidget';
 
 export function Layout() {
   const { user, logout } = useAuth();
   const { t } = useT();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const myAvatar = user ? avatarUrl(user.id, user.avatarUpdatedAt) : null;
   const isAdmin = user?.role === 'ADMIN';
   const roleLabel = isAdmin ? t('common.teamLeader') : t('common.dataEntryAgent');
 
@@ -150,13 +155,18 @@ export function Layout() {
               <span className="notification-dot" />
             </button>
             <div className="topbar-divider" />
-            <div className="user-chip">
+            <button
+              type="button"
+              className="user-chip is-button"
+              onClick={() => setProfileOpen(true)}
+              aria-label={t('common.profile') || 'Profile'}
+            >
               <div className="user-chip-info">
                 <span className="user-chip-name">{user?.displayName || user?.username}</span>
                 <span className="user-chip-role">{roleLabel}</span>
               </div>
-              <Avatar name={user?.displayName || user?.username} size="md" />
-            </div>
+              <Avatar name={user?.displayName || user?.username} size="md" src={myAvatar} />
+            </button>
             <button
               className="btn btn-ghost btn-sm topbar-signout"
               onClick={logout}
@@ -171,6 +181,10 @@ export function Layout() {
           <Outlet />
         </main>
       </div>
+
+      <ChatWidget />
+
+      {profileOpen && <ProfileModal onClose={() => setProfileOpen(false)} />}
     </div>
   );
 }

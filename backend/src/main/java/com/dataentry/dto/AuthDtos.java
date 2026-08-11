@@ -2,6 +2,8 @@ package com.dataentry.dto;
 
 import jakarta.validation.constraints.NotBlank;
 
+import java.time.Instant;
+
 public class AuthDtos {
 
     public record LoginRequest(
@@ -19,6 +21,7 @@ public class AuthDtos {
             Long id,
             String username,
             String displayName,
-            String role
+            String role,
+            Instant avatarUpdatedAt
     ) {}
 }

@@ -38,7 +38,8 @@ public class AuthService {
 
         String token = jwtService.generateToken(user.getUsername(), user.getRole().name(), user.getId());
         AuthDtos.UserDto dto = new AuthDtos.UserDto(
-                user.getId(), user.getUsername(), user.getDisplayName(), user.getRole().name()
+                user.getId(), user.getUsername(), user.getDisplayName(), user.getRole().name(),
+                user.getAvatarUpdatedAt()
         );
         return new AuthDtos.LoginResponse(token, jwtService.getExpirationMs(), dto);
     }

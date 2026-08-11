@@ -24,6 +24,7 @@ public class UserDtos {
             String email,
 
             @Size(max = 40)
+            @Pattern(regexp = "^$|^[+()0-9\\s.-]{6,40}$", message = "Phone can only contain digits, spaces, +, -, ., and parentheses")
             String phone,
 
             @NotBlank
@@ -34,7 +35,9 @@ public class UserDtos {
     public record UpdateUserRequest(
             @Size(max = 150) String displayName,
             @Email @Size(max = 200) String email,
-            @Size(max = 40) String phone,
+            @Size(max = 40)
+            @Pattern(regexp = "^$|^[+()0-9\\s.-]{6,40}$", message = "Phone can only contain digits, spaces, +, -, ., and parentheses")
+            String phone,
             @Size(min = 6, max = 200) String password,
             Boolean active
     ) {}
@@ -49,6 +52,7 @@ public class UserDtos {
             String phone,
             String role,
             boolean active,
-            Instant createdAt
+            Instant createdAt,
+            Instant avatarUpdatedAt
     ) {}
 }

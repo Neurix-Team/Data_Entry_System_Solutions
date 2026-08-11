@@ -50,4 +50,12 @@ public class User {
     @Column(nullable = false, updatable = false)
     @Builder.Default
     private Instant createdAt = Instant.now();
+
+    /**
+     * Timestamp of the last avatar upload. Null means no avatar. Kept on the User row
+     * (rather than joining to {@link UserAvatar}) so the frontend can decide whether to
+     * render an avatar image without an extra query, and can cache-bust with ?v={value}.
+     */
+    @Column(name = "avatar_updated_at")
+    private Instant avatarUpdatedAt;
 }

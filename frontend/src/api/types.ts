@@ -11,6 +11,9 @@ export interface User {
   displayNameEn?: string | null;
   displayNameAr?: string | null;
   role: Role;
+  /** ISO timestamp of the last avatar upload; null means no avatar. Used both as
+   *  presence check and as a cache-bust value in the avatar URL. */
+  avatarUpdatedAt?: string | null;
 }
 
 export interface AdminUser extends User {

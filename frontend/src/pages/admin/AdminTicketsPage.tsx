@@ -197,15 +197,16 @@ export function AdminTicketsPage() {
               <th>{t('admin.tickets.colContent')}</th>
               <th>{t('admin.tickets.colSubmittedBy')}</th>
               <th>{t('admin.tickets.colDepartment')}</th>
+              <th>{t('user.submit.subcategory')}</th>
               <th>{t('common.status')}</th>
-              <th style={{ textAlign: 'end' }}>{t('common.actions')}</th>
+              <th className="actions-col-header">{t('common.actions')}</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={5} className="empty-state">{t('common.loading')}</td></tr>
+              <tr><td colSpan={6} className="empty-state">{t('common.loading')}</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={5} className="empty-state">
+              <tr><td colSpan={6} className="empty-state">
                 {hasFilters ? t('admin.tickets.noMatches') : t('admin.tickets.empty')}
               </td></tr>
             ) : filtered.map((tk) => (
@@ -224,26 +225,32 @@ export function AdminTicketsPage() {
                 </td>
                 <td>{tk.departmentName}</td>
                 <td>
+                  {tk.subcategoryName
+                    ? <span className="chip">{tk.subcategoryName}</span>
+                    : <span className="muted small">—</span>}
+                </td>
+                <td>
                   <StatusPill status={tk.status} />
                 </td>
                 <td className="actions-cell">
-                  <select
-                    className="select btn-sm"
-                    style={{ minHeight: 34, padding: '0.3rem 0.5rem', width: 'auto', fontSize: 'var(--fs-xs)' }}
-                    value={tk.status}
-                    onChange={(e) => onStatusChange(tk, e.target.value as TicketStatus)}
-                    title={t('common.status')}
-                  >
-                    <option value="IN_PROGRESS">{t('status.IN_PROGRESS')}</option>
-                    <option value="REVIEW">{t('status.REVIEW')}</option>
-                    <option value="COMPLETED">{t('status.COMPLETED')}</option>
-                  </select>
-                  <button className="btn btn-secondary btn-sm" onClick={() => setSelected(tk)}>
-                    {t('common.view')}
-                  </button>
-                  <button className="btn btn-danger btn-sm" onClick={() => onDelete(tk)}>
-                    {t('common.delete')}
-                  </button>
+                  <div className="actions-cell-inner">
+                    <select
+                      className="select actions-select"
+                      value={tk.status}
+                      onChange={(e) => onStatusChange(tk, e.target.value as TicketStatus)}
+                      title={t('common.status')}
+                    >
+                      <option value="IN_PROGRESS">{t('status.IN_PROGRESS')}</option>
+                      <option value="REVIEW">{t('status.REVIEW')}</option>
+                      <option value="COMPLETED">{t('status.COMPLETED')}</option>
+                    </select>
+                    <button className="btn btn-secondary btn-sm" onClick={() => setSelected(tk)}>
+                      {t('common.view')}
+                    </button>
+                    <button className="btn btn-danger btn-sm" onClick={() => onDelete(tk)}>
+                      {t('common.delete')}
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

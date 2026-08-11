@@ -1,0 +1,2182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Neurix — Technical Documentation</title>
+<style>
+  /* --------------------------------------------------------------
+     Design tokens — Neurix identity applied to a print document
+     -------------------------------------------------------------- */
+  :root {
+    --navy-900: #050a1b;
+    --navy-800: #0a1a3d;
+    --navy-700: #0d2557;
+    --blue-600: #0f5fd1;
+    --blue-500: #2a7ce0;
+    --blue-300: #7fc8f0;
+    --cyan-500: #22c3d9;
+    --cyan-300: #7fe6f0;
+    --ink:      #0d1a33;
+    --ink-mid:  #455270;
+    --ink-soft: #7c869e;
+    --line:     #dde3ef;
+    --line-strong: #c3cadb;
+    --paper:    #ffffff;
+    --paper-warm: #fbfcfe;
+    --paper-sunken: #f4f7fc;
+    --code-bg:  #f4f7fc;
+    --code-border: #e2e8f2;
+    --accent-soft: #e3efff;
+    --cyan-soft: #e0f7fb;
+    --danger:   #c43653;
+    --success:  #0e9f7c;
+    --warning:  #b3801a;
+
+    --font-body:  'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    --font-mono:  'JetBrains Mono', 'Fira Code', 'Consolas', 'Cascadia Code', monospace;
+  }
+
+  /* --------------------------------------------------------------
+     Page setup — A4, comfortable margins, running footer
+     -------------------------------------------------------------- */
+  @page {
+    size: A4;
+    margin: 20mm 18mm 22mm 18mm;
+  }
+  @page :first { margin: 0; }
+  @page cover  { margin: 0; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 10.5pt;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Sections that own a page-break */
+  .page-break { page-break-before: always; }
+  .no-break   { page-break-inside: avoid; }
+
+  /* --------------------------------------------------------------
+     Cover page
+     -------------------------------------------------------------- */
+  .cover {
+    page: cover;
+    page-break-after: always;
+    height: 297mm;
+    width: 210mm;
+    margin: 0;
+    padding: 22mm 20mm;
+    box-sizing: border-box;
+    color: #eaf0ff;
+    background:
+      radial-gradient(circle at 18% 15%, rgba(34, 195, 217, 0.28) 0%, transparent 45%),
+      radial-gradient(circle at 82% 85%, rgba(15, 95, 209, 0.38) 0%, transparent 55%),
+      linear-gradient(135deg, var(--navy-900) 0%, var(--navy-800) 55%, var(--navy-700) 100%);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    overflow: hidden;
+  }
+  .cover-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(126, 224, 238, 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(126, 224, 238, 0.06) 1px, transparent 1px);
+    background-size: 40px 40px;
+    background-position: -1px -1px;
+    pointer-events: none;
+  }
+  .cover-mark {
+    position: absolute;
+    right: -80mm;
+    bottom: -60mm;
+    width: 260mm;
+    opacity: 0.08;
+    filter: blur(2px);
+  }
+  .cover-top {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    z-index: 2;
+  }
+  .cover-top img { height: 40px; }
+  .cover-eyebrow {
+    font-size: 11pt;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(126, 224, 238, 0.85);
+    font-weight: 600;
+  }
+  .cover-title {
+    position: relative;
+    z-index: 2;
+    margin: 0;
+    font-size: 42pt;
+    font-weight: 800;
+    line-height: 1.02;
+    letter-spacing: -0.03em;
+    max-width: 155mm;
+  }
+  .cover-title .cyan { color: var(--cyan-300); }
+  .cover-subtitle {
+    position: relative;
+    z-index: 2;
+    font-size: 14pt;
+    color: rgba(234, 240, 255, 0.75);
+    max-width: 130mm;
+    margin-top: 10mm;
+  }
+  .cover-meta {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: repeat(3, auto);
+    gap: 18mm;
+    padding-top: 12mm;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+  }
+  .cover-meta dt {
+    font-size: 8.5pt;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(126, 224, 238, 0.85);
+    font-weight: 600;
+    margin-bottom: 3mm;
+  }
+  .cover-meta dd { margin: 0; font-size: 12pt; font-weight: 600; color: #ffffff; }
+  .cover-meta dd .muted { color: rgba(234, 240, 255, 0.65); font-weight: 400; font-size: 10.5pt; }
+
+  /* --------------------------------------------------------------
+     Typography rhythm
+     -------------------------------------------------------------- */
+  h1, h2, h3, h4 { color: var(--ink); font-weight: 700; letter-spacing: -0.015em; }
+  h1 { font-size: 22pt; margin: 0 0 6mm; }
+  h2 { font-size: 15pt; margin: 12mm 0 4mm; color: var(--blue-600); }
+  h3 { font-size: 12pt; margin: 8mm 0 3mm; color: var(--ink); }
+  h4 { font-size: 10.5pt; margin: 6mm 0 2mm; color: var(--ink-mid); text-transform: uppercase; letter-spacing: 0.06em; }
+  p  { margin: 0 0 3.5mm; }
+  strong { color: var(--ink); font-weight: 700; }
+  a  { color: var(--blue-600); }
+
+  section { page-break-inside: auto; }
+
+  /* Chapter opener */
+  .chapter { page-break-before: always; }
+  .chapter-num {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 9pt;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--cyan-500);
+    padding: 1px 8px;
+    border: 1px solid var(--cyan-500);
+    border-radius: 999px;
+    margin-bottom: 4mm;
+  }
+  .chapter-title {
+    font-size: 24pt;
+    line-height: 1.05;
+    margin: 0 0 3mm;
+    color: var(--ink);
+    letter-spacing: -0.025em;
+  }
+  .chapter-lede {
+    font-size: 12pt;
+    color: var(--ink-mid);
+    margin: 0 0 10mm;
+    max-width: 140mm;
+  }
+  .chapter-rule {
+    border: 0;
+    height: 1px;
+    background: linear-gradient(90deg, var(--blue-600), var(--cyan-500), transparent);
+    margin: 0 0 8mm;
+  }
+
+  /* --------------------------------------------------------------
+     Building blocks
+     -------------------------------------------------------------- */
+  ul, ol { padding-inline-start: 5mm; margin: 0 0 4mm; }
+  li { margin-bottom: 1.5mm; }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 9pt;
+    background: var(--code-bg);
+    padding: 1px 5px;
+    border-radius: 4px;
+    border: 1px solid var(--code-border);
+    color: var(--navy-800);
+  }
+  pre {
+    font-family: var(--font-mono);
+    font-size: 8.6pt;
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 6px;
+    padding: 3.5mm 5mm;
+    margin: 3mm 0 5mm;
+    overflow: hidden;
+    line-height: 1.45;
+    color: #263454;
+    page-break-inside: avoid;
+  }
+  pre code { background: transparent; padding: 0; border: 0; font-size: inherit; }
+
+  .callout {
+    display: grid;
+    grid-template-columns: 6mm 1fr;
+    gap: 3mm;
+    padding: 3.5mm 4mm 3.5mm 3mm;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--cyan-500);
+    border-radius: 6px;
+    background: var(--paper-warm);
+    margin: 3mm 0 5mm;
+    page-break-inside: avoid;
+  }
+  .callout::before {
+    content: 'i';
+    font-family: var(--font-mono);
+    font-weight: 700;
+    color: var(--cyan-500);
+    background: var(--cyan-soft);
+    width: 6mm; height: 6mm;
+    border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 9pt;
+  }
+  .callout.warn { border-left-color: var(--warning); }
+  .callout.warn::before { color: var(--warning); background: #fef3d4; content: '!'; }
+  .callout.tip  { border-left-color: var(--success); }
+  .callout.tip::before  { color: var(--success); background: #dcf5ec; content: '✓'; }
+  .callout p:last-child { margin-bottom: 0; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 3mm 0 5mm;
+    font-size: 9.5pt;
+    page-break-inside: avoid;
+  }
+  th {
+    text-align: left;
+    background: var(--navy-800);
+    color: #ffffff;
+    font-weight: 600;
+    padding: 2.5mm 3mm;
+    font-size: 9pt;
+    letter-spacing: 0.02em;
+  }
+  td {
+    padding: 2.5mm 3mm;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: var(--paper-warm); }
+
+  .method { font-family: var(--font-mono); font-weight: 700; font-size: 8.5pt; padding: 1px 5px; border-radius: 3px; }
+  .method-GET    { background: #dcf5ec; color: #0a6b52; }
+  .method-POST   { background: #e3efff; color: #0a3f9c; }
+  .method-PATCH  { background: #fef3d4; color: #7c5a10; }
+  .method-DELETE { background: #fde8ec; color: #a1233b; }
+
+  .swatch-row {
+    display: flex;
+    gap: 3mm;
+    flex-wrap: wrap;
+    margin: 3mm 0 5mm;
+  }
+  .swatch {
+    width: 42mm;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+    page-break-inside: avoid;
+  }
+  .swatch-color { height: 20mm; }
+  .swatch-body { padding: 3mm; font-size: 8.5pt; }
+  .swatch-body strong { display: block; font-size: 9.5pt; color: var(--ink); }
+  .swatch-body code { background: transparent; border: 0; padding: 0; color: var(--ink-mid); font-size: 8pt; }
+
+  /* Two-column list for feature bullets */
+  .two-col {
+    columns: 2;
+    column-gap: 8mm;
+    margin: 3mm 0 5mm;
+  }
+  .two-col li { break-inside: avoid; }
+
+  /* TOC */
+  .toc { list-style: none; padding: 0; margin: 4mm 0 0; }
+  .toc > li {
+    display: grid;
+    grid-template-columns: 12mm 1fr auto;
+    align-items: baseline;
+    gap: 3mm;
+    padding: 2.5mm 0;
+    border-bottom: 1px dotted var(--line-strong);
+    font-size: 11pt;
+  }
+  .toc .toc-num { font-family: var(--font-mono); color: var(--cyan-500); font-weight: 700; font-size: 10pt; }
+  .toc .toc-title { color: var(--ink); font-weight: 500; }
+  .toc .toc-page  { color: var(--ink-mid); font-family: var(--font-mono); font-size: 9.5pt; }
+  .toc-sub {
+    grid-column: 2 / span 2;
+    color: var(--ink-soft);
+    font-size: 9.5pt;
+    margin-top: 1mm;
+  }
+
+  /* Architecture diagram (pure CSS/HTML boxes) */
+  .diagram {
+    background: var(--paper-warm);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 6mm 5mm;
+    margin: 4mm 0 6mm;
+    page-break-inside: avoid;
+  }
+  .stack-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 3mm;
+  }
+  .stack-node {
+    padding: 4mm;
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    background: #ffffff;
+    font-size: 9pt;
+  }
+  .stack-node strong { display: block; color: var(--blue-600); font-size: 10pt; margin-bottom: 1.5mm; }
+  .stack-node .muted { color: var(--ink-soft); font-size: 8.5pt; }
+  .stack-arrow {
+    text-align: center;
+    color: var(--cyan-500);
+    font-weight: 700;
+    margin: 3mm 0;
+    font-family: var(--font-mono);
+    letter-spacing: 0.5em;
+  }
+
+  /* Quote / voice block for cover-adjacent commentary */
+  blockquote {
+    margin: 4mm 0 6mm;
+    padding: 4mm 5mm;
+    border-inline-start: 3px solid var(--cyan-500);
+    background: var(--cyan-soft);
+    color: var(--ink);
+    font-size: 10.5pt;
+    border-radius: 0 6px 6px 0;
+  }
+
+  .kicker {
+    display: inline-block;
+    font-size: 8.5pt;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--cyan-500);
+    font-weight: 700;
+    margin-bottom: 2mm;
+  }
+
+  .lede { font-size: 12pt; color: var(--ink-mid); }
+
+  /* Small stat grid used in the executive summary */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 3mm;
+    margin: 5mm 0 6mm;
+  }
+  .stat {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 4mm;
+    background: var(--paper);
+  }
+  .stat .num { font-size: 20pt; font-weight: 800; color: var(--blue-600); line-height: 1; letter-spacing: -0.02em; }
+  .stat .lbl { font-size: 8.5pt; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2mm; }
+
+  .file-tree {
+    font-family: var(--font-mono);
+    font-size: 8.6pt;
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 6px;
+    padding: 4mm 5mm;
+    line-height: 1.65;
+    color: #263454;
+    white-space: pre;
+    overflow: hidden;
+  }
+
+  .footer-mark {
+    text-align: center;
+    color: var(--ink-soft);
+    font-size: 8pt;
+    padding-top: 8mm;
+  }
+
+  /* Section header with mark */
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 3mm;
+    margin-top: 6mm;
+  }
+  .section-header .dot {
+    width: 3mm; height: 3mm;
+    background: var(--cyan-500);
+    border-radius: 50%;
+  }
+
+  /* --------------------------------------------------------------
+     Component demo styles — used inside the Design System chapter
+     to render live examples of the Neurix UI components on paper.
+     -------------------------------------------------------------- */
+  .demo {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--paper-warm);
+    padding: 5mm 5mm 4mm;
+    margin: 3mm 0 5mm;
+    page-break-inside: avoid;
+  }
+  .demo-caption {
+    font-size: 8pt;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 3mm;
+    font-weight: 600;
+  }
+  .demo-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3mm;
+    align-items: center;
+    margin-bottom: 3mm;
+  }
+  .demo-row:last-child { margin-bottom: 0; }
+
+  /* Button demos */
+  .btn-demo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 18px;
+    border-radius: 999px;
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 9pt;
+    border: 1px solid transparent;
+    min-height: 32px;
+  }
+  .btn-demo.primary  { background: var(--blue-600); color: #fff; }
+  .btn-demo.primary.hover  { background: #0a4db2; box-shadow: 0 4px 10px -4px rgba(15,95,209,0.5); }
+  .btn-demo.primary.focus  { background: var(--blue-600); color: #fff; box-shadow: 0 0 0 3px var(--cyan-soft), 0 0 0 5px var(--cyan-500); }
+  .btn-demo.primary.disabled { background: var(--blue-600); opacity: 0.55; }
+  .btn-demo.secondary { background: #fff; color: var(--ink); border-color: var(--line-strong); }
+  .btn-demo.secondary.hover  { background: #eef2f9; }
+  .btn-demo.ghost     { background: transparent; color: var(--ink-mid); }
+  .btn-demo.ghost.hover      { background: #eef2f9; color: var(--ink); }
+  .btn-demo.danger    { background: var(--danger); color: #fff; }
+  .btn-demo.gradient  { background: linear-gradient(135deg, #0a3f9c 0%, #0f5fd1 55%, #22c3d9 100%); color: #fff; border: none; }
+  .btn-demo.sm { padding: 5px 12px; font-size: 8pt; min-height: 26px; }
+
+  /* Input demos */
+  .input-demo {
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--paper);
+    font-family: var(--font-body);
+    font-size: 9pt;
+    color: var(--ink);
+    display: inline-block;
+    min-width: 60mm;
+  }
+  .input-demo.focus { border-color: var(--cyan-500); box-shadow: 0 0 0 3px var(--cyan-soft); }
+  .input-demo.error { border-color: var(--danger); box-shadow: 0 0 0 3px #fde8ec; }
+  .input-demo.disabled { background: #eef2f9; color: var(--ink-soft); }
+  .input-demo .placeholder { color: var(--ink-soft); }
+  .input-demo .cursor { display: inline-block; width: 1px; height: 11px; background: var(--ink); vertical-align: middle; margin-left: 1px; }
+
+  .field-demo { display: inline-block; margin-inline-end: 4mm; margin-bottom: 3mm; vertical-align: top; }
+  .field-demo-label {
+    display: block;
+    font-size: 7.5pt;
+    font-weight: 700;
+    color: var(--ink-mid);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 4px;
+  }
+  .field-demo-help {
+    display: block;
+    font-size: 7.5pt;
+    color: var(--danger);
+    margin-top: 3px;
+  }
+
+  /* Card demo */
+  .card-demo {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 14px;
+    box-shadow: 0 1px 2px rgba(20,22,31,0.03), 0 1px 3px rgba(20,22,31,0.04);
+    max-width: 62mm;
+  }
+  .card-demo .card-title { font-weight: 700; color: var(--ink); font-size: 10pt; margin-bottom: 2mm; }
+  .card-demo .card-body  { color: var(--ink-mid); font-size: 8.5pt; }
+
+  /* Status pill demos */
+  .pill-demo {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 8pt;
+    font-weight: 600;
+  }
+  .pill-demo::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: 0.75; }
+  .pill-demo.in-progress { background: #e3efff; color: #0a3f9c; }
+  .pill-demo.review      { background: #e0f7fb; color: #0a6570; }
+  .pill-demo.completed   { background: #dcf5ec; color: #0a6b52; }
+  .pill-demo.overdue     { background: #fde8ec; color: #a1233b; }
+
+  /* Alert demos */
+  .alert-demo {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid;
+    font-size: 9pt;
+    margin-bottom: 3mm;
+    display: block;
+  }
+  .alert-demo.info    { background: #e3efff; border-color: #b6d0f5; color: #0a3f9c; }
+  .alert-demo.success { background: #dcf5ec; border-color: #b0e0cf; color: #0a6b52; }
+  .alert-demo.warn    { background: #fdf1d9; border-color: #f0d590; color: #7c5a10; }
+  .alert-demo.error   { background: #fde8ec; border-color: #f4c4cf; color: #a1233b; }
+
+  /* Avatar demos */
+  .avatar-demo {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 9pt;
+  }
+  .avatar-demo.sz-sm { width: 22px; height: 22px; font-size: 7.5pt; }
+  .avatar-demo.sz-lg { width: 44px; height: 44px; font-size: 12pt; }
+  .avatar-demo.h1 { background: #d9e6ff; color: #0a3f9c; }
+  .avatar-demo.h2 { background: #d1f2f7; color: #076675; }
+  .avatar-demo.h3 { background: #e2dcfa; color: #4a2fa8; }
+  .avatar-demo.h4 { background: #d3f0e6; color: #0a6b52; }
+  .avatar-demo.h5 { background: #fce0e6; color: #a01a35; }
+  .avatar-demo.h6 { background: #fceecd; color: #8a5a0e; }
+
+  /* Table demo */
+  .table-demo { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 8.5pt; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .table-demo th { background: #f7f9fd; color: var(--ink-mid); text-transform: uppercase; font-size: 7pt; letter-spacing: 0.08em; padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--line); }
+  .table-demo td { padding: 8px; border-bottom: 1px solid var(--line); }
+  .table-demo tr:last-child td { border-bottom: 0; }
+  .table-demo tr:nth-child(even) td { background: #f7f9fd; }
+
+  /* Elevation demos */
+  .shadow-scale { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4mm; }
+  .shadow-card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    height: 22mm;
+    padding: 4mm;
+    font-size: 8pt;
+    color: var(--ink-mid);
+  }
+  .shadow-card.s0 { box-shadow: none; }
+  .shadow-card.s1 { box-shadow: 0 1px 2px rgba(20,22,31,0.03), 0 1px 3px rgba(20,22,31,0.04); }
+  .shadow-card.s2 { box-shadow: 0 4px 12px rgba(20,22,31,0.05), 0 2px 4px rgba(20,22,31,0.03); }
+  .shadow-card.s3 { box-shadow: 0 12px 32px rgba(20,22,31,0.08); }
+  .shadow-card strong { display: block; font-size: 9pt; color: var(--ink); margin-bottom: 2mm; }
+
+  /* Type scale */
+  .type-scale { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .type-scale-row {
+    display: grid;
+    grid-template-columns: 30mm 30mm 1fr;
+    align-items: baseline;
+    padding: 3mm 4mm;
+    border-bottom: 1px solid var(--line);
+    background: var(--paper);
+  }
+  .type-scale-row:last-child { border-bottom: 0; }
+  .type-scale-row:nth-child(even) { background: var(--paper-warm); }
+  .type-scale-row .label { font-size: 8pt; font-weight: 600; color: var(--ink-mid); text-transform: uppercase; letter-spacing: 0.06em; }
+  .type-scale-row .meta  { font-family: var(--font-mono); font-size: 8pt; color: var(--ink-soft); }
+
+  /* Motion tokens */
+  .motion-scale { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; }
+  .motion-token { padding: 3mm; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+  .motion-token strong { display: block; color: var(--blue-600); font-size: 9.5pt; font-family: var(--font-mono); }
+  .motion-token .desc { font-size: 8pt; color: var(--ink-mid); margin-top: 1mm; }
+  .motion-token .use  { font-size: 8pt; color: var(--ink-soft); margin-top: 2mm; font-style: italic; }
+
+  /* Do/Don't */
+  .dodont { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin: 3mm 0 5mm; }
+  .dodont-panel { border: 1px solid var(--line); border-radius: 8px; padding: 4mm; background: #fff; }
+  .dodont-panel.do    { border-color: #b0e0cf; background: #f4fbf8; }
+  .dodont-panel.dont  { border-color: #f4c4cf; background: #fdf6f8; }
+  .dodont-panel .title { font-size: 9pt; font-weight: 700; margin-bottom: 2mm; display: flex; align-items: center; gap: 4px; }
+  .dodont-panel.do    .title { color: #0a6b52; }
+  .dodont-panel.dont  .title { color: #a1233b; }
+  .dodont-panel ul { margin: 0; padding-inline-start: 4mm; font-size: 8.5pt; color: var(--ink-mid); }
+
+  /* Chat bubble demo */
+  .chat-demo { max-width: 90mm; }
+  .chat-demo-row { display: flex; align-items: flex-end; gap: 2mm; margin-bottom: 2mm; }
+  .chat-demo-row.user { justify-content: flex-end; }
+  .chat-demo-bubble { padding: 5px 10px; border-radius: 12px; font-size: 8.5pt; line-height: 1.4; max-width: 60mm; }
+  .chat-demo-bubble.bot  { background: #fff; border: 1px solid var(--line); color: var(--ink); border-bottom-left-radius: 3px; }
+  .chat-demo-bubble.user { background: var(--blue-600); color: #fff; border-bottom-right-radius: 3px; }
+  .chat-demo-actions { display: flex; gap: 4px; margin-top: 3px; flex-wrap: wrap; }
+  .chat-demo-actions .btn { padding: 3px 9px; border-radius: 999px; background: var(--accent-soft); color: #0a3f9c; border: 1px solid #b6d0f5; font-size: 7.5pt; font-weight: 600; }
+  .chat-demo-avatar { width: 20px; height: 20px; border-radius: 50%; background: linear-gradient(135deg,#0a3f9c,#22c3d9); flex-shrink: 0; }
+
+  /* Icon grid */
+  .icon-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3mm; }
+  .icon-cell { border: 1px solid var(--line); border-radius: 6px; padding: 4mm 2mm; text-align: center; background: #fff; }
+  .icon-cell .glyph { display: block; margin-bottom: 2mm; color: var(--blue-600); }
+  .icon-cell .name  { font-size: 7.5pt; color: var(--ink-mid); font-family: var(--font-mono); }
+
+  /* Spacing scale */
+  .spacing-scale { display: flex; align-items: flex-end; gap: 4mm; }
+  .spacing-block { background: var(--cyan-500); border-radius: 3px; text-align: center; color: #fff; font-family: var(--font-mono); font-size: 7pt; padding-top: 2mm; }
+  .spacing-block .label { display: block; color: var(--ink-mid); margin-top: 2mm; font-family: var(--font-body); font-weight: 600; font-size: 8pt; }
+
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     COVER PAGE
+     ============================================================ -->
+<section class="cover">
+  <div class="cover-grid"></div>
+  <img class="cover-mark" src="../frontend/public/neurix-mark.png" alt="" />
+
+  <div class="cover-top">
+    <img src="../frontend/public/neurix-mark.png" alt="Neurix" />
+    <span class="cover-eyebrow">Neurix</span>
+  </div>
+
+  <div>
+    <h1 class="cover-title">
+      Neurix
+      <span class="cyan">Data Entry</span>
+      Management System.
+    </h1>
+    <p class="cover-subtitle">
+      A full-stack workspace for teams that push a lot of structured data through a small number of hands — and want the paper trail, the analytics, and the guardrails to come for free.
+    </p>
+  </div>
+
+  <dl class="cover-meta">
+    <div>
+      <dt>Document</dt>
+      <dd>Technical Documentation<br><span class="muted">Version 1.0</span></dd>
+    </div>
+    <div>
+      <dt>Author</dt>
+      <dd>Neurix Team<br><span class="muted">neurix.ai0@gmail.com</span></dd>
+    </div>
+    <div>
+      <dt>Published</dt>
+      <dd>August 2026<br><span class="muted">Living document</span></dd>
+    </div>
+  </dl>
+</section>
+
+<!-- ============================================================
+     TABLE OF CONTENTS
+     ============================================================ -->
+<section class="chapter">
+  <span class="chapter-num">Contents</span>
+  <h1 class="chapter-title">What's inside.</h1>
+  <p class="chapter-lede">A quick map so you can jump to whatever you actually need. Chapters are ordered roughly from "why this exists" down to "how do I run it in production".</p>
+  <hr class="chapter-rule" />
+
+  <ul class="toc">
+    <li><span class="toc-num">01</span><span class="toc-title">About This Document</span><span class="toc-page">4</span></li>
+    <li><span class="toc-num">02</span><span class="toc-title">Executive Summary</span><span class="toc-page">5</span>
+      <div class="toc-sub">What Neurix is, who it's for, and the shape of the codebase in numbers.</div>
+    </li>
+    <li><span class="toc-num">03</span><span class="toc-title">System Architecture</span><span class="toc-page">7</span>
+      <div class="toc-sub">Three-tier layout, request flow, container topology.</div>
+    </li>
+    <li><span class="toc-num">04</span><span class="toc-title">Tech Stack &amp; Rationale</span><span class="toc-page">9</span>
+      <div class="toc-sub">Every library we picked and the tradeoff we made picking it.</div>
+    </li>
+    <li><span class="toc-num">05</span><span class="toc-title">Feature Walkthrough</span><span class="toc-page">12</span>
+      <div class="toc-sub">Authentication, dashboards, tickets, custom fields, reports, chat assistant.</div>
+    </li>
+    <li><span class="toc-num">06</span><span class="toc-title">Design System</span><span class="toc-page">18</span>
+      <div class="toc-sub">Palette, typography, spacing, motion, accessibility.</div>
+    </li>
+    <li><span class="toc-num">07</span><span class="toc-title">API Reference</span><span class="toc-page">22</span>
+      <div class="toc-sub">Every REST endpoint, grouped by controller.</div>
+    </li>
+    <li><span class="toc-num">08</span><span class="toc-title">Database Schema</span><span class="toc-page">26</span>
+      <div class="toc-sub">Thirteen domain entities and how they relate.</div>
+    </li>
+    <li><span class="toc-num">09</span><span class="toc-title">Security</span><span class="toc-page">28</span>
+      <div class="toc-sub">JWT flow, password hashing, CORS, rate limiting.</div>
+    </li>
+    <li><span class="toc-num">10</span><span class="toc-title">Deployment</span><span class="toc-page">30</span>
+      <div class="toc-sub">Docker Compose in production, environment variables, DB swap.</div>
+    </li>
+    <li><span class="toc-num">11</span><span class="toc-title">Development Setup</span><span class="toc-page">32</span>
+      <div class="toc-sub">Local dev without Docker, testing, linting.</div>
+    </li>
+    <li><span class="toc-num">12</span><span class="toc-title">User Guides</span><span class="toc-page">33</span>
+      <div class="toc-sub">Task-based walkthroughs — submit a ticket, add a user, build a form, run a report.</div>
+    </li>
+    <li><span class="toc-num">13</span><span class="toc-title">Troubleshooting</span><span class="toc-page">36</span>
+      <div class="toc-sub">The most common issues and the exact fixes.</div>
+    </li>
+    <li><span class="toc-num">14</span><span class="toc-title">Roadmap &amp; Known Limitations</span><span class="toc-page">38</span>
+      <div class="toc-sub">What's stubbed, what's next, what we're deliberately not building.</div>
+    </li>
+    <li><span class="toc-num">A</span><span class="toc-title">Appendix — File Layout &amp; Conventions</span><span class="toc-page">39</span></li>
+    <li><span class="toc-num">B</span><span class="toc-title">Appendix — Glossary</span><span class="toc-page">40</span></li>
+  </ul>
+</section>
+
+<!-- ============================================================
+     01 — ABOUT THIS DOCUMENT
+     ============================================================ -->
+<section class="chapter">
+  <span class="chapter-num">Chapter 01</span>
+  <h1 class="chapter-title">About this document.</h1>
+  <p class="chapter-lede">What you're reading, who it's for, and the assumptions I've made about the reader.</p>
+  <hr class="chapter-rule" />
+
+  <p>This is the technical documentation for <strong>Neurix</strong>, a data-entry management system built end-to-end over the last few weeks. It covers the codebase at the version rendered on the cover page — if you're reading a printed copy months from now, please treat any specific line count as a snapshot rather than a promise.</p>
+
+  <p>I wrote it for three audiences, in decreasing order of how much I've optimized for them:</p>
+
+  <ol>
+    <li><strong>The engineer who has to keep the thing running.</strong> Every architectural choice has a stated reason, so when the reason no longer holds you can revisit the choice without archaeology.</li>
+    <li><strong>The stakeholder who needs to know what Neurix does without opening a Java file.</strong> Chapters 2 and 5 are structured so you can read them alone and get the shape of the product.</li>
+    <li><strong>Future me.</strong> If I come back in six months and I've forgotten why the JWT expiry is 24 hours and not 8, the answer should be in here.</li>
+  </ol>
+
+  <h3>Reading conventions</h3>
+
+  <p>Code paths and identifiers appear like this: <code>backend/src/main/java/com/dataentry/service/ChatService.java</code>. Terminal commands look like this:</p>
+
+<pre><code>docker compose up --build</code></pre>
+
+  <p>Callouts flag context that goes beyond the surrounding paragraph:</p>
+
+  <div class="callout">
+    <p>Neutral notes look like this. Background context, non-obvious behavior, that kind of thing.</p>
+  </div>
+  <div class="callout tip">
+    <p>Green callouts are practical tips — usually a small habit that saves time.</p>
+  </div>
+  <div class="callout warn">
+    <p>Amber callouts flag something you can actually break — configuration that's easy to get wrong or a foot-gun in the code.</p>
+  </div>
+
+  <h3>What I've deliberately left out</h3>
+
+  <p>This document doesn't try to be an API tutorial or a Spring Boot / React primer. If you've never seen a JPA entity or a React hook before, some sections will read as reference material rather than teaching. I've linked mental models where I could, but the goal is <em>documentation of this system</em>, not a general course.</p>
+
+  <p>I've also skipped over the standard boilerplate — <code>package.json</code> scripts you can read yourself, <code>@Autowired</code> plumbing that looks the same in every Spring project. Where a decision was interesting I've written about it; where it was a default I've stayed quiet.</p>
+</section>
+
+<!-- ============================================================
+     02 — EXECUTIVE SUMMARY
+     ============================================================ -->
+<section class="chapter">
+  <span class="chapter-num">Chapter 02</span>
+  <h1 class="chapter-title">Executive summary.</h1>
+  <p class="chapter-lede">What Neurix is, why it exists, and the shape of the codebase in numbers.</p>
+  <hr class="chapter-rule" />
+
+  <h2>What is Neurix?</h2>
+
+  <p>Neurix is a <strong>data-entry management system</strong>. Think of a call center or a claims-processing team: a group of people who spend their day filling in structured forms, and a smaller group who need to see what got filed, how quickly, and by whom. Neurix is the software those two groups share.</p>
+
+  <p>Concretely, it does five things:</p>
+
+  <ul class="two-col">
+    <li>Turns free-form paperwork into <strong>structured tickets</strong> that can be counted and sliced.</li>
+    <li>Lets admins <strong>compose the intake form dynamically</strong> without a code change — new fields are added from the UI.</li>
+    <li>Organizes work by <strong>department, subcategory, and project</strong>, so you can filter and report on any of those cuts.</li>
+    <li>Gives each user a <strong>personal dashboard</strong> and the admin an <strong>organization-wide dashboard</strong>.</li>
+    <li>Includes a <strong>rule-based chat assistant</strong> that navigates the app on demand (and is wired to swap in a real LLM whenever the budget arrives).</li>
+  </ul>
+
+  <h2>Who uses it, and how</h2>
+
+  <p>Neurix has two roles: <strong>Admin</strong> and <strong>User</strong> (a "data-entry agent" in the UI). They share the same login screen and the same navigation shell, but their home pages, their sidebars, and their permissions diverge.</p>
+
+  <h3>The admin's day</h3>
+
+  <p>An admin lands on <code>/admin</code>, which is a five-KPI dashboard: total tickets, tickets today, users, departments, and a small trend chart. From there they typically go one of four places:</p>
+
+  <ol>
+    <li><strong>Users</strong> — to add a new agent, change someone's role, or check who's active. Each user's row links to a per-user <em>activity page</em> that shows what they've submitted and when.</li>
+    <li><strong>Departments &amp; Subcategories</strong> — the taxonomy that every ticket has to slot into.</li>
+    <li><strong>Custom Fields</strong> — the interesting one. This is where the admin adds a new field to the submission form. Toggle a field on and every agent sees it the next time they load the form.</li>
+    <li><strong>Reports</strong> — analytics: per-department volume, per-user performance, per-status breakdowns, time trends.</li>
+  </ol>
+
+  <h3>The agent's day</h3>
+
+  <p>An agent lands on <code>/dashboard</code>, which is their <em>own</em> dashboard: personal KPIs, a streak, a status donut, a recent-activity feed. Then they go to <code>/submit</code>, fill in the form (including any custom fields the admin has defined), and optionally run the <em>AI content check</em> before submitting. Their tickets show up under <code>/my-tickets</code> with status, feedback, and history.</p>
+
+  <div class="callout tip">
+    <p>Admins can access everything an agent can — the reverse is not true. That asymmetry is enforced in Spring Security (<code>hasRole('ADMIN')</code> vs <code>hasAnyRole('USER', 'ADMIN')</code>) <em>and</em> in the React router (<code>&lt;ProtectedRoute roles={['ADMIN']}&gt;</code>). Both matter — the frontend guard is cosmetic, the backend guard is the actual authorization boundary.</p>
+  </div>
+</section>
+
+<!-- ============================================================
+     03 — SYSTEM ARCHITECTURE
+     ============================================================ -->
+<section class="chapter">
+  <span class="chapter-num">Chapter 03</span>
+  <h1 class="chapter-title">System architecture.</h1>
+  <p class="chapter-lede">Three tiers, no surprises. Where each tier lives, what it owns, and how they talk.</p>
+  <hr class="chapter-rule" />
+
+  <h2>The 30-second version</h2>
+
+  <p>Neurix is a fairly boring three-tier web app: a React SPA in the browser, a Spring Boot REST API on the server, and a SQL database behind that. In production the frontend and backend each run in their own Docker container, with nginx fronting the SPA and proxying <code>/api/*</code> back to Spring. There's a third container for LibreTranslate (used by the localization / translation service), running quietly in the background.</p>
+
+  <div class="diagram">
+    <div class="stack-row">
+      <div class="stack-node">
+        <strong>Browser</strong>
+        React 18 SPA<br />
+        <span class="muted">Vite build → static assets served by nginx</span>
+      </div>
+      <div class="stack-node">
+        <strong>Spring Boot API</strong>
+        Java 17 · JPA · Spring Security<br />
+        <span class="muted">/api/* endpoints, JWT auth, business logic</span>
+      </div>
+      <div class="stack-node">
+        <strong>Database</strong>
+        SQLite (dev) · Postgres/MySQL (prod-ready)<br />
+        <span class="muted">Managed by JPA/Hibernate — no hand-written DDL</span>
+      </div>
+    </div>
+    <div class="stack-arrow">↓  ↓  ↓</div>
+    <div class="stack-row" style="grid-template-columns: 1fr 1fr;">
+      <div class="stack-node">
+        <strong>nginx</strong>
+        Serves the built SPA<br />
+        Proxies <code>/api/*</code> → backend<br />
+        <span class="muted">SPA fallback: all unknown paths → <code>/index.html</code></span>
+      </div>
+      <div class="stack-node">
+        <strong>LibreTranslate (optional)</strong>
+        Companion service for on-the-fly translation<br />
+        <span class="muted">Internal only — not exposed to the browser</span>
+      </div>
+    </div>
+  </div>
+
+  <h2>Container topology in production</h2>
+
+  <p>The <code>docker-compose.yml</code> at the repo root brings up three services:</p>
+
+  <table>
+    <thead>
+      <tr><th>Container</th><th>Image</th><th>Exposed port</th><th>Role</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>dems-frontend</code></td><td>Built from <code>frontend/Dockerfile</code> (nginx-alpine base)</td><td>8082 → 80</td><td>Serves the SPA + proxies API</td></tr>
+      <tr><td><code>dems-backend</code></td><td>Built from <code>backend/Dockerfile</code> (JRE 17 base)</td><td>8083 → 8080</td><td>The Spring Boot REST server</td></tr>
+      <tr><td><code>dems-libretranslate</code></td><td><code>libretranslate/libretranslate:latest</code></td><td>internal (5000)</td><td>On-demand text translation</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout warn">
+    <p>The nginx config in <code>frontend/nginx.conf</code> does two things you need to know about: (a) it proxies <code>/api/*</code> to the backend service by its <em>container name</em>, so the frontend Docker image is useless without Compose, and (b) it falls back to <code>index.html</code> for any request that doesn't match a real file. That fallback is what allows client-side routing to work on refresh — but it also means a missing asset returns a 200 with HTML, not a proper 404. Watch for that when you're debugging why an image isn't loading.</p>
+  </div>
+
+  <h2>The request lifecycle</h2>
+
+  <p>Take a typical action — an agent submitting a ticket — and follow it through the stack:</p>
+
+  <ol>
+    <li>The agent clicks <em>Submit</em> in the browser. React calls <code>api.post('/user/tickets', payload)</code> from <code>src/api/tickets.ts</code>.</li>
+    <li>The axios interceptor in <code>src/api/client.ts</code> attaches the JWT (from a cookie, falling back to an in-memory token for backwards compatibility) and adds an <code>Accept-Language</code> header from <code>localStorage</code>.</li>
+    <li>The request hits nginx at <code>/api/user/tickets</code>, which rewrites it and forwards to <code>dems-backend:8080/api/user/tickets</code>.</li>
+    <li>Spring's security filter chain (<code>SecurityConfig.java</code>) matches the URL against the rules: <code>/api/user/**</code> requires <code>ROLE_USER</code> or <code>ROLE_ADMIN</code>. If the JWT is valid, the authentication object gets populated; otherwise 403 is returned.</li>
+    <li><code>TicketController</code> receives the DTO, hands it to <code>TicketService</code>, which validates business rules and persists via <code>TicketRepository</code>.</li>
+    <li>Hibernate emits SQL against SQLite (or Postgres, if configured), the entity is saved, and the ID is returned.</li>
+    <li><code>TicketService</code> also writes an audit-log entry via <code>AuditService</code>. The audit table is append-only — nothing else in the app writes to it, and no admin UI lets you delete rows.</li>
+    <li>The controller returns the ticket DTO; nginx passes the JSON back to the browser; React updates state and shows a success toast.</li>
+  </ol>
+
+  <p>Every write path in the app follows this same skeleton. Once you've internalized the six pieces — <em>API wrapper → interceptor → nginx → security filter → controller → service → repository</em> — the whole backend reads the same way.</p>
+</section>
+
+<!-- ============================================================
+     04 — TECH STACK
+     ============================================================ -->
+<section class="chapter">
+  <span class="chapter-num">Chapter 04</span>
+  <h1 class="chapter-title">Tech stack &amp; rationale.</h1>
+  <p class="chapter-lede">Every non-trivial library and the tradeoff behind picking it. If a library isn't listed here it's because it was a default that didn't earn a discussion.</p>
+  <hr class="chapter-rule" />
+
+  <h2>Backend</h2>
+
+  <h3>Java 17 + Spring Boot 3.3.5</h3>
+
+  <p>Spring Boot is the boring, default choice for a Java REST API, which is exactly why I picked it. Everything a small team needs — HTTP, validation, DI, security, JPA — comes wired together, and I never had to fight the framework to get standard behavior. Java 17 is the current LTS at the time of writing; the codebase uses records for DTOs and switch expressions where they help readability, but nothing exotic.</p>
+
+  <p>The concrete Spring starters in play:</p>
+
+  <table>
+    <thead><tr><th>Starter</th><th>What it gives us</th></tr></thead>
+    <tbody>
+      <tr><td><code>spring-boot-starter-web</code></td><td>Tomcat, MVC, JSON via Jackson</td></tr>
+      <tr><td><code>spring-boot-starter-data-jpa</code></td><td>Hibernate + repository abstractions</td></tr>
+      <tr><td><code>spring-boot-starter-security</code></td><td>Filter chain, method-level authorization</td></tr>
+      <tr><td><code>spring-boot-starter-validation</code></td><td>Bean-validation on DTOs (<code>@Valid</code>, <code>@NotBlank</code>, etc.)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>SQLite by default, Postgres/MySQL on demand</h3>
+
+  <p>SQLite makes local development a single command with zero prerequisites: <code>docker compose up</code> and you're running. The database file lives in a named volume (<code>dems-data</code>), so it survives container restarts but wipes with <code>docker compose down -v</code>. This is the right tradeoff for a demo / small team — SQLite handles the write volume of a data-entry system without breaking a sweat.</p>
+
+  <p>Swapping to Postgres or MySQL is a two-line change in <code>application.yml</code> plus a JDBC driver swap in <code>pom.xml</code>. Every entity uses plain JPA — no SQLite-specific tricks, no native queries with dialect quirks. See Chapter 10 for the exact incantation.</p>
+
+  <div class="callout warn">
+    <p>SQLite's write serialization is fine at low concurrency but will bite you above a few dozen simultaneous writers. If you're planning to onboard hundreds of concurrent agents, do the Postgres swap first — it's cheap up front, painful under load.</p>
+  </div>
+
+  <h3>JWT auth via JJWT 0.12.x</h3>
+
+  <p>The auth flow is intentionally standard: <code>POST /api/auth/login</code> exchanges username + password for a signed HS512 JWT. The token is set as an httpOnly cookie <em>and</em> returned in the response body, because early versions stored it in <code>localStorage</code> and we still have the migration path.</p>
+
+  <p>Passwords are hashed with BCrypt (via <code>spring-security-crypto</code>) at a cost factor of 10 — the framework default. This is <em>not</em> the strongest possible setting, but it's the standard tradeoff between hash time (~100ms) and login latency at scale.</p>
+
+  <h3>Rate limiting: in-memory and DB-backed variants</h3>
+
+  <p>Login attempts are throttled by IP + username via <code>LoginRateLimiter</code>, which has two implementations: <code>InMemoryLoginRateLimiter</code> for single-node deployments and <code>DatabaseLoginRateLimiter</code> when you're running multiple backend instances behind a load balancer. The in-memory one is the default; swap in the DB version by changing which bean is qualified as <code>@Primary</code>.</p>
+
+  <h2>Frontend</h2>
+
+  <h3>React 18.3.1 + TypeScript 5.6.3 + Vite 5.4.10</h3>
+
+  <p>React + TypeScript is the least controversial UI stack a new project can pick in 2026. Vite as the bundler gives you sub-second dev-server startup and, in this project, a full production build in a couple of seconds. I don't have strong feelings about Vite vs. its competitors — it just works, and I've never had to think about it after the initial <code>npm create</code>.</p>
+
+  <p>There are no state-management libraries — the app is small enough that React Context (for auth, theme, and language) plus local <code>useState</code> covers everything.</p>
+
+  <h3>React Router 6.27.0</h3>
+
+  <p>Standard nested routes, with two layers of protection: <code>&lt;ProtectedRoute&gt;</code> to bounce unauthenticated users to <code>/login</code>, and a <code>roles={['ADMIN']}</code> prop for admin-only routes. See <code>src/App.tsx</code> for the whole routing tree.</p>
+
+  <h3>axios 1.7.7</h3>
+
+  <p>One axios instance in <code>src/api/client.ts</code>, one interceptor for auth + language headers, and a thin wrapper file per resource (<code>src/api/tickets.ts</code>, <code>chat.ts</code>, etc.). The wrappers deliberately keep the axios types out of the consuming components — every hook and component consumes typed response objects, not <code>AxiosResponse&lt;...&gt;</code>.</p>
+
+  <h3>Hand-crafted design system (no UI library)</h3>
+
+  <p>Instead of a component library — Material, Chakra, shadcn, etc. — the whole UI is a hand-written CSS design system in one file: <code>frontend/src/styles/global.css</code>. This is a real tradeoff, not a mistake:</p>
+
+  <ul>
+    <li><strong>Pro:</strong> Zero framework churn, no bundle-size hit for components we don't use, complete control over motion and color, and the whole system fits in one file you can grep.</li>
+    <li><strong>Pro:</strong> The palette matches the Neurix identity exactly, because I picked every hex.</li>
+    <li><strong>Con:</strong> You give up the accessibility polish that comes with a well-maintained kit — every focus ring, every ARIA attribute is my problem.</li>
+    <li><strong>Con:</strong> New components take longer to build than dropping in <code>&lt;Combobox&gt;</code> from someone else's library.</li>
+  </ul>
+
+  <p>For a system this size, with a strong brand identity, the tradeoff was worth it. For a larger app or a team of five, I'd probably reach for shadcn.</p>
+
+  <h2>Infrastructure</h2>
+
+  <table>
+    <thead><tr><th>Piece</th><th>What it is</th><th>Why it's here</th></tr></thead>
+    <tbody>
+      <tr><td>Docker Compose</td><td>Orchestrates the 3-container setup</td><td>One-command bring-up, dev/prod parity</td></tr>
+      <tr><td>nginx (alpine)</td><td>Serves the SPA and proxies <code>/api/*</code></td><td>Standard SPA hosting; no separate API gateway needed</td></tr>
+      <tr><td>LibreTranslate</td><td>Self-hosted translation service</td><td>Optional dependency for the translation feature — no vendor API keys required</td></tr>
+      <tr><td>OpenJDK 17 JRE</td><td>Base image for the backend container</td><td>Small footprint, LTS support</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Notably absent</h2>
+
+  <p>Things that don't exist in this stack, and why:</p>
+
+  <ul>
+    <li><strong>No Redis.</strong> The rate limiter and audit log both use the primary database. If you outgrow that, Redis is the next stop.</li>
+    <li><strong>No message queue.</strong> All writes are synchronous. If we grow into background jobs (PDF exports, batch imports), the natural next step is an in-process queue or a small worker service.</li>
+    <li><strong>No frontend state library (Redux, Zustand, Jotai).</strong> The app doesn't need one yet. React Context handles auth, theme, and language cleanly.</li>
+    <li><strong>No GraphQL.</strong> The REST surface is small (12 controllers) and the client uses each endpoint from one or two call sites. GraphQL would be pure overhead here.</li>
+  </ul>
+</section>
+
+<!-- ============================================================
+     05 — FEATURE WALKTHROUGH
+     ============================================================ -->
+<section class="chapter">
+  <span class="chapter-num">Chapter 05</span>
+  <h1 class="chapter-title">Feature walkthrough.</h1>
+  <p class="chapter-lede">Each major capability, what it does, where the code lives, and any gotcha worth flagging.</p>
+  <hr class="chapter-rule" />
+
+  <h2>Authentication &amp; sessions</h2>
+
+  <p><em>Backend:</em> <code>controller/AuthController.java</code>, <code>service/AuthService.java</code>. <em>Frontend:</em> <code>src/context/AuthContext.tsx</code>, <code>src/pages/LoginPage.tsx</code>.</p>
+
+  <p>Users land on <code>/login</code>, submit a username + password, and get back a JWT that's set as an httpOnly cookie (server-side) and cached in an axios interceptor (client-side). The token is HS512-signed, expires in 24 hours, and encodes three claims: <code>sub</code> (username), <code>uid</code> (user ID), and <code>role</code> (<code>ADMIN</code> or <code>USER</code>).</p>
+
+  <p>On refresh, the frontend calls <code>GET /api/auth/me</code> — if the cookie is still valid, the backend replies with the user object; otherwise a 401 sends them back to <code>/login</code>. This is why the login page shows for a beat during boot: React is waiting on the auth resolution before deciding where to route you.</p>
+
+  <div class="callout tip">
+    <p>The default admin credentials (<code>admin / admin123</code>) are seeded on first run by <code>DataSeeder</code>. Change them the moment you deploy anywhere real. The <code>JWT_SECRET</code> env var also has a hard-coded default; production deployments should override it.</p>
+  </div>
+
+  <h2>Admin dashboard</h2>
+
+  <p><em>Backend:</em> <code>controller/DashboardController.java</code>, <code>service/DashboardService.java</code>. <em>Frontend:</em> <code>src/pages/admin/AdminDashboardPage.tsx</code>.</p>
+
+  <p>A single endpoint (<code>GET /api/admin/stats</code>) returns everything the admin dashboard needs: total tickets, tickets today, active users, department count, a hero-metric card, and a small 7-day trend. Aggregation happens in SQL via Spring Data repository methods — nothing is computed in Java. The frontend renders five stat cards, a status donut, and a trend chart, all styled to match the Neurix palette.</p>
+
+  <h2>User management</h2>
+
+  <p><em>Backend:</em> <code>controller/AdminUserController.java</code>, <code>service/UserService.java</code>. <em>Frontend:</em> <code>src/pages/admin/AdminUsersPage.tsx</code>, <code>AdminUserActivityPage.tsx</code>.</p>
+
+  <p>Admins can create, edit, disable, and delete users. Passwords are set at creation and can be reset from the row-actions menu. Each user row links to a <em>per-user activity page</em> that shows their submitted tickets, average processing time, and current streak — the same data the user themselves sees on their own dashboard, but visible to the admin.</p>
+
+  <h2>Departments, subcategories, projects</h2>
+
+  <p><em>Backend:</em> <code>DepartmentController</code>, <code>SubcategoryController</code>, <code>ProjectController</code> + matching services. <em>Frontend:</em> the three <code>Admin{Department,Subcategory,Project}sPage.tsx</code> files.</p>
+
+  <p>The taxonomy is a two-level hierarchy: <em>Departments</em> contain <em>Subcategories</em>, and every ticket has a required <code>departmentId</code> + optional <code>subcategoryId</code>. Projects are an orthogonal grouping — a project can span departments and is used mainly for reporting.</p>
+
+  <p>Each department gets one of six color slots (<code>--dept-color-1</code> through <code>--dept-color-6</code>) that show up as a top-border strip on its card in the admin UI. The color assignment is deterministic and lives in the frontend — the backend just stores the department name and metadata.</p>
+
+  <h2>Custom form fields (the dynamic form)</h2>
+
+  <p><em>Backend:</em> <code>controller/CustomFieldController.java</code>, <code>service/CustomFieldService.java</code>, <code>model/CustomField.java</code>, <code>model/FieldType.java</code>. <em>Frontend:</em> <code>src/pages/admin/AdminFieldsPage.tsx</code>, <code>src/pages/user/submit/CustomFieldsSection.tsx</code>, <code>DynamicField.tsx</code>.</p>
+
+  <p>This is the feature that earned the app its keep. An admin can go to <em>Custom Fields</em>, add a field (text / number / date / dropdown / textarea, etc.), and every agent immediately sees it on the submission form on their next page load. No code change, no deploy.</p>
+
+  <p>The trick is that field <em>values</em> aren't stored as columns on the <code>tickets</code> table — they're stored as rows in a <code>ticket_field_values</code> table, keyed by <code>(ticket_id, field_id)</code>. This is the EAV pattern, and it's the right shape for this kind of feature. It costs you the ability to write typed SQL against the values (they're all stored as strings), but it buys you unlimited schema flexibility from the UI.</p>
+
+  <div class="callout">
+    <p>Fields are soft-toggleable: disabling a field hides it on the submission form but doesn't delete its historical values. This is important for reporting — you can turn a field off without losing the data agents already entered against it.</p>
+  </div>
+
+  <h2>Ticket submission workflow</h2>
+
+  <p><em>Backend:</em> <code>controller/TicketController.java</code>, <code>service/TicketService.java</code>, <code>model/Ticket.java</code>, <code>TicketFieldValue.java</code>, <code>TicketStatus.java</code>. <em>Frontend:</em> <code>src/pages/user/SubmitTicketPage.tsx</code> and the <code>submit/</code> subdirectory.</p>
+
+  <p>A ticket has a fixed core (<em>title, department, subcategory, content, status, created-at, submitted-by</em>) and a variable body (<em>custom-field values</em>). Statuses are: <code>IN_PROGRESS</code>, <code>REVIEW</code>, <code>COMPLETED</code>. There's also an implicit <code>OVERDUE</code> that's derived from the submitted-at timestamp — not a real DB status.</p>
+
+  <p>Agents can attach documents. Uploads go through <code>UploadQuotaService</code> (which enforces per-user daily quotas) and, for PDFs, through <code>PdfExtractionService</code> or <code>PdfOcrService</code> depending on whether the PDF is a text PDF or a scan. The extracted text pre-fills the content field.</p>
+
+  <h2>AI content check</h2>
+
+  <p><em>Backend:</em> <code>controller/AiCheckController.java</code>, <code>service/AiCheckService.java</code>. <em>Frontend:</em> <code>src/pages/user/submit/AiCheckDialog.tsx</code>.</p>
+
+  <p>Before submitting, an agent can hit <em>Check with AI</em>. The current implementation is a deterministic cleanup — normalization, whitespace, common typos — not a real LLM call. The API contract is deliberately shaped like a real LLM would return: <code>{ original, corrected, notes: string[] }</code>. Swapping in Claude or GPT is a single method change in <code>AiCheckService.check()</code>.</p>
+
+  <h2>Reports &amp; analytics</h2>
+
+  <p><em>Backend:</em> shares the <code>DashboardService</code> for its aggregations. <em>Frontend:</em> <code>src/pages/admin/AdminReportsPage.tsx</code>.</p>
+
+  <p>The reports page slices ticket data along three axes: <em>by department</em>, <em>by user</em>, <em>by status</em>. Time ranges are toggleable (today / this week / this month / all time). Every chart is SVG rendered by hand — no chart library — which keeps the bundle small and the styling on-brand.</p>
+
+  <h2>Neurix Assistant (chat)</h2>
+
+  <p><em>Backend:</em> <code>controller/ChatController.java</code>, <code>service/ChatService.java</code>. <em>Frontend:</em> <code>src/components/chat/ChatWidget.tsx</code>, <code>src/api/chat.ts</code>.</p>
+
+  <p>A floating circular button lives in the bottom-right on every authenticated page. Clicking it opens a chat panel. The user types a question in Arabic or English; the backend classifies the intent and returns a reply plus (optionally) navigation <em>actions</em> — buttons like "Open Users →" that the frontend hands to React Router.</p>
+
+  <p>Intents are handled with keyword matching over a bilingual knowledge base. Categories:</p>
+
+  <ul>
+    <li><strong>Small talk</strong> — greetings, thanks, farewells.</li>
+    <li><strong>Site info</strong> — "what does this do", "الموقع بيعمل ايه".</li>
+    <li><strong>Help</strong> — capability listing.</li>
+    <li><strong>Navigation</strong> — every page has a keyword set in both languages, plus a role gate (admin-only pages are filtered out for agents).</li>
+    <li><strong>Fallback</strong> — quick-links to the three most common destinations for the current role.</li>
+  </ul>
+
+  <p>Conversation history is persisted in <code>localStorage</code> (last 40 messages), so the chat picks up where you left off across page refreshes. When the LLM budget arrives, <code>ChatService.reply()</code> is the one method that changes.</p>
+
+  <h2>Internationalization (English + Arabic, RTL)</h2>
+
+  <p><em>Frontend:</em> <code>src/i18n/index.tsx</code>, <code>en.ts</code>, <code>ar.ts</code>.</p>
+
+  <p>Every string in the UI goes through <code>t('key.name')</code>. The dictionaries are two TypeScript files with a nested-object shape; the <code>lookup()</code> helper walks the dot-path at runtime. Language toggle lives in the preferences drawer and persists to <code>localStorage</code> (<code>dems.lang</code>).</p>
+
+  <p>Arabic flips the whole app to RTL. This is <em>not</em> just <code>dir="rtl"</code> on the root — every CSS rule that uses <code>margin-left</code> or <code>padding-right</code> has been rewritten to use logical properties (<code>margin-inline-start</code>, <code>padding-inline-end</code>). The design system's spacing all mirrors correctly.</p>
+
+  <h2>Dark mode</h2>
+
+  <p>Theme toggle is next to the language toggle. The dark palette is a full re-derivation of the light palette — every token has a dark counterpart in <code>global.css</code>, not just a naive color-invert. Both modes use the Neurix identity; dark just lifts the primary blue and cyan for contrast against the deep-navy surfaces.</p>
+</section>
+
+<!-- ============================================================
+     06 — DESIGN SYSTEM (expanded to a full component reference)
+     ============================================================ -->
+<section class="chapter">
+  <span class="chapter-num">Chapter 06</span>
+  <h1 class="chapter-title">Design system.</h1>
+  <p class="chapter-lede">The Neurix design system in three layers: <strong>Foundations</strong> (the raw tokens), <strong>Components</strong> (how those tokens combine), and <strong>Patterns</strong> (how components combine into recurring solutions). Every visual example on the following pages is rendered live in the same CSS the app ships with — what you see here is what you get in the browser.</p>
+  <hr class="chapter-rule" />
+
+  <h2>Part 1 · Foundations</h2>
+
+  <p>The tokens below are the smallest units of the system. Everything in the app — every button, every card, every focus ring — is composed from these.</p>
+
+  <h3>Palette</h3>
+
+  <p>Sampled directly from the Neurix logo: deep navy for anchoring text, electric blue as the primary action color, cyan as the highlight. Every color in the app is a CSS variable defined once at the top of <code>global.css</code>. No hex codes are hardcoded in components — the one exception is the login page's animated background, which sits outside the theme system on purpose.</p>
+
+  <h4>Brand</h4>
+  <div class="swatch-row">
+    <div class="swatch"><div class="swatch-color" style="background: #0d1a33"></div><div class="swatch-body"><strong>Deep navy</strong><code>#0D1A33 — --text-primary / --accent-deep</code></div></div>
+    <div class="swatch"><div class="swatch-color" style="background: #0f5fd1"></div><div class="swatch-body"><strong>Electric blue</strong><code>#0F5FD1 — --brand</code></div></div>
+    <div class="swatch"><div class="swatch-color" style="background: #22c3d9"></div><div class="swatch-body"><strong>Cyan</strong><code>#22C3D9 — --accent-cyan</code></div></div>
+    <div class="swatch"><div class="swatch-color" style="background: linear-gradient(135deg,#0a3f9c,#0f5fd1,#22c3d9)"></div><div class="swatch-body"><strong>Signature gradient</strong><code>Login CTA, hero surfaces</code></div></div>
+  </div>
+
+  <h4>Neutrals — light</h4>
+  <div class="swatch-row">
+    <div class="swatch"><div class="swatch-color" style="background: #f4f7fc; border-bottom: 1px solid #dde3ef"></div><div class="swatch-body"><strong>Page bg</strong><code>#F4F7FC — --bg-app</code></div></div>
+    <div class="swatch"><div class="swatch-color" style="background: #ffffff; border-bottom: 1px solid #dde3ef"></div><div class="swatch-body"><strong>Surface</strong><code>#FFFFFF — --bg-surface</code></div></div>
+    <div class="swatch"><div class="swatch-color" style="background: #eef2f9"></div><div class="swatch-body"><strong>Muted</strong><code>#EEF2F9 — --bg-muted</code></div></div>
+    <div class="swatch"><div class="swatch-color" style="background: #dde3ef"></div><div class="swatch-body"><strong>Border</strong><code>#DDE3EF — --border</code></div></div>
+  </div>
+
+  <h4>Neutrals — dark</h4>
+  <div class="swatch-row">
+    <div class="swatch"><div class="swatch-color" style="background: #060b1a"></div><div class="swatch-body"><strong>Page bg</strong><code>#060B1A — --bg-app</code></div></div>
+    <div class="swatch"><div class="swatch-color" style="background: #0f172c"></div><div class="swatch-body"><strong>Surface</strong><code>#0F172C — --bg-surface</code></div></div>
+    <div class="swatch"><div class="swatch-color" style="background: #141d38"></div><div class="swatch-body"><strong>Muted</strong><code>#141D38 — --bg-muted</code></div></div>
+    <div class="swatch"><div class="swatch-color" style="background: #1e2942"></div><div class="swatch-body"><strong>Border</strong><code>#1E2942 — --border</code></div></div>
+  </div>
+
+  <h4>Semantic status</h4>
+  <div class="swatch-row">
+    <div class="swatch"><div class="swatch-color" style="background: #0e9f7c"></div><div class="swatch-body"><strong>Success</strong><code>#0E9F7C — --success</code></div></div>
+    <div class="swatch"><div class="swatch-color" style="background: #f0a020"></div><div class="swatch-body"><strong>Warning</strong><code>#F0A020 — --warning</code></div></div>
+    <div class="swatch"><div class="swatch-color" style="background: #e04562"></div><div class="swatch-body"><strong>Danger</strong><code>#E04562 — --danger</code></div></div>
+    <div class="swatch"><div class="swatch-color" style="background: #7c56d9"></div><div class="swatch-body"><strong>Violet (dept)</strong><code>#7C56D9 — --dept-color-3</code></div></div>
+  </div>
+
+  <div class="callout">
+    <p><strong>Every hue has a "soft" pair.</strong> For every status color there's a matching soft background: <code>--danger-soft</code>, <code>--success-soft</code>, etc. Rule: use the strong color for the border or the icon; use the soft color for the fill. That way status pills, alerts, and badges all read at a glance without dominating the surrounding page.</p>
+  </div>
+
+  <h3>Typography</h3>
+
+  <p>One family (<em>Inter</em>) at five weights (400, 500, 600, 700, 800), with a monospace fallback (<em>JetBrains Mono</em>) for code, credentials, and numeric data. Arabic falls back to <em>Segoe UI Arabic</em> / <em>Tahoma</em> / <em>Cairo</em>. The ordering matters — Segoe renders Arabic beautifully on Windows and Cairo covers everywhere else.</p>
+
+  <div class="type-scale">
+    <div class="type-scale-row"><span class="label">Hero H1</span><span class="meta">2rem · 800 · -0.025em</span><span style="font-size: 20pt; font-weight: 800; letter-spacing: -0.025em; color: var(--ink);">Manage data entry with confidence</span></div>
+    <div class="type-scale-row"><span class="label">Page H2</span><span class="meta">1.6rem · 700 · -0.015em</span><span style="font-size: 16pt; font-weight: 700; letter-spacing: -0.015em; color: var(--ink);">Team Roster</span></div>
+    <div class="type-scale-row"><span class="label">Panel H3</span><span class="meta">1.25rem · 700</span><span style="font-size: 13pt; font-weight: 700; color: var(--ink);">Recent Activity</span></div>
+    <div class="type-scale-row"><span class="label">Body</span><span class="meta">0.95rem · 400 · 1.55</span><span style="font-size: 10pt; color: var(--ink);">One workspace to organize your data entry team, track tasks, and monitor performance in real time.</span></div>
+    <div class="type-scale-row"><span class="label">Small</span><span class="meta">0.875rem · 400</span><span style="font-size: 9pt; color: var(--ink-mid);">Sign in to the Data Entry Management System</span></div>
+    <div class="type-scale-row"><span class="label">Label</span><span class="meta">0.75rem · 600 · caps · +0.08em</span><span style="font-size: 8pt; font-weight: 600; color: var(--ink-mid); text-transform: uppercase; letter-spacing: 0.08em;">Username</span></div>
+    <div class="type-scale-row"><span class="label">Mono</span><span class="meta">JetBrains Mono · 0.9em</span><span style="font-family: var(--font-mono); font-size: 9pt; color: var(--ink);">TX-9K42 · $14,720</span></div>
+  </div>
+
+  <h3>Spacing scale</h3>
+
+  <p>Everything sits on an 8-pixel grid. You won't find a 7px or 15px anywhere in the CSS — every padding, gap, and margin picks from this scale.</p>
+
+  <div class="demo">
+    <div class="spacing-scale">
+      <div class="spacing-block" style="width: 12mm; height: 4px;"><span class="label">4</span></div>
+      <div class="spacing-block" style="width: 12mm; height: 8px;"><span class="label">8</span></div>
+      <div class="spacing-block" style="width: 12mm; height: 12px;"><span class="label">12</span></div>
+      <div class="spacing-block" style="width: 12mm; height: 16px;"><span class="label">16</span></div>
+      <div class="spacing-block" style="width: 12mm; height: 24px;"><span class="label">24</span></div>
+      <div class="spacing-block" style="width: 12mm; height: 32px;"><span class="label">32</span></div>
+      <div class="spacing-block" style="width: 12mm; height: 48px;"><span class="label">48</span></div>
+    </div>
+  </div>
+
+  <h3>Border radius</h3>
+
+  <table>
+    <thead><tr><th>Token</th><th>Value</th><th>Used for</th></tr></thead>
+    <tbody>
+      <tr><td><code>--radius-sm</code></td><td>6px</td><td>Chips, tags, inline code, tiny buttons</td></tr>
+      <tr><td><code>--radius</code></td><td>10px</td><td>Inputs, alerts, side-panel headers</td></tr>
+      <tr><td><code>--radius-lg</code></td><td>16px</td><td>Cards, modals, table wrappers, dashboard panels</td></tr>
+      <tr><td><code>--radius-pill</code></td><td>999px</td><td>Every button and every status pill</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Elevation</h3>
+
+  <p>Three shadow steps plus a "flat" state. Neurix uses elevation to signal focus, not to decorate — flat surfaces are the default; shadow appears when something floats above the page (modal, popover, hovered card).</p>
+
+  <div class="demo">
+    <div class="shadow-scale">
+      <div class="shadow-card s0"><strong>none</strong>flat surface</div>
+      <div class="shadow-card s1"><strong>--shadow-sm</strong>cards at rest</div>
+      <div class="shadow-card s2"><strong>--shadow</strong>hover state</div>
+      <div class="shadow-card s3"><strong>--shadow-lg</strong>modal / drawer</div>
+    </div>
+  </div>
+
+  <div class="callout warn">
+    <p><strong>No colored glow shadows.</strong> The only chromatic box-shadow in the whole system is the focus ring (cyan) and the primary CTA's ambient lift on the login page. Everything else is a neutral, near-black shadow. Colored glows read as "AI cool" and get old fast.</p>
+  </div>
+
+  <h3>Motion tokens</h3>
+
+  <p>Motion is deliberately restrained. Cards don't lift on hover — they get a slightly stronger border and a wider shadow, which is calmer than a transform. For a tool people use eight hours a day, aggressive motion becomes fatigue.</p>
+
+  <div class="motion-scale">
+    <div class="motion-token"><strong>150ms</strong><div class="desc">quick, ease</div><div class="use">Button hover, input border color</div></div>
+    <div class="motion-token"><strong>200ms</strong><div class="desc">standard, ease</div><div class="use">Card border/shadow, chip states</div></div>
+    <div class="motion-token"><strong>300ms</strong><div class="desc">deliberate, cubic-bezier(.2,.7,.2,1)</div><div class="use">Panel / drawer entrance</div></div>
+    <div class="motion-token"><strong>500ms</strong><div class="desc">flowy, ease</div><div class="use">Bars, progress transitions</div></div>
+    <div class="motion-token"><strong>700ms</strong><div class="desc">choreographed, cubic-bezier(.2,.7,.2,1)</div><div class="use">Auth entrance sequence</div></div>
+    <div class="motion-token"><strong>rAF</strong><div class="desc">frame-driven</div><div class="use">Login canvas particle network, chat typing dots</div></div>
+  </div>
+
+  <p>Every animation is wrapped in a <code>prefers-reduced-motion</code> media query: the login canvas disappears entirely; the chat pulse ring stops; entrance animations reduce to instant.</p>
+
+  <h3>Icon system</h3>
+
+  <p>Icons are hand-drawn 24×24 SVG paths, one per glyph, defined in <code>src/components/Icons.tsx</code>. Stroke-based, 1.6px stroke width, rounded joins. They inherit <code>currentColor</code>, so wherever they sit their color matches the surrounding text. No icon library, no external font.</p>
+
+  <div class="demo">
+    <div class="icon-grid">
+      <div class="icon-cell"><span class="glyph"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 3h7v9H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 15h7v6H3z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div class="name">Dashboard</div></div>
+      <div class="icon-cell"><span class="glyph"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.6"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><div class="name">Members</div></div>
+      <div class="icon-cell"><span class="glyph"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M3 10h18M8 4v16" stroke="currentColor" stroke-width="1.6"/></svg></span><div class="name">Building</div></div>
+      <div class="icon-cell"><span class="glyph"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M5 5h14l-2 3v11l-5-3-5 3V8L5 5z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></span><div class="name">Folder</div></div>
+      <div class="icon-cell"><span class="glyph"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M8 12h8M8 8h8M8 16h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><div class="name">Tasks</div></div>
+      <div class="icon-cell"><span class="glyph"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 20V10M10 20V4M16 20v-6M22 20H2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><div class="name">Chart</div></div>
+      <div class="icon-cell"><span class="glyph"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.6"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><div class="name">Search</div></div>
+      <div class="icon-cell"><span class="glyph"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M5 5l14 14M19 5L5 19" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><div class="name">Close</div></div>
+      <div class="icon-cell"><span class="glyph"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5L20 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div class="name">Check</div></div>
+      <div class="icon-cell"><span class="glyph"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M18 8a6 6 0 10-12 0c0 7-3 8-3 8h18s-3-1-3-8M10 21a2 2 0 004 0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div class="name">Bell</div></div>
+      <div class="icon-cell"><span class="glyph"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"/><path d="M19 12a7 7 0 00-.2-1.8l2-1.5-2-3.4-2.3.9a7 7 0 00-3-1.7L13 2h-4l-.5 2.5a7 7 0 00-3 1.7l-2.3-.9-2 3.4 2 1.5A7 7 0 003 12c0 .6.1 1.2.2 1.8l-2 1.5 2 3.4 2.3-.9a7 7 0 003 1.7L9 22h4l.5-2.5a7 7 0 003-1.7l2.3.9 2-3.4-2-1.5c.1-.6.2-1.2.2-1.8z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></span><div class="name">Settings</div></div>
+      <div class="icon-cell"><span class="glyph"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div class="name">Logout</div></div>
+    </div>
+  </div>
+
+  <h2 class="page-break">Part 2 · Components</h2>
+
+  <p>The Neurix component library. Each spec below shows the default rendering plus every meaningful state — you can point a designer at these pages and they'll know exactly what the shipped app looks like.</p>
+
+  <h3>Buttons</h3>
+
+  <p>All buttons are pills (<code>border-radius: 999px</code>), min-height 42px, weight 600. Four intents: <em>primary</em>, <em>secondary</em>, <em>ghost</em>, <em>danger</em>. Plus a special <em>gradient</em> variant reserved for the login CTA.</p>
+
+  <div class="demo">
+    <div class="demo-caption">Intents · default state</div>
+    <div class="demo-row">
+      <span class="btn-demo primary">Save changes</span>
+      <span class="btn-demo secondary">Cancel</span>
+      <span class="btn-demo ghost">Skip</span>
+      <span class="btn-demo danger">Delete</span>
+      <span class="btn-demo gradient">Sign in</span>
+    </div>
+    <div class="demo-caption">Primary · every state</div>
+    <div class="demo-row">
+      <span class="btn-demo primary">Default</span>
+      <span class="btn-demo primary hover">Hover</span>
+      <span class="btn-demo primary focus">Focus</span>
+      <span class="btn-demo primary disabled">Disabled</span>
+    </div>
+    <div class="demo-caption">Sizes</div>
+    <div class="demo-row">
+      <span class="btn-demo primary sm">Small</span>
+      <span class="btn-demo primary">Default</span>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th>Intent</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Primary</strong></td><td>The single most important action on a screen. Never two on one screen.</td></tr>
+      <tr><td><strong>Secondary</strong></td><td>Alternative actions of equal or lesser weight. "Cancel", "Save as draft".</td></tr>
+      <tr><td><strong>Ghost</strong></td><td>Tertiary actions. Row-actions in tables, "Skip" in dialogs.</td></tr>
+      <tr><td><strong>Danger</strong></td><td>Destructive actions. Confirm-delete dialogs, permanent removals.</td></tr>
+      <tr><td><strong>Gradient</strong></td><td>Reserved for the login CTA. Don't use elsewhere — its power comes from being rare.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Form fields</h3>
+
+  <p>Inputs have min-height 44px, radius 10px, always paired with an uppercase-tracked label above. Focus ring is cyan (matches the login-panel accent). Error state uses the danger token with a matching soft halo.</p>
+
+  <div class="demo">
+    <div class="demo-caption">Text input · every state</div>
+    <div class="demo-row">
+      <div class="field-demo"><span class="field-demo-label">Default</span><span class="input-demo"><span class="placeholder">your username</span></span></div>
+      <div class="field-demo"><span class="field-demo-label">Focus</span><span class="input-demo focus">agent1<span class="cursor"></span></span></div>
+      <div class="field-demo"><span class="field-demo-label">Error</span><span class="input-demo error">a<span class="cursor"></span></span><span class="field-demo-help">Username must be at least 3 characters.</span></div>
+      <div class="field-demo"><span class="field-demo-label">Disabled</span><span class="input-demo disabled">read-only value</span></div>
+    </div>
+  </div>
+
+  <h3>Cards</h3>
+
+  <p>Radius 16px, 24px inner padding, shadow-sm at rest, shadow (larger) on hover. Cards never move on hover — the elevation change is enough to communicate interactivity without the jitter of a transform.</p>
+
+  <div class="demo">
+    <div class="demo-row">
+      <div class="card-demo">
+        <div class="card-title">Total tickets today</div>
+        <div class="card-body" style="font-size: 18pt; font-weight: 800; color: var(--blue-600); line-height: 1;">248</div>
+        <div class="card-body" style="margin-top: 2mm; color: var(--success);">▲ 12% vs. yesterday</div>
+      </div>
+      <div class="card-demo">
+        <div class="card-title">Engineering</div>
+        <div class="card-body">14 active tickets · 3 in review</div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Status pills</h3>
+
+  <p>Pills carry ticket status. Text + soft background + a leading dot in <code>currentColor</code>. The dot is what your eye lands on when scanning a table of 200 rows.</p>
+
+  <div class="demo">
+    <div class="demo-row">
+      <span class="pill-demo in-progress">In progress</span>
+      <span class="pill-demo review">Review</span>
+      <span class="pill-demo completed">Completed</span>
+      <span class="pill-demo overdue">Overdue</span>
+    </div>
+  </div>
+
+  <h3>Alerts</h3>
+
+  <p>Full-width strip with a matching border and soft fill. Never with an icon — the color is enough, and the copy tells the user what happened.</p>
+
+  <div class="demo">
+    <span class="alert-demo info">A department was created successfully.</span>
+    <span class="alert-demo success">Ticket TX-9K42 was submitted.</span>
+    <span class="alert-demo warn">You have 3 tickets waiting on review.</span>
+    <span class="alert-demo error">Login failed — check your username and password.</span>
+  </div>
+
+  <h3>Avatars</h3>
+
+  <p>Circular, initials-only. Six deterministic hue slots derived from the user's ID — so the same person always has the same color, but no color is "special". Three sizes.</p>
+
+  <div class="demo">
+    <div class="demo-caption">Hues 1 – 6 · size sm / md / lg</div>
+    <div class="demo-row">
+      <span class="avatar-demo sz-sm h1">AK</span>
+      <span class="avatar-demo h1">AK</span>
+      <span class="avatar-demo sz-lg h1">AK</span>
+      <span class="avatar-demo h2">MO</span>
+      <span class="avatar-demo h3">SH</span>
+      <span class="avatar-demo h4">YS</span>
+      <span class="avatar-demo h5">RA</span>
+      <span class="avatar-demo h6">NM</span>
+    </div>
+  </div>
+
+  <h3>Tables</h3>
+
+  <p>Uppercase-tracked headers on a subtle sunken row, alternating row backgrounds for scannability, row hover for the "I'm looking at this one" feedback. No zebra-stripes below a header — the header alone is enough separation.</p>
+
+  <div class="demo">
+    <table class="table-demo">
+      <thead><tr><th>Ticket</th><th>Department</th><th>Status</th><th>Submitted</th></tr></thead>
+      <tbody>
+        <tr><td><strong>TX-9K42</strong></td><td>Engineering</td><td><span class="pill-demo in-progress">In progress</span></td><td>2m ago</td></tr>
+        <tr><td><strong>TX-9K41</strong></td><td>Operations</td><td><span class="pill-demo review">Review</span></td><td>18m ago</td></tr>
+        <tr><td><strong>TX-9K38</strong></td><td>Engineering</td><td><span class="pill-demo completed">Completed</span></td><td>1h ago</td></tr>
+        <tr><td><strong>TX-9K35</strong></td><td>Finance</td><td><span class="pill-demo overdue">Overdue</span></td><td>3h ago</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Chat bubbles &amp; action chips</h3>
+
+  <p>The Neurix Assistant's message list. Bot messages get a light surface with a small bottom-left corner tuck; user messages get the brand blue with the opposite corner tuck. Action chips sit under the bot's reply and are the primary way the assistant hands you off to another page.</p>
+
+  <div class="demo">
+    <div class="chat-demo">
+      <div class="chat-demo-row"><span class="chat-demo-avatar"></span>
+        <div>
+          <div class="chat-demo-bubble bot">Hi! I'm the Neurix assistant. Ask about any page or feature — I'll take you there.</div>
+        </div>
+      </div>
+      <div class="chat-demo-row user">
+        <div class="chat-demo-bubble user">take me to users</div>
+      </div>
+      <div class="chat-demo-row"><span class="chat-demo-avatar"></span>
+        <div>
+          <div class="chat-demo-bubble bot">Got it — taking you to Users.</div>
+          <div class="chat-demo-actions"><span class="btn">Open Users →</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2 class="page-break">Part 3 · Patterns</h2>
+
+  <p>Higher-order rules for how components combine, and how the app should behave in ambiguous moments — empty states, errors, first-run, silence.</p>
+
+  <h3>Empty states</h3>
+
+  <p>Never leave an empty table or an empty page just blank. Every list has a designed empty state with three parts: a soft icon, a one-line title, and a one-line description of what to do next. If the user can act, put a primary button. If they can't, don't — false CTAs are worse than none.</p>
+
+  <div class="demo" style="text-align: center; padding: 8mm 5mm;">
+    <div style="font-size: 24pt; color: var(--ink-soft);">📋</div>
+    <div style="font-weight: 700; color: var(--ink); margin-top: 2mm;">No tickets yet</div>
+    <div style="color: var(--ink-mid); font-size: 9pt; margin: 2mm auto 4mm; max-width: 90mm;">Your team hasn't submitted any tickets. Once they do, they'll show up here.</div>
+    <span class="btn-demo primary sm">Submit the first one</span>
+  </div>
+
+  <h3>Loading states</h3>
+
+  <p>Two patterns. For quick loads (&lt; 300ms) show nothing — snapping in is calmer than a flash of spinner. For anything longer, show a skeleton (a soft gray outline of the shape the content will take), not a spinner. The one exception is the sign-in button, which shows an inline spinner because the button itself is the loading target.</p>
+
+  <h3>Error states</h3>
+
+  <p>Three tiers:</p>
+  <ol>
+    <li><strong>Inline field error.</strong> Red border on the input + a one-line message below. Always in the copy the user needs to read to fix it, never a code.</li>
+    <li><strong>Toast / alert strip.</strong> For actions that failed. Includes a "Retry" affordance when the action is safe to repeat.</li>
+    <li><strong>Full-page error.</strong> For catastrophic failures. Includes the incident ID (so support can find the logs) and a "Go home" button.</li>
+  </ol>
+
+  <h3>Focus rings — the one place we allow chromatic shadow</h3>
+
+  <p>Every interactive element carries a visible <code>:focus-visible</code> ring, drawn with the cyan accent (<code>0 0 0 3px var(--accent-cyan-soft), 0 0 0 5px var(--accent-cyan)</code>). This is the only place in the whole system where a colored halo appears — because focus rings are a WCAG requirement and the brand accent is the right hue to signal "your keyboard is here".</p>
+
+  <h3>Copy voice</h3>
+
+  <ul>
+    <li><strong>Short, human, direct.</strong> "Save changes", not "Persist your modifications". "Something went wrong" is better than "An error has occurred".</li>
+    <li><strong>You, not the user.</strong> "You have 3 tickets" &gt; "The user has 3 tickets".</li>
+    <li><strong>Present tense.</strong> "Ticket submitted" &gt; "Ticket has been submitted".</li>
+    <li><strong>Never blame the user.</strong> "We couldn't reach the server" &gt; "You entered an invalid value".</li>
+    <li><strong>No exclamations, no emoji in state copy.</strong> The chat assistant is the one place emoji can appear — its persona is friendly. Everywhere else stays quiet.</li>
+  </ul>
+
+  <h3>Do &amp; Don't</h3>
+
+  <div class="dodont">
+    <div class="dodont-panel do">
+      <div class="title">✓ Do</div>
+      <ul>
+        <li>Use one primary button per screen.</li>
+        <li>Use soft backgrounds + strong text for status.</li>
+        <li>Match the border-radius to the element's role (pill for buttons, radius-lg for cards).</li>
+        <li>Ship a designed empty state for every list.</li>
+        <li>Wrap every animation in <code>prefers-reduced-motion</code>.</li>
+      </ul>
+    </div>
+    <div class="dodont-panel dont">
+      <div class="title">✗ Don't</div>
+      <ul>
+        <li>Use gradient text on headings — it reads decorative.</li>
+        <li>Use colored glow shadows outside the focus ring.</li>
+        <li>Add exclamation marks or promotional emoji in UI copy.</li>
+        <li>Add hover transforms to rows or cards (jitter on scroll).</li>
+        <li>Hardcode a hex — extend the tokens if a new hue is needed.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Accessibility</h3>
+
+  <ul>
+    <li>Every button has a visible <code>:focus-visible</code> ring, drawn with the cyan accent.</li>
+    <li>Form fields are always labeled — either with a visible <code>&lt;label&gt;</code> or an <code>aria-label</code>.</li>
+    <li>Icon-only buttons carry an <code>aria-label</code>; loading states use <code>aria-busy</code> and screen-reader-only spinner text.</li>
+    <li>Color contrast targets WCAG AA at minimum. The status pill text/background pairs and the primary button text on the electric-blue background were both specifically tuned.</li>
+    <li>RTL isn't a bolt-on — it uses CSS logical properties throughout (<code>margin-inline-start</code>, <code>padding-inline-end</code>), so the whole design mirrors correctly without per-page overrides.</li>
+  </ul>
+</section>
+
+<!-- ============================================================
+     07 — API REFERENCE
+     ============================================================ -->
+<section class="chapter">
+  <span class="chapter-num">Chapter 07</span>
+  <h1 class="chapter-title">API reference.</h1>
+  <p class="chapter-lede">Every REST endpoint the backend exposes, grouped by controller. All paths are prefixed with <code>/api</code>.</p>
+  <hr class="chapter-rule" />
+
+  <h2>Authentication</h2>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><span class="method method-POST">POST</span></td><td><code>/auth/login</code></td><td>public</td><td>Exchange credentials for a JWT</td></tr>
+      <tr><td><span class="method method-GET">GET</span></td><td><code>/auth/me</code></td><td>any</td><td>Current user object (uses the auth cookie)</td></tr>
+      <tr><td><span class="method method-POST">POST</span></td><td><code>/auth/logout</code></td><td>any</td><td>Clear the auth cookie</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Admin dashboard &amp; users</h2>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><span class="method method-GET">GET</span></td><td><code>/admin/stats</code></td><td>ADMIN</td><td>Everything the admin dashboard needs, in one call</td></tr>
+      <tr><td><span class="method method-GET">GET</span></td><td><code>/admin/users</code></td><td>ADMIN</td><td>List all users (paginated)</td></tr>
+      <tr><td><span class="method method-POST">POST</span></td><td><code>/admin/users</code></td><td>ADMIN</td><td>Create a user</td></tr>
+      <tr><td><span class="method method-PATCH">PATCH</span></td><td><code>/admin/users/{id}</code></td><td>ADMIN</td><td>Update role / display name / active flag</td></tr>
+      <tr><td><span class="method method-DELETE">DELETE</span></td><td><code>/admin/users/{id}</code></td><td>ADMIN</td><td>Delete (soft-delete is on the roadmap)</td></tr>
+      <tr><td><span class="method method-GET">GET</span></td><td><code>/admin/users/{id}/activity</code></td><td>ADMIN</td><td>Per-user KPIs and recent tickets</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Departments, subcategories, projects</h2>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><span class="method method-GET">GET</span></td><td><code>/admin/departments</code> · <code>/departments</code></td><td>ADMIN · any</td><td>Full list (admin) · active only (user form)</td></tr>
+      <tr><td><span class="method method-POST">POST</span></td><td><code>/admin/departments</code></td><td>ADMIN</td><td>Create a department</td></tr>
+      <tr><td><span class="method method-PATCH">PATCH</span></td><td><code>/admin/departments/{id}</code></td><td>ADMIN</td><td>Update name / description / active</td></tr>
+      <tr><td><span class="method method-DELETE">DELETE</span></td><td><code>/admin/departments/{id}</code></td><td>ADMIN</td><td>Delete</td></tr>
+      <tr><td colspan="4" style="background: var(--paper-warm); font-style: italic;">Subcategories and projects follow the same CRUD pattern under <code>/admin/subcategories</code> and <code>/admin/projects</code>.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Custom fields</h2>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><span class="method method-GET">GET</span></td><td><code>/admin/fields</code></td><td>ADMIN</td><td>All fields, including inactive</td></tr>
+      <tr><td><span class="method method-GET">GET</span></td><td><code>/fields</code></td><td>any</td><td>Active fields only — what the submission form renders</td></tr>
+      <tr><td><span class="method method-POST">POST</span></td><td><code>/admin/fields</code></td><td>ADMIN</td><td>Add a new field</td></tr>
+      <tr><td><span class="method method-PATCH">PATCH</span></td><td><code>/admin/fields/{id}</code></td><td>ADMIN</td><td>Rename, retype, toggle active, reorder</td></tr>
+      <tr><td><span class="method method-DELETE">DELETE</span></td><td><code>/admin/fields/{id}</code></td><td>ADMIN</td><td>Delete (also removes historical values)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Tickets</h2>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><span class="method method-POST">POST</span></td><td><code>/user/tickets</code></td><td>any</td><td>Submit a new ticket</td></tr>
+      <tr><td><span class="method method-GET">GET</span></td><td><code>/user/tickets?page=&amp;size=</code></td><td>any</td><td>The current user's own tickets</td></tr>
+      <tr><td><span class="method method-GET">GET</span></td><td><code>/admin/tickets?page=&amp;size=</code></td><td>ADMIN</td><td>Every ticket, with filters</td></tr>
+      <tr><td><span class="method method-GET">GET</span></td><td><code>/tickets/{id}</code></td><td>any (own) · ADMIN (any)</td><td>Single ticket, with all field values</td></tr>
+      <tr><td><span class="method method-DELETE">DELETE</span></td><td><code>/admin/tickets/{id}</code></td><td>ADMIN</td><td>Delete a ticket</td></tr>
+    </tbody>
+  </table>
+
+  <h2>AI &amp; Chat</h2>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><span class="method method-POST">POST</span></td><td><code>/ai/check</code></td><td>any</td><td>Grammar/spelling cleanup — currently deterministic, LLM-ready</td></tr>
+      <tr><td><span class="method method-POST">POST</span></td><td><code>/chat</code></td><td>any</td><td>Neurix Assistant — bilingual intent classification + navigation actions</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Documents &amp; audit</h2>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><span class="method method-POST">POST</span></td><td><code>/documents/extract</code></td><td>any</td><td>Upload a PDF / image, get back extracted text</td></tr>
+      <tr><td><span class="method method-GET">GET</span></td><td><code>/admin/audit-log</code></td><td>ADMIN</td><td>Append-only history of every write action</td></tr>
+      <tr><td><span class="method method-GET">GET</span></td><td><code>/pdf/{ticketId}</code></td><td>ADMIN or owner</td><td>Rendered PDF of a submitted ticket</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout tip">
+    <p>All non-public endpoints accept the JWT via either the <code>Authorization: Bearer &lt;token&gt;</code> header or the httpOnly auth cookie. The frontend uses the cookie; direct API consumers can use either.</p>
+  </div>
+</section>
+
+<!-- ============================================================
+     08 — DATABASE SCHEMA
+     ============================================================ -->
+<section class="chapter">
+  <span class="chapter-num">Chapter 08</span>
+  <h1 class="chapter-title">Database schema.</h1>
+  <p class="chapter-lede">Thirteen JPA entities. What each one holds and how they connect.</p>
+  <hr class="chapter-rule" />
+
+  <h2>The entities</h2>
+
+  <table>
+    <thead><tr><th>Entity</th><th>Table</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><code>User</code></td><td><code>users</code></td><td>Login identity + role (<code>ADMIN</code> / <code>USER</code>) + display metadata</td></tr>
+      <tr><td><code>Role</code></td><td>(enum)</td><td>Two-valued enum embedded in <code>User</code></td></tr>
+      <tr><td><code>Department</code></td><td><code>departments</code></td><td>Top level of the taxonomy — every ticket references one</td></tr>
+      <tr><td><code>Subcategory</code></td><td><code>subcategories</code></td><td>Optional second level under a department</td></tr>
+      <tr><td><code>Project</code></td><td><code>projects</code></td><td>Orthogonal grouping used mainly by reports</td></tr>
+      <tr><td><code>ProjectStatus</code></td><td>(enum)</td><td>Active / On hold / Completed / Cancelled</td></tr>
+      <tr><td><code>CustomField</code></td><td><code>custom_fields</code></td><td>Admin-defined form fields — the "dynamic form" backbone</td></tr>
+      <tr><td><code>FieldType</code></td><td>(enum)</td><td>TEXT / NUMBER / DATE / DROPDOWN / TEXTAREA / etc.</td></tr>
+      <tr><td><code>Ticket</code></td><td><code>tickets</code></td><td>A submitted entry — the core write-heavy table</td></tr>
+      <tr><td><code>TicketFieldValue</code></td><td><code>ticket_field_values</code></td><td>EAV storage for custom-field values on a ticket</td></tr>
+      <tr><td><code>TicketStatus</code></td><td>(enum)</td><td>IN_PROGRESS / REVIEW / COMPLETED</td></tr>
+      <tr><td><code>AuditLog</code></td><td><code>audit_log</code></td><td>Append-only history — never updated, never deleted</td></tr>
+      <tr><td><code>LoginAttempt</code></td><td><code>login_attempts</code></td><td>Backs the DB-based rate limiter</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Key relationships</h2>
+
+  <p>The relationships are all standard many-to-one / one-to-many, no join tables:</p>
+
+  <div class="file-tree">Department 1 ─── * Subcategory
+Department 1 ─── * Ticket
+Subcategory 1 ── * Ticket        (nullable — a ticket may have no subcategory)
+Project     1 ── * Ticket        (nullable)
+User        1 ── * Ticket        (the submitter)
+Ticket      1 ── * TicketFieldValue
+CustomField 1 ── * TicketFieldValue
+User        1 ── * AuditLog</div>
+
+  <h2>The dynamic form's EAV trick</h2>
+
+  <p>Instead of adding a database column every time an admin defines a new field, <code>TicketFieldValue</code> stores every custom-field value as a row: <code>(ticket_id, field_id, value_as_string)</code>. This is the entity-attribute-value pattern, and it's the right choice here because:</p>
+
+  <ul>
+    <li>New fields don't require migrations. An admin adds "Order Reference" from the UI and it works on the next page load.</li>
+    <li>Fields can be added, renamed, retyped, or disabled without breaking historical rows.</li>
+    <li>Reporting joins are simple: <code>SELECT ticket_id, field_id, value FROM ticket_field_values WHERE field_id = ?</code>.</li>
+  </ul>
+
+  <p>What you give up:</p>
+  <ul>
+    <li>Typed SQL against custom-field values. Everything is stored as <code>VARCHAR</code>; numeric or date typing happens at the Java layer.</li>
+    <li>Efficient indexed queries on those values. For the current volume this doesn't matter; at millions of rows you'd want a materialized view.</li>
+  </ul>
+</section>
+
+<!-- ============================================================
+     09 — SECURITY
+     ============================================================ -->
+<section class="chapter">
+  <span class="chapter-num">Chapter 09</span>
+  <h1 class="chapter-title">Security.</h1>
+  <p class="chapter-lede">Authentication, authorization, hashing, rate limiting, and the sharp edges you can accidentally leave exposed.</p>
+  <hr class="chapter-rule" />
+
+  <h2>Password hashing</h2>
+
+  <p>Passwords are hashed with BCrypt via Spring Security's <code>PasswordEncoder</code>, at the default cost factor of 10. This produces a ~60-character hash per password and costs ~100 ms per verification — the standard tradeoff for interactive login. Nothing is ever stored in plain text; even the seeded admin password is hashed on first boot by the seeder.</p>
+
+  <h2>JWT flow</h2>
+
+  <ol>
+    <li>User POSTs to <code>/api/auth/login</code> with credentials.</li>
+    <li><code>AuthService</code> looks up the user, verifies the password, and generates a JWT signed with HS512 (the secret comes from <code>JWT_SECRET</code>).</li>
+    <li>The token is set as an httpOnly, Secure cookie and also returned in the response body for older clients.</li>
+    <li>Every subsequent request carries the cookie; a security filter reads it, verifies the signature and expiry, and populates the Spring <code>Authentication</code> object.</li>
+    <li>Controllers read the authenticated user via method injection (<code>Authentication auth</code>).</li>
+  </ol>
+
+  <p>Token expiry is 24 hours. There's no refresh-token flow — the tradeoff is that users re-login every 24 hours; the win is that revocation is trivial (just wait) and there's no session store to manage.</p>
+
+  <h2>Authorization</h2>
+
+  <p>Two layers, both enforced independently:</p>
+
+  <ol>
+    <li><strong>Spring Security URL rules</strong> (<code>SecurityConfig.java</code>): pattern-matched on the request path. <code>/api/admin/**</code> requires <code>ROLE_ADMIN</code>. <code>/api/user/**</code> requires either role. <code>/api/**</code> requires authentication. Everything else is public.</li>
+    <li><strong>React router guards</strong> (<code>&lt;ProtectedRoute&gt;</code>): stop unauthenticated users from ever seeing an admin page's shell, and redirect based on role.</li>
+  </ol>
+
+  <div class="callout warn">
+    <p>The frontend guards are UX. The backend guards are security. Never rely on the frontend alone — any user can open dev tools and change their role in localStorage; only the backend's role check matters for authorization.</p>
+  </div>
+
+  <h2>CORS</h2>
+
+  <p>The default CORS policy in <code>application.yml</code> is <code>*</code>, which is fine for local dev and IP-based deployments but should be tightened to your actual domain in production. When you flip it to a specific origin, remember to also set <code>Access-Control-Allow-Credentials: true</code> — the frontend uses <code>withCredentials</code> to send the auth cookie cross-origin.</p>
+
+  <h2>Rate limiting</h2>
+
+  <p>Login attempts are rate-limited per (IP, username) pair. Default limits: 5 failed attempts in 15 minutes triggers a 5-minute cooldown. The implementation lives in <code>InMemoryLoginRateLimiter</code>; if you run more than one backend instance, swap in <code>DatabaseLoginRateLimiter</code>.</p>
+
+  <h2>Audit log</h2>
+
+  <p>Every write path (create, update, delete on any resource) also writes an entry to <code>audit_log</code>. Rows record: actor, action, target entity + ID, timestamp, and a JSON payload snapshot. There's no delete API and no admin UI that mutates rows — the table is truly append-only, so it doubles as a forensic trail.</p>
+
+  <h2>What we don't defend against (yet)</h2>
+
+  <ul>
+    <li><strong>CSRF.</strong> The API is JWT-cookie-authenticated but doesn't validate a CSRF token. If you enable cross-origin credentials in production, add CSRF protection — Spring provides it out of the box.</li>
+    <li><strong>Brute force at the network layer.</strong> Rate limiting is per-username-per-IP; a distributed brute-force from many IPs would slip through. Front the backend with a WAF or a reverse proxy with global rate limits.</li>
+    <li><strong>Upload malware scanning.</strong> Uploaded documents are text-extracted but not virus-scanned. Add ClamAV or an equivalent if you accept untrusted uploads.</li>
+  </ul>
+</section>
+
+<!-- ============================================================
+     10 — DEPLOYMENT
+     ============================================================ -->
+<section class="chapter">
+  <span class="chapter-num">Chapter 10</span>
+  <h1 class="chapter-title">Deployment.</h1>
+  <p class="chapter-lede">Getting Neurix into production. The one-liner and everything you should think about after.</p>
+  <hr class="chapter-rule" />
+
+  <h2>The one-liner</h2>
+
+  <p>From the repository root:</p>
+
+<pre><code>docker compose up --build -d</code></pre>
+
+  <p>That builds all three container images and starts them detached. You can hit <code>http://&lt;host&gt;:8082</code> a few seconds later.</p>
+
+  <div class="callout warn">
+    <p>The <code>--build</code> flag matters. If you skip it after pulling changes, Compose will happily start containers from a stale image and you'll wonder why your bug fix isn't in production. Always rebuild after code changes.</p>
+  </div>
+
+  <h2>Environment variables</h2>
+
+  <p>The compose file reads a small set of environment variables. Set them via <code>.env</code> at the repo root or via your orchestrator's secret manager:</p>
+
+  <table>
+    <thead><tr><th>Variable</th><th>Purpose</th><th>Default (⚠ change in prod)</th></tr></thead>
+    <tbody>
+      <tr><td><code>JWT_SECRET</code></td><td>Signing key for JWTs</td><td>hard-coded dev value in <code>application.yml</code></td></tr>
+      <tr><td><code>SPRING_PROFILES_ACTIVE</code></td><td>Toggle SQLite vs. Postgres config</td><td><code>default</code> (SQLite)</td></tr>
+      <tr><td><code>SPRING_DATASOURCE_URL</code></td><td>JDBC URL — required when switching DB</td><td>—</td></tr>
+      <tr><td><code>SPRING_DATASOURCE_USERNAME</code>, <code>_PASSWORD</code></td><td>DB credentials</td><td>—</td></tr>
+      <tr><td><code>APP_CORS_ALLOWED_ORIGINS</code></td><td>Comma-separated list of allowed origins</td><td><code>*</code></td></tr>
+      <tr><td><code>APP_ADMIN_USERNAME</code>, <code>_PASSWORD</code></td><td>Default admin credentials seeded on first boot</td><td><code>admin</code> / <code>admin123</code></td></tr>
+    </tbody>
+  </table>
+
+  <h2>Switching from SQLite to Postgres</h2>
+
+  <p>Two files change:</p>
+
+  <ol>
+    <li><code>backend/pom.xml</code> — swap the SQLite dialect dependency for <code>postgresql</code>.</li>
+    <li><code>backend/src/main/resources/application.yml</code> — set the JDBC URL, credentials, and dialect. Or override at runtime with env vars.</li>
+  </ol>
+
+<pre><code>spring:
+  datasource:
+    url: jdbc:postgresql://db.internal:5432/neurix
+    username: neurix
+    password: ${DB_PASSWORD}
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect</code></pre>
+
+  <p>Every JPA entity uses standard column types — no SQLite-specific casts, no native queries. Hibernate will emit the correct DDL for Postgres on first boot.</p>
+
+  <h2>Backups</h2>
+
+  <p>With SQLite, the database file lives in the <code>dems-data</code> Docker volume. To back up:</p>
+
+<pre><code>docker run --rm -v dems-data:/data -v $(pwd):/backup alpine \
+  tar czf /backup/dems-backup-$(date +%Y%m%d).tar.gz -C /data .</code></pre>
+
+  <p>With Postgres, use <code>pg_dump</code> as usual. Nothing about the app assumes anything about the backup cadence — pick what fits your RPO.</p>
+</section>
+
+<!-- ============================================================
+     11 — DEVELOPMENT SETUP
+     ============================================================ -->
+<section class="chapter">
+  <span class="chapter-num">Chapter 11</span>
+  <h1 class="chapter-title">Development setup.</h1>
+  <p class="chapter-lede">Running the app locally without Docker, and the day-to-day workflow.</p>
+  <hr class="chapter-rule" />
+
+  <h2>Prerequisites</h2>
+
+  <ul>
+    <li><strong>JDK 17+</strong> for the backend</li>
+    <li><strong>Node.js 18+</strong> and <strong>npm</strong> for the frontend</li>
+    <li>Optional: <strong>Maven 3.9+</strong> — otherwise the <code>mvnw</code> wrapper is included</li>
+  </ul>
+
+  <h2>Running the backend</h2>
+
+<pre><code>cd backend
+./mvnw spring-boot:run     # macOS / Linux
+mvnw.cmd spring-boot:run   # Windows</code></pre>
+
+  <p>The API starts on <code>http://localhost:8080</code>. On first boot it creates <code>./data/dataentry.db</code> (SQLite) and seeds the default admin (<code>admin / admin123</code>) plus a sample agent (<code>agent1 / agent123</code>).</p>
+
+  <h2>Running the frontend</h2>
+
+<pre><code>cd frontend
+npm install
+npm run dev</code></pre>
+
+  <p>Vite serves the SPA at <code>http://localhost:5173</code> with hot reload. The dev server's <code>proxy</code> setting forwards <code>/api/*</code> to the backend on port 8080, so there's no CORS setup for local dev.</p>
+
+  <h2>Type-checking and building</h2>
+
+<pre><code>cd frontend
+npm run build     # tsc -b then vite build
+</code></pre>
+
+  <p>The build is set up to fail on TypeScript errors — the <code>tsc -b</code> step runs before <code>vite build</code>. If you want a quick type-check without a full build, run <code>npx tsc -b --noEmit</code>.</p>
+
+  <h2>The design detector hook</h2>
+
+  <p>If you're using the Impeccable skill, the design detector runs after every edit to a UI file. It flags common anti-patterns (gradient text, oversaturated palettes, decoration for its own sake). The rules live in the skill config; per-file suppressions go in <code>.impeccable/config.json</code>.</p>
+</section>
+
+<!-- ============================================================
+     12 — USER GUIDES
+     ============================================================ -->
+<section class="chapter">
+  <span class="chapter-num">Chapter 12</span>
+  <h1 class="chapter-title">User guides.</h1>
+  <p class="chapter-lede">Task-based walkthroughs — the workflows a real person will run through in their first week on the system, written the way I'd hand them to a new teammate.</p>
+  <hr class="chapter-rule" />
+
+  <h2>Signing in for the first time</h2>
+
+  <ol>
+    <li>Open the app in a browser: <code>http://&lt;your-neurix-host&gt;/login</code>.</li>
+    <li>The first admin account is seeded automatically on first boot. The username is <code>admin</code> and the password is <code>admin123</code> — that's a well-known default, so change it the moment you're in.</li>
+    <li>Type the credentials, hit <em>Sign in</em>. You'll land on the admin dashboard at <code>/admin</code>.</li>
+    <li>Open the user chip in the top-right, choose <em>Change password</em>, and pick something you can remember but nobody else will guess.</li>
+  </ol>
+
+  <div class="callout warn">
+    <p>If you're deploying Neurix somewhere that other people can reach, change the default admin password <em>before</em> you point DNS at the box. The default is documented in this file, in the README, and in the seed code — assume everyone knows it.</p>
+  </div>
+
+  <h2>Adding a new user (admin only)</h2>
+
+  <ol>
+    <li>From the sidebar, click <em>Users</em>. You'll see the current team roster.</li>
+    <li>Top-right of the page, click <em>Add member</em>. A side panel slides in.</li>
+    <li>Fill in username, display name, role (<em>Admin</em> or <em>Agent</em>), and a starting password. Save.</li>
+    <li>The new user appears immediately in the roster. They can sign in with the credentials you just set.</li>
+  </ol>
+
+  <p>To disable a user without deleting their history, open their row-actions menu and toggle <em>Active</em> off. Their tickets stay in the system; they just can't sign in.</p>
+
+  <h2>Creating a department and subcategory</h2>
+
+  <ol>
+    <li>Sidebar → <em>Departments</em>. Click <em>Add department</em>.</li>
+    <li>Give it a name and description. Pick a color slot (1–6) — this is what appears as the colored strip on the department's card, and as the tint on its mini-stats.</li>
+    <li>Save. Now go to <em>Subcategories</em>, click <em>Add</em>, pick the department you just made, and give the subcategory a name.</li>
+    <li>The moment both exist, they'll show up as options in the ticket submission form for every agent.</li>
+  </ol>
+
+  <div class="callout tip">
+    <p>Subcategories are optional on a ticket, but a department is required. If you want to force agents to pick a subcategory too, add a small validation rule at <code>TicketService.submit()</code> — it's a one-line change.</p>
+  </div>
+
+  <h2>Adding a custom field to the submission form</h2>
+
+  <p>This is the killer feature. Adding a field is a UI action, not a code change — no deploy needed.</p>
+
+  <ol>
+    <li>Sidebar → <em>Custom fields</em>. You'll see the current field list, in the order agents will see them.</li>
+    <li>Click <em>Add field</em>. Pick a field type (<em>Text</em>, <em>Number</em>, <em>Date</em>, <em>Dropdown</em>, <em>Textarea</em>). Set a label.</li>
+    <li>If you picked <em>Dropdown</em>, add options one at a time.</li>
+    <li>Choose whether the field is required. Save.</li>
+    <li>Refresh <code>/submit</code> as any agent — the new field is there, in the position you set.</li>
+  </ol>
+
+  <p>To reorder fields, drag them in the field list. To disable a field without losing history, toggle <em>Active</em> off — the field disappears from the form but past ticket values remain in the database.</p>
+
+  <h2>Submitting a ticket (as an agent)</h2>
+
+  <ol>
+    <li>Sign in as an agent (e.g. the seeded <code>agent1 / agent123</code>).</li>
+    <li>You'll land on your personal dashboard at <code>/dashboard</code>. Click <em>New ticket</em>, or use the sidebar to jump to <code>/submit</code>.</li>
+    <li>Fill in the core fields: title, department, subcategory (optional), and any custom fields the admin defined.</li>
+    <li>If you have a document to work from, drag it onto the upload zone. If it's a PDF or an image, the system extracts the text and pre-fills the content field.</li>
+    <li>Before submitting, click <em>Check with AI</em>. You'll get a cleaned-up version of your text with any suggested edits. Accept them or ignore them.</li>
+    <li>Hit <em>Submit</em>. The ticket appears in <em>My tickets</em> immediately and in the admin's <em>All tickets</em> view.</li>
+  </ol>
+
+  <h2>Running a report</h2>
+
+  <ol>
+    <li>As admin, sidebar → <em>Reports</em>.</li>
+    <li>At the top, pick a time range: <em>Today</em>, <em>This week</em>, <em>This month</em>, <em>All time</em>.</li>
+    <li>The page shows three cuts side-by-side: <em>by department</em>, <em>by user</em>, <em>by status</em>. Each is a chart plus a small table.</li>
+    <li>Click any bar or row to drill into the underlying tickets. You'll be dropped on the tickets page with the right filter pre-applied.</li>
+  </ol>
+
+  <h2>Using the Neurix Assistant</h2>
+
+  <p>The floating cyan pill in the bottom-right corner is the chat assistant. Click it, ask a question, and it'll either answer or drop a button that navigates you to the right page.</p>
+
+  <p>Things it handles well:</p>
+  <ul>
+    <li>Navigation asks: <em>"take me to users"</em>, <em>"وديني على التقارير"</em>, <em>"open custom fields"</em>.</li>
+    <li>Small talk in either language: <em>"hi"</em>, <em>"أهلا"</em>, <em>"thanks"</em>, <em>"شكرا"</em>.</li>
+    <li>Product questions: <em>"what does this app do?"</em>, <em>"الموقع بيعمل ايه"</em>.</li>
+    <li>Capability questions: <em>"what can you do?"</em>, <em>"ساعدني"</em>.</li>
+  </ul>
+
+  <p>Conversation history persists in your browser — refresh the page and the chat picks up where you left off. To clear it, click the trash icon in the chat header.</p>
+
+  <div class="callout">
+    <p><strong>Language detection is automatic.</strong> Ask in Arabic, get an Arabic reply; ask in English, get English. The bot decides based on the characters in your message, not your app-wide language preference.</p>
+  </div>
+</section>
+
+<!-- ============================================================
+     13 — TROUBLESHOOTING
+     ============================================================ -->
+<section class="chapter">
+  <span class="chapter-num">Chapter 13</span>
+  <h1 class="chapter-title">Troubleshooting.</h1>
+  <p class="chapter-lede">The issues that come up in real life and the exact fix. Ordered roughly by frequency.</p>
+  <hr class="chapter-rule" />
+
+  <h2>The Neurix logo shows as a broken image</h2>
+
+  <p><strong>Symptom.</strong> You see a broken-image icon in the sidebar (or the login page) where the Neurix N should be.</p>
+  <p><strong>Cause.</strong> Your Docker container was built <em>before</em> the logo assets were added to the frontend's <code>public/</code> directory, and the built <code>dist/</code> inside the running container doesn't have the PNGs. nginx is serving <code>index.html</code> as a fallback for those URLs, which is why you get a "200 OK" but a broken image.</p>
+  <p><strong>Fix.</strong></p>
+<pre><code>docker compose build frontend
+docker compose up -d frontend</code></pre>
+  <p>Then hard-refresh (<code>Ctrl+Shift+R</code>) so your browser doesn't reuse the cached broken response.</p>
+
+  <div class="callout tip">
+    <p>To verify from the command line: <code>curl -sI http://&lt;host&gt;:8082/neurix-mark.png</code> — you want to see a <code>Content-Length</code> of ~74 KB. If it's ~500 bytes, that's the SPA fallback firing and the image really isn't in the container.</p>
+  </div>
+
+  <h2>"Port already in use" when starting the dev server</h2>
+
+  <p><strong>Symptom.</strong> <code>npm run dev</code> prints <em>"Port 5173 is in use, trying another one..."</em> and lands on 5174, 5175, or higher.</p>
+  <p><strong>Cause.</strong> A previous <code>vite</code> process didn't exit cleanly — usually because a Node process is still holding the port.</p>
+  <p><strong>Fix.</strong> Either use the new port Vite fell back to, or kill the stale process:</p>
+<pre><code># Windows PowerShell
+Get-NetTCPConnection -LocalPort 5173 | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+
+# macOS / Linux
+lsof -ti:5173 | xargs kill</code></pre>
+
+  <h2>Login says "Something went wrong" and you're stuck on <code>/login</code></h2>
+
+  <p><strong>First check.</strong> Open the browser dev tools → Network tab, submit again, and look at <code>POST /api/auth/login</code>. What HTTP status came back?</p>
+  <ul>
+    <li><strong>401.</strong> Wrong credentials. The default admin is <code>admin / admin123</code>; the default agent is <code>agent1 / agent123</code>.</li>
+    <li><strong>403.</strong> Your account is disabled (<code>Active = false</code>). Ask an admin to re-enable you.</li>
+    <li><strong>429.</strong> The rate limiter has kicked in — too many failed attempts. Wait 5 minutes.</li>
+    <li><strong>0 / CORS error.</strong> The backend isn't reachable. In Docker, <code>docker compose ps</code>; if <code>dems-backend</code> isn't <em>Up</em>, look at <code>docker compose logs backend</code>.</li>
+    <li><strong>500.</strong> The backend crashed. <code>docker compose logs backend --tail=50</code> and read the last few stack traces.</li>
+  </ul>
+
+  <h2>Chat says "I don't quite understand" for almost everything I ask</h2>
+
+  <p><strong>Cause.</strong> The current chat backend is rule-based keyword matching. It handles a fixed vocabulary well but stumbles on paraphrases, typos, and long compound questions.</p>
+  <p><strong>Workaround.</strong> Stick to short, direct asks: <em>"open users"</em>, <em>"وديني على التقارير"</em>, <em>"what does this do?"</em>.</p>
+  <p><strong>Real fix.</strong> Swap <code>ChatService.reply()</code> in the backend for a real LLM call. The response contract (<code>{ reply, actions }</code>) doesn't change — the frontend picks up the improved understanding automatically. See Chapter 14 for the roadmap on this.</p>
+
+  <h2>JWT expired mid-session, all API calls return 401</h2>
+
+  <p><strong>Cause.</strong> Tokens expire after 24 hours. The frontend catches the 401 and bounces you to <code>/login</code>, so this shouldn't be user-facing — but if you're calling the API directly (with <code>curl</code> or Postman), you'll see it.</p>
+  <p><strong>Fix.</strong> Re-authenticate: <code>POST /api/auth/login</code> with your credentials. Grab the new token from the response body.</p>
+
+  <h2>"CORS policy: No 'Access-Control-Allow-Origin' header"</h2>
+
+  <p><strong>Cause.</strong> The frontend is calling the backend from a different origin than what <code>APP_CORS_ALLOWED_ORIGINS</code> permits. Default is <code>*</code>, which works everywhere — if you tightened it in production, make sure the actual origin is in the list.</p>
+  <p><strong>Fix.</strong> Update <code>APP_CORS_ALLOWED_ORIGINS</code> in your compose file's <code>backend</code> service environment and restart:</p>
+<pre><code>APP_CORS_ALLOWED_ORIGINS=https://neurix.yourcompany.com</code></pre>
+  <p>Multiple origins are comma-separated. Restart the backend container after changing.</p>
+
+  <h2>Database migration on Postgres fails on first boot</h2>
+
+  <p><strong>Cause.</strong> Hibernate is trying to create tables against a schema it doesn't have permission for, or the Postgres user isn't the owner of the target database.</p>
+  <p><strong>Fix.</strong> Make sure the DB user in <code>SPRING_DATASOURCE_USERNAME</code> is the owner of the database (<code>ALTER DATABASE neurix OWNER TO neurix;</code>) and has <code>CREATE</code> on the schema (<code>GRANT ALL ON SCHEMA public TO neurix;</code>).</p>
+
+  <h2>PDF extraction returns empty text for scanned PDFs</h2>
+
+  <p><strong>Cause.</strong> The text-based extractor (<code>PdfExtractionService</code>) doesn't run OCR — it only pulls text from PDFs that have real text layers. Scanned PDFs are just images and return an empty string.</p>
+  <p><strong>Fix.</strong> Those uploads route through <code>PdfOcrService</code> instead. If that service isn't returning text either, check that its OCR backend (Tesseract or the configured cloud service) is reachable and has the right language packs installed.</p>
+
+  <h2>The frontend build succeeds but the deployed app is blank</h2>
+
+  <p><strong>Cause.</strong> Almost always: nginx is serving an old <code>index.html</code> that references JavaScript bundle names from a previous build, and those bundle files no longer exist.</p>
+  <p><strong>Fix.</strong> Rebuild and redeploy in one shot: <code>docker compose build frontend &amp;&amp; docker compose up -d frontend</code>. Don't skip the <code>--build</code> or you'll deploy the old image again.</p>
+</section>
+
+<!-- ============================================================
+     14 — ROADMAP
+     ============================================================ -->
+<section class="chapter">
+  <span class="chapter-num">Chapter 14</span>
+  <h1 class="chapter-title">Roadmap &amp; known limitations.</h1>
+  <p class="chapter-lede">What's stubbed, what's on the list, and what we're deliberately not building.</p>
+  <hr class="chapter-rule" />
+
+  <h2>Stubbed, will be replaced</h2>
+
+  <ul>
+    <li><strong>AI content check.</strong> <code>AiCheckService</code> does deterministic cleanup today. The API shape is already the shape a real LLM would return — the swap is a single-method change.</li>
+    <li><strong>Neurix Assistant intent classification.</strong> Rule-based keyword matching today. Migrating to an LLM would improve fuzzy understanding (typos, indirect asks) but the current implementation is deliberately good enough to ship.</li>
+  </ul>
+
+  <h2>On the near-term list</h2>
+
+  <ul>
+    <li><strong>Soft deletes for users and tickets.</strong> Hard deletes today; audit log preserves history but the row is gone.</li>
+    <li><strong>Bulk import.</strong> Uploading a CSV and mapping columns to fields. A common request from ops.</li>
+    <li><strong>Email notifications.</strong> On status changes and daily digests for admins.</li>
+    <li><strong>SSO.</strong> SAML or OIDC integration for enterprise deployments.</li>
+    <li><strong>Test coverage.</strong> There isn't much yet. This is the single biggest debt in the codebase.</li>
+  </ul>
+
+  <h2>Deliberately not on the list</h2>
+
+  <ul>
+    <li><strong>Real-time collaboration.</strong> Two admins editing the same department at the same time is a rare enough scenario that last-write-wins is fine. Adding CRDTs or OT would be overkill.</li>
+    <li><strong>Mobile app.</strong> The web app is fully responsive; a native app doesn't buy enough to justify the maintenance.</li>
+    <li><strong>Microservices.</strong> The system is small enough to stay a monolith. Splitting the audit log or the reporting service out is a decision to make when the monolith actually hurts, not before.</li>
+  </ul>
+</section>
+
+<!-- ============================================================
+     APPENDIX
+     ============================================================ -->
+<section class="chapter">
+  <span class="chapter-num">Appendix A</span>
+  <h1 class="chapter-title">File layout.</h1>
+  <p class="chapter-lede">The directories you'll open the most, and what they hold.</p>
+  <hr class="chapter-rule" />
+
+  <div class="file-tree">data_entry/
+├── backend/
+│   ├── pom.xml                          Maven build, Spring Boot parent
+│   ├── Dockerfile                       Multi-stage: builder → JRE
+│   └── src/main/
+│       ├── java/com/dataentry/
+│       │   ├── DataEntryApplication.java    entry point
+│       │   ├── config/                      SecurityConfig, CorsConfig, ...
+│       │   ├── controller/                  12 REST controllers
+│       │   ├── service/                     20 Spring services
+│       │   ├── model/                       13 JPA entities + enums
+│       │   ├── repository/                  Spring Data interfaces
+│       │   ├── dto/                         Request/response records
+│       │   └── security/                    JWT filter, user details
+│       └── resources/
+│           ├── application.yml              config: DB, CORS, JWT
+│           └── db/                          seed data, migrations
+│
+├── frontend/
+│   ├── package.json                     React 18, TS 5, Vite 5
+│   ├── vite.config.ts                   dev proxy for /api → :8080
+│   ├── nginx.conf                       prod SPA fallback + API proxy
+│   ├── Dockerfile                       build → nginx serve
+│   ├── public/
+│   │   ├── neurix-logo.png              full logo, dark wordmark
+│   │   ├── neurix-logo-light.png        full logo, white wordmark
+│   │   └── neurix-mark.png              the N mark alone
+│   └── src/
+│       ├── App.tsx                      route tree
+│       ├── main.tsx                     mounts &lt;App /&gt; with providers
+│       ├── api/                         axios wrappers per resource
+│       ├── components/                  Layout, Modal, chat/, auth/, ...
+│       ├── context/                     Auth, Theme, Preferences
+│       ├── i18n/                        en.ts + ar.ts dictionaries
+│       ├── pages/                       24 pages (admin/, user/, login)
+│       └── styles/global.css            the design system, 2.5k lines
+│
+├── docker-compose.yml                   3 services: frontend, backend, translate
+├── docs/                                this document
+└── README.md                            the short version of Chapter 2</div>
+
+  <h2>A few file-name conventions to know</h2>
+
+  <ul>
+    <li><strong>Every REST controller is <code>&lt;Resource&gt;Controller.java</code></strong> and pairs 1:1 with a <code>&lt;Resource&gt;Service.java</code>. If you're looking for the code behind an endpoint, start at the controller and follow one hop.</li>
+    <li><strong>Frontend API wrappers</strong> mirror the backend: <code>src/api/tickets.ts</code> wraps <code>TicketController</code>, <code>src/api/chat.ts</code> wraps <code>ChatController</code>. Same shape, same names.</li>
+    <li><strong>Admin-only pages live under <code>src/pages/admin/</code></strong> and are gated by <code>&lt;ProtectedRoute roles={['ADMIN']}&gt;</code> in <code>App.tsx</code>. User pages under <code>src/pages/user/</code> are accessible to both roles.</li>
+    <li><strong>DTOs are Java records</strong> defined inside a <code>&lt;Resource&gt;Dtos.java</code> class, grouped as nested records. This keeps request/response types adjacent without spawning a file per DTO.</li>
+  </ul>
+
+  <div class="footer-mark">
+    Neurix Technical Documentation · Living document · Last updated August 2026
+  </div>
+</section>
+
+<!-- ============================================================
+     APPENDIX B — GLOSSARY
+     ============================================================ -->
+<section class="chapter">
+  <span class="chapter-num">Appendix B</span>
+  <h1 class="chapter-title">Glossary.</h1>
+  <p class="chapter-lede">Short definitions for the terms that show up all over this document.</p>
+  <hr class="chapter-rule" />
+
+  <table>
+    <thead><tr><th style="width: 32%;">Term</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Agent</strong></td><td>A user with the <code>USER</code> role. Fills in tickets, sees their own dashboard and their own submissions.</td></tr>
+      <tr><td><strong>Admin</strong></td><td>A user with the <code>ROLE_ADMIN</code> role. Can access every page an agent can, plus admin-only screens.</td></tr>
+      <tr><td><strong>Audit log</strong></td><td>Append-only history of every write action in the system. Backed by the <code>audit_log</code> table; no delete API.</td></tr>
+      <tr><td><strong>BCrypt</strong></td><td>The password-hashing algorithm the app uses. Cost factor 10 (Spring default).</td></tr>
+      <tr><td><strong>Callout</strong></td><td>A boxed note in the UI or in this document. Three variants: neutral, tip (green), warning (amber).</td></tr>
+      <tr><td><strong>CORS</strong></td><td>Cross-Origin Resource Sharing. Controls which browser origins the backend accepts requests from. Configured via <code>APP_CORS_ALLOWED_ORIGINS</code>.</td></tr>
+      <tr><td><strong>Custom field</strong></td><td>An admin-defined field that appears on the ticket submission form. Type-typed (text / number / date / dropdown / textarea).</td></tr>
+      <tr><td><strong>Department</strong></td><td>Top level of the ticket taxonomy. Every ticket is filed against one.</td></tr>
+      <tr><td><strong>DTO</strong></td><td>Data Transfer Object. The Java records in <code>dto/</code> that shape request and response payloads.</td></tr>
+      <tr><td><strong>EAV</strong></td><td>Entity–Attribute–Value pattern. Used by <code>TicketFieldValue</code> to store custom-field values without adding columns.</td></tr>
+      <tr><td><strong>Focus ring</strong></td><td>The cyan halo that appears around interactive elements when they hold keyboard focus. WCAG-required.</td></tr>
+      <tr><td><strong>JPA</strong></td><td>Jakarta Persistence API. The ORM abstraction Spring Data uses to talk to the database (backed by Hibernate here).</td></tr>
+      <tr><td><strong>JWT</strong></td><td>JSON Web Token. The signed credential the backend issues on successful login and validates on every subsequent request.</td></tr>
+      <tr><td><strong>KPI</strong></td><td>Key Performance Indicator. The big stat cards at the top of the dashboards.</td></tr>
+      <tr><td><strong>Neurix Assistant</strong></td><td>The chat widget in the bottom-right corner. Bilingual, navigation-aware, rule-based (LLM-ready).</td></tr>
+      <tr><td><strong>nginx</strong></td><td>The reverse proxy in front of the frontend container. Serves the SPA and proxies <code>/api/*</code> to the backend.</td></tr>
+      <tr><td><strong>Pill</strong></td><td>A rounded (radius 999px) shape used for buttons and status badges. Consistent shape across the whole app.</td></tr>
+      <tr><td><strong>Project</strong></td><td>An orthogonal grouping over tickets, used mainly for reporting. A project can span departments.</td></tr>
+      <tr><td><strong>ProtectedRoute</strong></td><td>A React component that guards a route by requiring a signed-in user (and optionally a specific role).</td></tr>
+      <tr><td><strong>RBAC</strong></td><td>Role-Based Access Control. Neurix has two roles: <code>ADMIN</code> and <code>USER</code>.</td></tr>
+      <tr><td><strong>Rate limiter</strong></td><td>The (IP, username) throttle on failed login attempts. In-memory by default; DB-backed variant available.</td></tr>
+      <tr><td><strong>Skeleton</strong></td><td>The soft gray shape the UI shows while content is loading — used instead of a spinner for perceived speed.</td></tr>
+      <tr><td><strong>SPA</strong></td><td>Single-Page Application. What React renders in the browser. nginx serves <code>index.html</code> for all unknown paths so client-side routing works on refresh.</td></tr>
+      <tr><td><strong>Subcategory</strong></td><td>An optional second level under a department. Refines the ticket taxonomy.</td></tr>
+      <tr><td><strong>Ticket</strong></td><td>A single data-entry submission. The core write-heavy record in the system.</td></tr>
+      <tr><td><strong>Toast</strong></td><td>A brief, dismissible notification that slides in from a corner of the screen.</td></tr>
+      <tr><td><strong>Token</strong></td><td>Two meanings in this doc: (1) a JWT credential; (2) a design token (a CSS variable like <code>--brand</code>).</td></tr>
+      <tr><td><strong>WCAG</strong></td><td>Web Content Accessibility Guidelines. Neurix targets WCAG AA for color contrast and focus indication.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="footer-mark">
+    End of document · Neurix Technical Documentation · v1.0
+  </div>
+</section>
+
+</body>
+</html>

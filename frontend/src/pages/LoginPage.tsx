@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { extractError } from '../api/client';
 import { LoginBackground } from '../components/auth/LoginBackground';
 import { IconCheck } from '../components/Icons';
+import { PasswordInput } from '../components/PasswordInput';
 import { PreferencesToggle } from '../components/PreferencesToggle';
 import { useAuth } from '../context/AuthContext';
 import { useT } from '../i18n';
@@ -139,14 +140,14 @@ export function LoginPage() {
             </div>
             <div className="field">
               <label className="field-label" htmlFor="password">{t('auth.password')}</label>
-              <input
+              <PasswordInput
                 id="password"
-                type="password"
-                className="input"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
                 aria-invalid={hasError || undefined}
+                showLabel={isAr ? 'إظهار كلمة المرور' : 'Show password'}
+                hideLabel={isAr ? 'إخفاء كلمة المرور' : 'Hide password'}
               />
             </div>
             <button
