@@ -19,7 +19,7 @@ interface Filters {
 const emptyFilters: Filters = { q: '', departmentId: '', status: '', from: '', to: '' };
 
 export function AdminTicketsPage() {
-  const { t } = useT();
+  const { t, lang } = useT();
   const [data, setData] = useState<TicketPage | null>(null);
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [page, setPage] = useState(0);
@@ -198,15 +198,16 @@ export function AdminTicketsPage() {
               <th>{t('admin.tickets.colSubmittedBy')}</th>
               <th>{t('admin.tickets.colDepartment')}</th>
               <th>{t('user.submit.subcategory')}</th>
+              <th>{lang === 'ar' ? 'المشروع' : 'Project'}</th>
               <th>{t('common.status')}</th>
               <th className="actions-col-header">{t('common.actions')}</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="empty-state">{t('common.loading')}</td></tr>
+              <tr><td colSpan={7} className="empty-state">{t('common.loading')}</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={6} className="empty-state">
+              <tr><td colSpan={7} className="empty-state">
                 {hasFilters ? t('admin.tickets.noMatches') : t('admin.tickets.empty')}
               </td></tr>
             ) : filtered.map((tk) => (
@@ -227,6 +228,11 @@ export function AdminTicketsPage() {
                 <td>
                   {tk.subcategoryName
                     ? <span className="chip">{tk.subcategoryName}</span>
+                    : <span className="muted small">—</span>}
+                </td>
+                <td>
+                  {tk.projectName
+                    ? <span className="chip">{tk.projectName}</span>
                     : <span className="muted small">—</span>}
                 </td>
                 <td>

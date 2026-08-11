@@ -13,6 +13,8 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -52,17 +54,19 @@ public class ProjectService {
 
     @Transactional
     public ProjectDtos.ProjectResponse create(ProjectDtos.UpsertProjectRequest req) {
-        Department dept = departmentRepository.findById(req.departmentId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Department not found"));
-
+        List<Department> depts = loadDepartments(effectiveDepartmentIds(req));
         Set<User> members = resolveMembers(req.memberIds());
 
         String name = req.name().trim();
         String subtitle = req.subtitle() != null ? req.subtitle().trim() : null;
+
+        // The legacy single-department pointer stays populated with the first department in
+        // the picker so old DB constraints (department_id NOT NULL) and any code still reading
+        // Project.department keep working.
         Project p = Project.builder()
                 .name(name)
                 .subtitle(subtitle)
-                .department(dept)
+                .department(depts.get(0))
                 .members(members)
                 .startDate(req.startDate())
                 .endDate(req.endDate())
@@ -71,8 +75,12 @@ public class ProjectService {
                 .build();
         applyTranslations(p, name, subtitle);
         Project saved = repository.save(p);
+
+        // Point every selected department at this new project.
+        assignDepartmentsToProject(depts, saved);
+
         audit.record(AuditService.Action.CREATE, AuditService.EntityType.PROJECT,
-                saved.getId(), "name=" + name + " departmentId=" + dept.getId());
+                saved.getId(), "name=" + name + " departments=" + depts.size());
         return toDto(saved);
     }
 
@@ -88,11 +96,27 @@ public class ProjectService {
 
         p.setName(newName);
         p.setSubtitle(newSubtitle);
-        if (req.departmentId() != null && !req.departmentId().equals(p.getDepartment().getId())) {
-            Department dept = departmentRepository.findById(req.departmentId())
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Department not found"));
-            p.setDepartment(dept);
+
+        // Departments: replace the current set with the requested set. Any department that
+        // used to belong to this project but isn't in the new list is unassigned (set to null).
+        List<Long> targetIds = effectiveDepartmentIds(req);
+        if (!targetIds.isEmpty()) {
+            List<Department> targets = loadDepartments(targetIds);
+            List<Department> current = departmentRepository.findAll().stream()
+                    .filter(d -> d.getProject() != null && Objects.equals(d.getProject().getId(), id))
+                    .toList();
+            Set<Long> targetIdSet = new HashSet<>(targetIds);
+            for (Department d : current) {
+                if (!targetIdSet.contains(d.getId())) {
+                    d.setProject(null);
+                    departmentRepository.save(d);
+                }
+            }
+            assignDepartmentsToProject(targets, p);
+            // Keep the legacy pointer aligned with the first selected dept.
+            p.setDepartment(targets.get(0));
         }
+
         if (req.memberIds() != null) {
             p.setMembers(resolveMembers(req.memberIds()));
         }
@@ -124,11 +148,45 @@ public class ProjectService {
 
     @Transactional
     public void delete(Long id) {
-        if (!repository.existsById(id)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found");
-        }
-        repository.deleteById(id);
+        Project p = repository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+        // Unassign every department pointing at this project before we delete it.
+        departmentRepository.findAll().stream()
+                .filter(d -> d.getProject() != null && Objects.equals(d.getProject().getId(), id))
+                .forEach(d -> { d.setProject(null); departmentRepository.save(d); });
+        repository.deleteById(p.getId());
         audit.record(AuditService.Action.DELETE, AuditService.EntityType.PROJECT, id, null);
+    }
+
+    // ---------- helpers ----------
+
+    private List<Long> effectiveDepartmentIds(ProjectDtos.UpsertProjectRequest req) {
+        if (req.departmentIds() != null && !req.departmentIds().isEmpty()) {
+            return req.departmentIds().stream().distinct().toList();
+        }
+        // Backward compat: an old client that still sends the single departmentId.
+        if (req.departmentId() != null) return List.of(req.departmentId());
+        return List.of();
+    }
+
+    private List<Department> loadDepartments(List<Long> ids) {
+        if (ids.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one department is required");
+        }
+        List<Department> found = departmentRepository.findAllById(ids);
+        if (found.size() != ids.size()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "One or more departments not found");
+        }
+        // Preserve request order so the first ID becomes the legacy primary.
+        found.sort(Comparator.comparingInt(d -> ids.indexOf(d.getId())));
+        return found;
+    }
+
+    private void assignDepartmentsToProject(List<Department> depts, Project project) {
+        for (Department d : depts) {
+            d.setProject(project);
+            departmentRepository.save(d);
+        }
     }
 
     private Set<User> resolveMembers(Set<Long> memberIds) {
@@ -150,7 +208,20 @@ public class ProjectService {
                         u.getDisplayNameEn(),
                         u.getDisplayNameAr()))
                 .toList();
-        Department dept = p.getDepartment();
+
+        // Departments-in-project: query the child table since Project.departments is transient.
+        List<ProjectDtos.ProjectDepartment> depts = new ArrayList<>();
+        for (Department d : departmentRepository.findAll()) {
+            if (d.getProject() != null && Objects.equals(d.getProject().getId(), p.getId())) {
+                depts.add(new ProjectDtos.ProjectDepartment(
+                        d.getId(),
+                        localizer.pick(d.getNameEn(), d.getNameAr(), d.getName()),
+                        d.getNameEn(),
+                        d.getNameAr()));
+            }
+        }
+
+        Department legacy = p.getDepartment();
         return new ProjectDtos.ProjectResponse(
                 p.getId(),
                 localizer.pick(p.getNameEn(), p.getNameAr(), p.getName()),
@@ -159,10 +230,11 @@ public class ProjectService {
                 localizer.pick(p.getSubtitleEn(), p.getSubtitleAr(), p.getSubtitle()),
                 p.getSubtitleEn(),
                 p.getSubtitleAr(),
-                dept.getId(),
-                localizer.pick(dept.getNameEn(), dept.getNameAr(), dept.getName()),
-                dept.getNameEn(),
-                dept.getNameAr(),
+                legacy == null ? null : legacy.getId(),
+                legacy == null ? null : localizer.pick(legacy.getNameEn(), legacy.getNameAr(), legacy.getName()),
+                legacy == null ? null : legacy.getNameEn(),
+                legacy == null ? null : legacy.getNameAr(),
+                depts,
                 members,
                 p.getStartDate(), p.getEndDate(), daysLeft,
                 p.getProgress(), p.getStatus().name()

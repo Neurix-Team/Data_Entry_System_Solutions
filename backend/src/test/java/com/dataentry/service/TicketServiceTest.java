@@ -64,7 +64,7 @@ class TicketServiceTest {
         when(departmentRepository.findById(20L)).thenReturn(Optional.of(inactive));
 
         TicketDtos.CreateTicketRequest req = new TicketDtos.CreateTicketRequest(
-                20L, 100L, "T", "C", null, null, Map.of());
+                20L, 100L, null, "T", "C", null, null, Map.of());
 
         assertThatThrownBy(() -> ticketService.create(agent, req))
                 .isInstanceOf(ResponseStatusException.class)
@@ -80,7 +80,7 @@ class TicketServiceTest {
         when(subcategoryRepository.findById(300L)).thenReturn(Optional.of(foreign));
 
         TicketDtos.CreateTicketRequest req = new TicketDtos.CreateTicketRequest(
-                10L, 300L, "T", "C", null, null, Map.of());
+                10L, 300L, null, "T", "C", null, null, Map.of());
 
         assertThatThrownBy(() -> ticketService.create(agent, req))
                 .isInstanceOf(ResponseStatusException.class)
@@ -93,7 +93,7 @@ class TicketServiceTest {
         stubDeptAndSub();
 
         TicketDtos.CreateTicketRequest req = new TicketDtos.CreateTicketRequest(
-                10L, 100L, "Title", "Content",
+                10L, 100L, null, "Title", "Content",
                 "Site", "ftp://not-http.example.com", Map.of());
 
         assertThatThrownBy(() -> ticketService.create(agent, req))
@@ -111,7 +111,7 @@ class TicketServiceTest {
                 .thenReturn(List.of(required));
 
         TicketDtos.CreateTicketRequest req = new TicketDtos.CreateTicketRequest(
-                10L, 100L, "Title", "Content", null, null, Map.of());
+                10L, 100L, null, "Title", "Content", null, null, Map.of());
 
         assertThatThrownBy(() -> ticketService.create(agent, req))
                 .isInstanceOf(ResponseStatusException.class)
@@ -128,7 +128,7 @@ class TicketServiceTest {
                 .thenReturn(List.of(emailField));
 
         TicketDtos.CreateTicketRequest req = new TicketDtos.CreateTicketRequest(
-                10L, 100L, "Title", "Content", null, null,
+                10L, 100L, null, "Title", "Content", null, null,
                 Map.of("contact", "not-an-email"));
 
         assertThatThrownBy(() -> ticketService.create(agent, req))
@@ -152,7 +152,7 @@ class TicketServiceTest {
                 new TicketDtos.ArticleRequest("B", "content2", null, null),
                 new TicketDtos.ArticleRequest("C", "content3", null, null)
         );
-        TicketDtos.BulkCreateRequest req = new TicketDtos.BulkCreateRequest(10L, 100L, articles, Map.of());
+        TicketDtos.BulkCreateRequest req = new TicketDtos.BulkCreateRequest(10L, 100L, null, articles, Map.of());
 
         TicketDtos.BulkCreateResponse res = ticketService.createMany(agent, req);
         assertThat(res.created()).isEqualTo(3);

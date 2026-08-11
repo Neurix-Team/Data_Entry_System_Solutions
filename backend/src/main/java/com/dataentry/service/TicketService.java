@@ -4,6 +4,7 @@ import com.dataentry.dto.TicketDtos;
 import com.dataentry.model.*;
 import com.dataentry.repository.CustomFieldRepository;
 import com.dataentry.repository.DepartmentRepository;
+import com.dataentry.repository.ProjectRepository;
 import com.dataentry.repository.SubcategoryRepository;
 import com.dataentry.repository.TicketRepository;
 import org.springframework.data.domain.Page;
@@ -27,6 +28,7 @@ public class TicketService {
     private final TicketRepository ticketRepository;
     private final DepartmentRepository departmentRepository;
     private final SubcategoryRepository subcategoryRepository;
+    private final ProjectRepository projectRepository;
     private final CustomFieldRepository customFieldRepository;
     private final TranslationService translator;
     private final Localizer localizer;
@@ -40,6 +42,7 @@ public class TicketService {
     public TicketService(TicketRepository ticketRepository,
                          DepartmentRepository departmentRepository,
                          SubcategoryRepository subcategoryRepository,
+                         ProjectRepository projectRepository,
                          CustomFieldRepository customFieldRepository,
                          TranslationService translator,
                          Localizer localizer,
@@ -47,6 +50,7 @@ public class TicketService {
         this.ticketRepository = ticketRepository;
         this.departmentRepository = departmentRepository;
         this.subcategoryRepository = subcategoryRepository;
+        this.projectRepository = projectRepository;
         this.customFieldRepository = customFieldRepository;
         this.translator = translator;
         this.localizer = localizer;
@@ -57,9 +61,10 @@ public class TicketService {
     public TicketDtos.TicketResponse create(User currentUser, TicketDtos.CreateTicketRequest req) {
         Department dept = loadActiveDepartment(req.departmentId());
         Subcategory sub = loadActiveSubcategory(req.subcategoryId(), dept);
+        Project project = loadOptionalProject(req.projectId());
 
         Ticket ticket = buildTicket(
-                currentUser, dept, sub,
+                currentUser, dept, sub, project,
                 req.title(), req.content(),
                 req.websiteName(), req.websiteLink()
         );
@@ -71,11 +76,12 @@ public class TicketService {
     public TicketDtos.BulkCreateResponse createMany(User currentUser, TicketDtos.BulkCreateRequest req) {
         Department dept = loadActiveDepartment(req.departmentId());
         Subcategory sub = loadActiveSubcategory(req.subcategoryId(), dept);
+        Project project = loadOptionalProject(req.projectId());
 
         List<TicketDtos.TicketResponse> saved = new ArrayList<>();
         for (TicketDtos.ArticleRequest article : req.articles()) {
             Ticket ticket = buildTicket(
-                    currentUser, dept, sub,
+                    currentUser, dept, sub, project,
                     article.title(), article.content(),
                     article.websiteName(), article.websiteLink()
             );
@@ -83,6 +89,12 @@ public class TicketService {
             saved.add(toDto(ticketRepository.save(ticket)));
         }
         return new TicketDtos.BulkCreateResponse(saved.size(), saved);
+    }
+
+    private Project loadOptionalProject(Long id) {
+        if (id == null) return null;
+        return projectRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Project not found"));
     }
 
     private Department loadActiveDepartment(Long id) {
@@ -107,7 +119,7 @@ public class TicketService {
         return sub;
     }
 
-    private Ticket buildTicket(User currentUser, Department dept, Subcategory sub,
+    private Ticket buildTicket(User currentUser, Department dept, Subcategory sub, Project project,
                                String title, String content, String websiteName, String websiteLink) {
         String cleanUrl = websiteLink == null ? "" : websiteLink.trim();
         if (!cleanUrl.isEmpty()) {
@@ -123,6 +135,7 @@ public class TicketService {
                 .submittedBy(currentUser)
                 .department(dept)
                 .subcategory(sub)
+                .project(project)
                 .title(cleanTitle)
                 .content(cleanContent)
                 .websiteName(cleanName)
@@ -248,6 +261,7 @@ public class TicketService {
         User u = t.getSubmittedBy();
         Department dept = t.getDepartment();
         Subcategory sub = t.getSubcategory();
+        Project proj = t.getProject();
         List<TicketDtos.CustomValueResponse> customs = t.getCustomValues().stream()
                 .map(v -> {
                     CustomField f = v.getField();
@@ -272,6 +286,8 @@ public class TicketService {
                 sub == null ? null : localizer.pick(sub.getNameEn(), sub.getNameAr(), sub.getName()),
                 sub == null ? null : sub.getNameEn(),
                 sub == null ? null : sub.getNameAr(),
+                proj == null ? null : proj.getId(),
+                proj == null ? null : proj.getName(),
                 localizer.pick(t.getTitleEn(), t.getTitleAr(), t.getTitle()),
                 t.getTitleEn(),
                 t.getTitleAr(),

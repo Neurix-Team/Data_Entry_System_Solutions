@@ -88,6 +88,7 @@ export const ticketsApi = {
   submit: (payload: {
     departmentId: number;
     subcategoryId: number;
+    projectId?: number | null;
     title: string;
     content: string;
     websiteName?: string;
@@ -97,6 +98,7 @@ export const ticketsApi = {
   submitBulk: (payload: {
     departmentId: number;
     subcategoryId: number;
+    projectId?: number | null;
     articles: ArticleInput[];
     customValues: Record<string, string>;
   }) => api.post<BulkCreateResponse>('/user/tickets/bulk', payload).then(r => r.data),
@@ -164,7 +166,8 @@ export const aiApi = {
 export interface UpsertProjectPayload {
   name: string;
   subtitle?: string;
-  departmentId: number;
+  /** Departments in this project. At least one required. */
+  departmentIds: number[];
   memberIds?: number[];
   startDate?: string | null;
   endDate?: string | null;
@@ -173,7 +176,10 @@ export interface UpsertProjectPayload {
 }
 
 export const projectsApi = {
+  /** Admin listing (full CRUD access). */
   list: () => api.get<Project[]>('/admin/projects').then(r => r.data),
+  /** Read-only listing available to any authenticated user — used by the ticket submit form. */
+  userList: () => api.get<Project[]>('/projects').then(r => r.data),
   create: (payload: UpsertProjectPayload) =>
     api.post<Project>('/admin/projects', payload).then(r => r.data),
   update: (id: number, payload: UpsertProjectPayload) =>

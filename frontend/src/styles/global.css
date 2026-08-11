@@ -934,6 +934,50 @@ html[dir='rtl'] .actions-col-header { text-align: start; }
   color: var(--text-primary);
 }
 
+/* Multi-value chip picker — used for "which departments are in this project" */
+.chip-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.6rem;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  min-height: 48px;
+}
+.chip-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.85rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.chip-toggle:hover { background: var(--bg-hover); color: var(--text-primary); }
+.chip-toggle.is-on {
+  background: var(--brand);
+  color: #ffffff;
+  border-color: var(--brand);
+}
+.chip-toggle.is-on:hover { background: var(--brand-hover); border-color: var(--brand-hover); }
+.chip-toggle-check {
+  font-size: 0.85em;
+  line-height: 1;
+}
+
+/* Row layout for a stack of department chips inside a table cell */
+.dept-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
 /* Reusable chip for compact tag-like values (e.g. subcategory in the tickets table) */
 .chip {
   display: inline-block;

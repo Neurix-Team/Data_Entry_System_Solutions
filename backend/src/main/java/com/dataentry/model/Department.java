@@ -34,4 +34,12 @@ public class Department {
     @Column(nullable = false, updatable = false)
     @Builder.Default
     private Instant createdAt = Instant.now();
+
+    /**
+     * The project this department belongs to. Optional — a department can exist without a
+     * project. Set/cleared via the admin project screen's departments picker.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "project_id")
+    private Project project;
 }

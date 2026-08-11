@@ -16,6 +16,7 @@ public class TicketDtos {
     public record CreateTicketRequest(
             @NotNull Long departmentId,
             @NotNull Long subcategoryId,
+            Long projectId,
             @NotBlank @Size(max = 500) String title,
             @NotBlank @Size(max = 200000) String content,
             @Size(max = 250) String websiteName,
@@ -35,6 +36,7 @@ public class TicketDtos {
     public record BulkCreateRequest(
             @NotNull Long departmentId,
             @NotNull Long subcategoryId,
+            Long projectId,
             @NotEmpty @Valid List<ArticleRequest> articles,
             Map<String, String> customValues
     ) {}
@@ -66,6 +68,8 @@ public class TicketDtos {
             String subcategoryName,
             String subcategoryNameEn,
             String subcategoryNameAr,
+            Long projectId,
+            String projectName,
             String title,
             String titleEn,
             String titleAr,

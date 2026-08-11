@@ -39,9 +39,25 @@ public class Project {
     @Column(name = "subtitle_ar", length = 250)
     private String subtitleAr;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "department_id", nullable = false)
+    /**
+     * Legacy "primary department" pointer — kept for backward compatibility with data
+     * created before Projects owned Departments. On new projects we auto-fill this with
+     * whichever department id first ends up in {@link #getDepartments()} so old callers
+     * that read {@code project.department} still see a value. The source of truth for
+     * "which departments are in this project" is now {@link Department#getProject()}.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "department_id")
     private Department department;
+
+    /**
+     * Departments assigned to this project. Populated via {@link Department#getProject()};
+     * this side is read-only and derived. Kept as transient to avoid Hibernate managing
+     * the association twice — the {@code Department.project} side owns writes.
+     */
+    @Transient
+    @Builder.Default
+    private java.util.List<Department> departments = new java.util.ArrayList<>();
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(

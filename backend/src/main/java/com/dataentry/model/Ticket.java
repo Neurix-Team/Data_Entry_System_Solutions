@@ -32,6 +32,10 @@ public class Ticket {
     @JoinColumn(name = "subcategory_id")
     private Subcategory subcategory;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "project_id")
+    private Project project;
+
     @Column(length = 500)
     private String title;
 

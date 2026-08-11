@@ -6,6 +6,7 @@ import {
   departmentsApi,
   documentsApi,
   fieldsApi,
+  projectsApi,
   subcategoriesApi,
   ticketsApi,
 } from '../../api/resources';
@@ -14,6 +15,7 @@ import type {
   CustomField,
   Department,
   ExtractedPdf,
+  Project,
   Subcategory,
 } from '../../api/types';
 import { IconPlus } from '../../components/Icons';
@@ -27,9 +29,10 @@ import { useArticles } from './submit/useArticles';
 interface CoreForm {
   departmentId: string;
   subcategoryId: string;
+  projectId: string;
 }
 
-const initialCore: CoreForm = { departmentId: '', subcategoryId: '' };
+const initialCore: CoreForm = { departmentId: '', subcategoryId: '', projectId: '' };
 
 function useNowTick() {
   const [now, setNow] = useState(() => new Date());
@@ -57,6 +60,7 @@ export function SubmitTicketPage() {
   // -- reference data --
   const [departments, setDepartments] = useState<Department[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [fields, setFields] = useState<CustomField[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -86,6 +90,12 @@ export function SubmitTicketPage() {
   const [docError, setDocError] = useState<string | null>(null);
 
   // ---- data loading effects (split into single-purpose effects) ----
+
+  useEffect(() => {
+    // Projects are optional on a ticket — silently drop the list if the request fails
+    // (e.g. the /api/projects endpoint isn't deployed yet on an older backend).
+    projectsApi.userList().then(setProjects).catch(() => setProjects([]));
+  }, []);
 
   useEffect(() => {
     departmentsApi.userList()
@@ -193,6 +203,7 @@ export function SubmitTicketPage() {
       const res = await ticketsApi.submitBulk({
         departmentId: Number(core.departmentId),
         subcategoryId: Number(core.subcategoryId),
+        projectId: core.projectId ? Number(core.projectId) : null,
         articles: payloadArticles,
         customValues: trimmedCustom,
       });
@@ -334,6 +345,24 @@ export function SubmitTicketPage() {
                 ))}
               </select>
               {errors.subcategoryId && <span className="field-error">{errors.subcategoryId}</span>}
+            </div>
+            <div className="field field-grow">
+              <label className="field-label">
+                {lang === 'ar' ? 'المشروع' : 'Project'}
+              </label>
+              <select
+                className="select"
+                value={core.projectId}
+                onChange={(e) => setCore({ ...core, projectId: e.target.value })}
+                disabled={projects.length === 0}
+              >
+                <option value="">
+                  {lang === 'ar' ? 'بدون مشروع (اختياري)' : 'No project (optional)'}
+                </option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
             </div>
           </div>
 

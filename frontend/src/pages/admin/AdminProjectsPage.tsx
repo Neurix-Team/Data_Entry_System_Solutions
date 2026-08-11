@@ -13,7 +13,7 @@ interface FormState {
   id?: number;
   name: string;
   subtitle: string;
-  departmentId: string;
+  departmentIds: number[];
   memberIds: number[];
   startDate: string;
   endDate: string;
@@ -22,7 +22,7 @@ interface FormState {
 }
 
 const emptyForm: FormState = {
-  name: '', subtitle: '', departmentId: '', memberIds: [],
+  name: '', subtitle: '', departmentIds: [], memberIds: [],
   startDate: '', endDate: '', progress: 0, status: 'ON_TRACK',
 };
 
@@ -73,9 +73,10 @@ export function AdminProjectsPage() {
     const query = q.trim().toLowerCase();
     return items.filter((p) => {
       if (statusFilter && p.status !== statusFilter) return false;
-      if (deptFilter && String(p.departmentId) !== deptFilter) return false;
+      if (deptFilter && !p.departments.some((d) => String(d.id) === deptFilter)) return false;
       if (query) {
-        const hay = [p.name, p.subtitle ?? '', p.departmentName].join(' ').toLowerCase();
+        const deptText = p.departments.map((d) => d.name).join(' ');
+        const hay = [p.name, p.subtitle ?? '', deptText].join(' ').toLowerCase();
         if (!hay.includes(query)) return false;
       }
       return true;
@@ -83,14 +84,14 @@ export function AdminProjectsPage() {
   }, [items, q, statusFilter, deptFilter]);
 
   function openCreate() {
-    setForm({ ...emptyForm, departmentId: departments[0]?.id ? String(departments[0].id) : '' });
+    setForm({ ...emptyForm });
     setFormError(null); setModalOpen(true);
   }
 
   function openEdit(p: Project) {
     setForm({
       id: p.id, name: p.name, subtitle: p.subtitle ?? '',
-      departmentId: String(p.departmentId),
+      departmentIds: p.departments.map((d) => d.id),
       memberIds: p.members.map((m) => m.id),
       startDate: p.startDate ?? '', endDate: p.endDate ?? '',
       progress: p.progress, status: p.status,
@@ -102,14 +103,17 @@ export function AdminProjectsPage() {
     e.preventDefault();
     setFormError(null);
     if (!form.name.trim()) { setFormError(t('projects.nameRequired')); return; }
-    if (!form.departmentId) { setFormError(t('projects.departmentRequired')); return; }
+    if (form.departmentIds.length === 0) {
+      setFormError(lang === 'ar' ? 'اختار على الأقل قسم واحد للمشروع.' : 'Pick at least one department for this project.');
+      return;
+    }
 
     setSaving(true);
     try {
       const payload = {
         name: form.name.trim(),
         subtitle: form.subtitle.trim() || undefined,
-        departmentId: Number(form.departmentId),
+        departmentIds: form.departmentIds,
         memberIds: form.memberIds,
         startDate: form.startDate || null,
         endDate: form.endDate || null,
@@ -125,6 +129,12 @@ export function AdminProjectsPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function toggleDept(id: number) {
+    setForm((f) => f.departmentIds.includes(id)
+      ? { ...f, departmentIds: f.departmentIds.filter((x) => x !== id) }
+      : { ...f, departmentIds: [...f.departmentIds, id] });
   }
 
   async function onDelete(p: Project) {
@@ -243,7 +253,15 @@ export function AdminProjectsPage() {
                       </div>
                     </div>
                   </td>
-                  <td><span className="dept-chip">{p.departmentName}</span></td>
+                  <td>
+                    <div className="dept-chip-row">
+                      {p.departments.length === 0
+                        ? <span className="muted small">—</span>
+                        : p.departments.map((d) => (
+                            <span key={d.id} className="dept-chip">{d.name}</span>
+                          ))}
+                    </div>
+                  </td>
                   <td>
                     <MemberStack members={p.members} />
                   </td>
@@ -324,17 +342,39 @@ export function AdminProjectsPage() {
             />
           </div>
           <div className="field">
-            <label className="field-label">{t('projects.colDepartment')} <span className="req">*</span></label>
-            <select
-              className="select"
-              value={form.departmentId}
-              onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
-            >
-              <option value="">—</option>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>{d.name}</option>
-              ))}
-            </select>
+            <label className="field-label">
+              {lang === 'ar' ? 'الأقسام داخل المشروع' : 'Departments in this project'}{' '}
+              <span className="req">*</span>
+            </label>
+            <div className="chip-picker">
+              {departments.length === 0 && (
+                <span className="muted small">
+                  {lang === 'ar' ? 'لا توجد أقسام. أضف قسم أولاً.' : 'No departments yet. Create one first.'}
+                </span>
+              )}
+              {departments.map((d) => {
+                const on = form.departmentIds.includes(d.id);
+                return (
+                  <button
+                    type="button"
+                    key={d.id}
+                    className={`chip-toggle${on ? ' is-on' : ''}`}
+                    onClick={() => toggleDept(d.id)}
+                    aria-pressed={on}
+                  >
+                    {on && <span className="chip-toggle-check" aria-hidden="true">✓</span>}
+                    {d.name}
+                  </button>
+                );
+              })}
+            </div>
+            {form.departmentIds.length > 0 && (
+              <span className="small muted">
+                {lang === 'ar'
+                  ? `${form.departmentIds.length} قسم مختار`
+                  : `${form.departmentIds.length} department${form.departmentIds.length === 1 ? '' : 's'} selected`}
+              </span>
+            )}
           </div>
           <div className="row" style={{ gap: '1rem' }}>
             <div className="field" style={{ flex: 1 }}>

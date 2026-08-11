@@ -94,6 +94,8 @@ export interface Ticket {
   subcategoryName?: string | null;
   subcategoryNameEn?: string | null;
   subcategoryNameAr?: string | null;
+  projectId?: number | null;
+  projectName?: string | null;
   title?: string | null;
   titleEn?: string | null;
   titleAr?: string | null;
@@ -174,6 +176,13 @@ export interface ProjectMember {
   displayNameAr?: string | null;
 }
 
+export interface ProjectDepartment {
+  id: number;
+  name: string;
+  nameEn?: string | null;
+  nameAr?: string | null;
+}
+
 export interface Project {
   id: number;
   name: string;
@@ -182,10 +191,13 @@ export interface Project {
   subtitle?: string | null;
   subtitleEn?: string | null;
   subtitleAr?: string | null;
-  departmentId: number;
-  departmentName: string;
+  /** Legacy primary-department pointer — the first department in {@link departments}. */
+  departmentId: number | null;
+  departmentName: string | null;
   departmentNameEn?: string | null;
   departmentNameAr?: string | null;
+  /** All departments assigned to this project — source of truth. */
+  departments: ProjectDepartment[];
   members: ProjectMember[];
   startDate?: string | null;
   endDate?: string | null;
