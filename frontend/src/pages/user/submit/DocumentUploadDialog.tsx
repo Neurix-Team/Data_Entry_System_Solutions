@@ -83,7 +83,9 @@ export function DocumentUploadDialog({
                     title={t('user.submit.extractedImageOpen')}
                   >
                     <img src={img.url} alt={img.filename} loading="lazy" />
-                    <span>{t('user.submit.extractedImagePage', { page: img.page })}</span>
+                    {img.page > 0 && (
+                      <span>{t('user.submit.extractedImagePage', { page: img.page })}</span>
+                    )}
                   </a>
                 ))}
               </div>

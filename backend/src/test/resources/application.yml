@@ -22,7 +22,7 @@ app:
   seed:
     enabled: false
   pdf:
-    max-chars: 200000
+    max-chars: 2000000
     output-dir: ${java.io.tmpdir}/dataentry-pdf-test
   ocr:
     tessdata-path: /tmp/tessdata/

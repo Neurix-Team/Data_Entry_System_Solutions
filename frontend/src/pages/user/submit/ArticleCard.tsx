@@ -275,9 +275,11 @@ function ExtractedImagesSection({ rows, submitting, onRemove, onUpdate }: Extrac
               title={t('user.submit.extractedImageOpen')}
             >
               <img src={row.url} alt={row.name} loading="lazy" />
-              <span className="extracted-image-page">
-                {t('user.submit.extractedImagePage', { page: row.page })}
-              </span>
+              {row.page > 0 && (
+                <span className="extracted-image-page">
+                  {t('user.submit.extractedImagePage', { page: row.page })}
+                </span>
+              )}
             </a>
             <div className="extracted-image-body">
               <input

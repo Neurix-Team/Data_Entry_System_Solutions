@@ -1,6 +1,7 @@
 package com.dataentry.service;
 
 import com.dataentry.dto.PdfDtos;
+import com.dataentry.model.User;
 import net.sourceforge.tess4j.Tesseract;
 import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
@@ -14,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
@@ -63,16 +65,22 @@ public class DocumentExtractionService {
     private final int maxChars;
     private final String tessdataPath;
     private final String ocrLanguages;
+    private final OfficeImageExtractor officeImageExtractor;
+    private final ExtractionStagingService staging;
 
     public DocumentExtractionService(
             PdfExtractionService pdfService,
-            @Value("${app.pdf.max-chars:200000}") int maxChars,
+            @Value("${app.pdf.max-chars:2000000}") int maxChars,
             @Value("${app.ocr.tessdata-path:/usr/share/tesseract-ocr/4.00/tessdata/}") String tessdataPath,
-            @Value("${app.ocr.languages:ara+eng}") String ocrLanguages) {
+            @Value("${app.ocr.languages:ara+eng}") String ocrLanguages,
+            OfficeImageExtractor officeImageExtractor,
+            ExtractionStagingService staging) {
         this.pdfService = pdfService;
         this.maxChars = maxChars;
         this.tessdataPath = tessdataPath;
         this.ocrLanguages = ocrLanguages;
+        this.officeImageExtractor = officeImageExtractor;
+        this.staging = staging;
     }
 
     public PdfDtos.ExtractedContentResponse extract(MultipartFile file) {
@@ -117,28 +125,50 @@ public class DocumentExtractionService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Executable files are not accepted.");
         }
-        try (InputStream in = file.getInputStream()) {
-            BodyContentHandler handler = new BodyContentHandler(Math.max(maxChars * 4, 1_000_000));
-            Metadata metadata = new Metadata();
-            metadata.set(Metadata.CONTENT_TYPE, file.getContentType() == null ? MimeTypes.OCTET_STREAM : file.getContentType());
-            metadata.set(TikaCoreProperties.RESOURCE_NAME_KEY, originalName);
-            // Harden the parse context against XXE / entity-expansion attacks in Office / RTF /
-            // XML documents.  Tika's default ParseContext trusts DOCTYPEs and external entities.
-            new AutoDetectParser().parse(in, handler, metadata, hardenedParseContext());
-            String text = handler.toString();
 
+        // Persist the upload to a temp file so both Tika text extraction and the
+        // office image extractor can read it — the latter needs a random-access File,
+        // not a stream.
+        Path tmp = null;
+        try {
+            tmp = Files.createTempFile("doc-", "-" + safeName(originalName));
+            file.transferTo(tmp.toFile());
+
+            String text = parseTikaText(tmp, file.getContentType(), originalName, warnings);
             if (text == null || text.isBlank()) {
                 throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
                         "Could not extract any text from the file");
             }
-            return finalize(originalName, text, warnings);
+            StagedImages staged = extractOfficeImages(tmp.toFile(), originalName, warnings);
+            return finalize(originalName, text, warnings, staged);
+        } catch (IOException e) {
+            log.error("Failed to persist office upload '{}'", originalName, e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Could not read the uploaded file");
+        } finally {
+            if (tmp != null) {
+                try { Files.deleteIfExists(tmp); } catch (IOException ignored) {}
+            }
+        }
+    }
+
+    /** Runs Tika on the persisted file. Falls back to Tika's parseToString when the
+     *  document exceeds SAX's default limit, matching the previous behaviour. */
+    private String parseTikaText(Path file, String declaredContentType, String originalName,
+                                 List<String> warnings) {
+        try (InputStream in = Files.newInputStream(file)) {
+            BodyContentHandler handler = new BodyContentHandler(Math.max(maxChars * 4, 1_000_000));
+            Metadata metadata = new Metadata();
+            metadata.set(Metadata.CONTENT_TYPE, declaredContentType == null ? MimeTypes.OCTET_STREAM : declaredContentType);
+            metadata.set(TikaCoreProperties.RESOURCE_NAME_KEY, originalName);
+            new AutoDetectParser().parse(in, handler, metadata, hardenedParseContext());
+            return handler.toString();
         } catch (SAXException e) {
             String msg = e.getMessage() == null ? "" : e.getMessage();
             if (msg.contains("Your document contained more than")) {
                 warnings.add("Document is very large — extraction stopped at the internal Tika limit");
-                try (InputStream in = file.getInputStream()) {
-                    String snippet = tika.parseToString(in);
-                    return finalize(originalName, snippet, warnings);
+                try (InputStream in = Files.newInputStream(file)) {
+                    return tika.parseToString(in);
                 } catch (IOException | TikaException fallback) {
                     log.warn("Tika fallback failed", fallback);
                 }
@@ -150,6 +180,49 @@ public class DocumentExtractionService {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
                     "Extraction failed: " + e.getMessage());
         }
+    }
+
+    /** Pull embedded images out of an office document into the staging area, or return
+     *  empty for formats we don't handle. Non-fatal — text is the primary deliverable. */
+    private StagedImages extractOfficeImages(File file, String originalName, List<String> warnings) {
+        if (!OfficeImageExtractor.supports(originalName)) return StagedImages.empty();
+        Long ownerId = currentUserId();
+        if (ownerId == null) return StagedImages.empty();
+
+        try {
+            ExtractionStagingService.Handle handle = staging.create(ownerId);
+            List<OfficeImageExtractor.Extracted> found = officeImageExtractor.extractInto(file, handle.directory());
+            if (found.isEmpty()) {
+                staging.discard(handle.extractionId());
+                return StagedImages.empty();
+            }
+            List<PdfDtos.ExtractedImage> images = found.stream()
+                    .map(f -> new PdfDtos.ExtractedImage(
+                            f.filename(),
+                            "/api/user/extractions/" + handle.extractionId() + "/images/" + f.filename(),
+                            f.contentType(),
+                            f.sizeBytes(),
+                            0,   // page number doesn't apply to office documents
+                            f.width(),
+                            f.height()))
+                    .toList();
+            return new StagedImages(handle.extractionId(), images);
+        } catch (Exception e) {
+            log.warn("Office image extraction failed for '{}' — continuing with text only: {}",
+                    originalName, e.getMessage());
+            warnings.add("Could not extract images from this document");
+            return StagedImages.empty();
+        }
+    }
+
+    private Long currentUserId() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return null;
+        return auth.getPrincipal() instanceof User u ? u.getId() : null;
+    }
+
+    private record StagedImages(String extractionId, List<PdfDtos.ExtractedImage> images) {
+        static StagedImages empty() { return new StagedImages(null, List.of()); }
     }
 
     private PdfDtos.ExtractedContentResponse extractWithOcr(MultipartFile file, String originalName) {
@@ -167,7 +240,7 @@ public class DocumentExtractionService {
                 throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
                         "OCR produced no text from this image");
             }
-            return finalize(originalName, text, warnings);
+            return finalize(originalName, text, warnings, StagedImages.empty());
         } catch (net.sourceforge.tess4j.TesseractException e) {
             log.error("Tesseract OCR failed", e);
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
@@ -190,7 +263,8 @@ public class DocumentExtractionService {
         }
     }
 
-    private PdfDtos.ExtractedContentResponse finalize(String filename, String rawText, List<String> warnings) {
+    private PdfDtos.ExtractedContentResponse finalize(String filename, String rawText,
+                                                      List<String> warnings, StagedImages staged) {
         String cleaned = rawText.replaceAll("\\n{3,}", "\n\n").trim();
         boolean truncated = false;
         if (cleaned.length() > maxChars) {
@@ -206,8 +280,8 @@ public class DocumentExtractionService {
                 truncated,
                 Instant.now(),
                 warnings,
-                null,     // non-PDF paths don't emit staged images
-                List.of()
+                staged.extractionId(),
+                staged.images()
         );
     }
 

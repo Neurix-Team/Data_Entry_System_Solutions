@@ -54,7 +54,9 @@ app:
     admin-username: admin
     admin-password: admin123
   pdf:
-    max-chars: 200000
+    # Bumped from 200k to 2M so a full-length article (e.g. long reports, book chapters,
+    # merged research files) fits without truncation.
+    max-chars: 2000000
     output-dir: ${java.io.tmpdir}/dataentry-pdf
     # Where extracted PDF images sit between /pdf/extract and ticket submit.
     # Anything older than extractions-ttl-hours is swept lazily on the next extraction.

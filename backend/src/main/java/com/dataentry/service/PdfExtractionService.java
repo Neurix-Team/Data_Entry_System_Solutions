@@ -38,7 +38,7 @@ public class PdfExtractionService {
 
     public PdfExtractionService(
             @Value("${app.pdf.output-dir}") String outputDir,
-            @Value("${app.pdf.max-chars:200000}") int maxChars,
+            @Value("${app.pdf.max-chars:2000000}") int maxChars,
             PdfOcrService ocrService,
             PdfImageExtractor imageExtractor,
             ExtractionStagingService staging) {

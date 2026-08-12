@@ -18,7 +18,7 @@ public class TicketDtos {
             @NotNull Long subcategoryId,
             Long projectId,
             @NotBlank @Size(max = 500) String title,
-            @NotBlank @Size(max = 200000) String content,
+            @NotBlank @Size(max = 2000000) String content,
             @Size(max = 250) String websiteName,
             @Size(max = 500) String websiteLink,
             @Valid List<ResourceRequest> resources,
@@ -68,7 +68,7 @@ public class TicketDtos {
     /** A single article within a bulk submission. */
     public record ArticleRequest(
             @NotBlank @Size(max = 500) String title,
-            @NotBlank @Size(max = 200000) String content,
+            @NotBlank @Size(max = 2000000) String content,
             @Size(max = 250) String websiteName,
             @Size(max = 500) String websiteLink,
             @Valid List<ResourceRequest> resources,
