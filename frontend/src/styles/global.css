@@ -115,6 +115,15 @@
   --shadow-sm: 0 1px 2px rgba(20, 22, 31, 0.03), 0 1px 3px rgba(20, 22, 31, 0.04);
   --shadow: 0 4px 12px rgba(20, 22, 31, 0.05), 0 2px 4px rgba(20, 22, 31, 0.03);
   --shadow-lg: 0 12px 32px rgba(20, 22, 31, 0.08);
+  /* Card lift: neutral depth + a soft brand-tinted halo underneath.
+     --card-glow accepts any CSS color and is mixed with transparent so
+     dept-cards and KPI cards can bind it to their existing color tokens
+     directly (change --dept-color-1 and the glow follows). */
+  --card-glow: var(--accent-cyan);
+  --shadow-lift:
+    0 2px 4px rgba(20, 22, 31, 0.05),
+    0 18px 40px -12px rgba(20, 22, 31, 0.16),
+    0 24px 48px -18px color-mix(in oklch, var(--card-glow) 22%, transparent);
 
   /* Type */
   --font-body: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI',
@@ -198,6 +207,13 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
   --shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+  /* Dark mode lift: deeper base shadow, brand-tinted halo readable against navy.
+     Higher mix percentage compensates for the darker surface. */
+  --card-glow: var(--accent-cyan);
+  --shadow-lift:
+    0 4px 8px rgba(0, 0, 0, 0.5),
+    0 24px 48px -12px rgba(0, 0, 0, 0.7),
+    0 28px 56px -20px color-mix(in oklch, var(--card-glow) 30%, transparent);
 
   /* Department mini-stat tints: deep, low-saturation tints of each hue for legibility on navy. */
   --dept-mini-1: #122747;
@@ -398,30 +414,154 @@ html[dir='rtl'] .switch input:checked + .slider::before { transform: translateX(
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   padding: 1.5rem;
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 .card + .card { margin-top: 1rem; }
 
 /* ============================================================
-   Card hover — refined & calm.
-   No transforms (they feel jittery on scroll / touch). Just a
-   softer border and a wider, softer shadow so cards feel tangible
-   without moving. Mirrors Stripe / Linear / Vercel dashboards.
+   Card lift — the Neurix cards behave like circuit nodes:
+   on hover they rise toward the cursor and light up from below
+   with a halo tinted to their own identity color (--card-glow).
+   Base cards get a cyan wash from the Neurix logo dots; dept-cards
+   and KPI cards override --card-glow to their own accent.
    ============================================================ */
 .card, .stat-card, .dept-card, .udash-kpi, .udash-panel, .article-card {
-  transition: box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  transition:
+    transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.2s ease;
 }
 
-.card:hover,
-.stat-card:hover,
-.dept-card:hover,
-.udash-kpi:hover,
-.udash-panel:hover,
-.article-card:hover {
-  border-color: var(--border-strong);
-  box-shadow:
-    0 1px 2px rgba(20, 22, 31, 0.04),
-    0 6px 20px -8px rgba(20, 22, 31, 0.10);
+/* Lift + halo are gated to true hover devices so touch screens don't
+   get stuck-hover states and jittery scroll transforms. */
+@media (hover: hover) and (pointer: fine) {
+  .card:hover,
+  .stat-card:hover,
+  .dept-card:hover,
+  .udash-kpi:hover,
+  .udash-panel:hover,
+  .article-card:hover {
+    transform: translateY(-8px);
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-lift);
+    will-change: transform;
+  }
+
+  /* Tactile press — the card settles halfway back with a snappier curve,
+     giving the click a physical response before navigation runs. */
+  .card:active,
+  .stat-card:active,
+  .dept-card:active,
+  .udash-kpi:active,
+  .udash-panel:active,
+  .article-card:active {
+    transform: translateY(-2px);
+    transition:
+      transform 0.09s ease-out,
+      box-shadow 0.09s ease-out;
+  }
+}
+
+/* Keyboard focus lifts the card. Two patterns because the actual click
+   targets in this app (dept-card open button, article-card actions) live
+   INSIDE the card, not on it — :has(:focus-visible) catches keyboard focus
+   on any descendant so the card responds when its inner control is tabbed
+   to. :focus-visible also covers cards that are themselves focusable. */
+.card:focus-visible,
+.stat-card:focus-visible,
+.dept-card:focus-visible,
+.udash-kpi:focus-visible,
+.udash-panel:focus-visible,
+.article-card:focus-visible,
+.card:has(:focus-visible),
+.stat-card:has(:focus-visible),
+.dept-card:has(:focus-visible),
+.udash-kpi:has(:focus-visible),
+.udash-panel:has(:focus-visible),
+.article-card:has(:focus-visible) {
+  transform: translateY(-8px);
+  box-shadow: var(--shadow-lift);
+}
+/* Ring only on the card itself, not when a nested control has focus —
+   inner buttons already draw their own focus ring. */
+.card:focus-visible,
+.stat-card:focus-visible,
+.dept-card:focus-visible,
+.udash-kpi:focus-visible,
+.udash-panel:focus-visible,
+.article-card:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+}
+
+/* Busy / disabled cards must not lift and must reject pointer intent —
+   otherwise a loading card looks tappable and a disabled one invites clicks. */
+.card[aria-busy="true"],
+.stat-card[aria-busy="true"],
+.dept-card[aria-busy="true"],
+.udash-kpi[aria-busy="true"],
+.udash-panel[aria-busy="true"],
+.article-card[aria-busy="true"] {
+  cursor: progress;
+}
+.card[aria-disabled="true"],
+.stat-card[aria-disabled="true"],
+.dept-card[aria-disabled="true"],
+.udash-kpi[aria-disabled="true"],
+.udash-panel[aria-disabled="true"],
+.article-card[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.card[aria-busy="true"]:hover,
+.stat-card[aria-busy="true"]:hover,
+.dept-card[aria-busy="true"]:hover,
+.udash-kpi[aria-busy="true"]:hover,
+.udash-panel[aria-busy="true"]:hover,
+.article-card[aria-busy="true"]:hover,
+.card[aria-disabled="true"]:hover,
+.stat-card[aria-disabled="true"]:hover,
+.dept-card[aria-disabled="true"]:hover,
+.udash-kpi[aria-disabled="true"]:hover,
+.udash-panel[aria-disabled="true"]:hover,
+.article-card[aria-disabled="true"]:hover {
+  transform: none;
+  box-shadow: var(--shadow-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card, .stat-card, .dept-card, .udash-kpi, .udash-panel, .article-card {
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .card:hover, .stat-card:hover, .dept-card:hover,
+  .udash-kpi:hover, .udash-panel:hover, .article-card:hover,
+  .card:focus-visible, .stat-card:focus-visible, .dept-card:focus-visible,
+  .udash-kpi:focus-visible, .udash-panel:focus-visible, .article-card:focus-visible,
+  .card:has(:focus-visible), .stat-card:has(:focus-visible), .dept-card:has(:focus-visible),
+  .udash-kpi:has(:focus-visible), .udash-panel:has(:focus-visible), .article-card:has(:focus-visible) {
+    transform: none;
+    box-shadow: var(--shadow);
+  }
+  .card:active, .stat-card:active, .dept-card:active,
+  .udash-kpi:active, .udash-panel:active, .article-card:active {
+    transform: none;
+  }
+  /* Also freeze the identity pseudo-elements — no strip pulse, no stripe
+     brighten — so reduced-motion users get a completely static card. */
+  .dept-card::before,
+  .udash-kpi::before {
+    transition: none;
+  }
+  .dept-card:hover::before,
+  .dept-card:focus-visible::before,
+  .dept-card:has(:focus-visible)::before {
+    transform: none;
+  }
+  .udash-kpi:hover::before,
+  .udash-kpi:focus-visible::before,
+  .udash-kpi:has(:focus-visible)::before {
+    opacity: 0.85;
+  }
 }
 
 /* Recent activity row — just a soft background wash on hover, no shift */
@@ -798,9 +938,7 @@ html[dir='rtl'] .user-chip-info { align-items: flex-start; }
   box-shadow: var(--shadow-sm);
   position: relative;
   overflow: hidden;
-  transition: box-shadow 0.15s ease, transform 0.05s ease;
 }
-.stat-card:hover { box-shadow: var(--shadow); }
 .stat-card-header {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 0.6rem;
@@ -1339,22 +1477,39 @@ html[dir='rtl'] .side-panel-footer { justify-content: flex-start; }
   overflow: hidden;
   padding: 1.75rem 1.5rem 1.5rem;
   position: relative;
-  transition: box-shadow 0.15s ease, transform 0.1s ease;
 }
-.dept-card:hover { box-shadow: var(--shadow); }
 .dept-card::before {
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 10px;
   background: var(--dept-card-color, var(--dept-color-1));
+  transform-origin: top;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
+/* On hover / keyboard-focus the identity strip pulses forward — the
+   department is asserting its color at the moment of contact. */
+@media (hover: hover) and (pointer: fine) {
+  .dept-card:hover::before { transform: scaleY(1.25); }
+}
+.dept-card:focus-visible::before,
+.dept-card:has(:focus-visible)::before { transform: scaleY(1.25); }
+
+/* Per-color: strip fill + card halo tint. --card-glow feeds --shadow-lift,
+   so changing --dept-color-1 automatically re-tints the lift halo. */
 .dept-card[data-color='1']::before { background: var(--dept-color-1); }
 .dept-card[data-color='2']::before { background: var(--dept-color-2); }
 .dept-card[data-color='3']::before { background: var(--dept-color-3); }
 .dept-card[data-color='4']::before { background: var(--dept-color-4); }
 .dept-card[data-color='5']::before { background: var(--dept-color-5); }
 .dept-card[data-color='6']::before { background: var(--dept-color-6); }
+
+.dept-card[data-color='1'] { --card-glow: var(--dept-color-1); }
+.dept-card[data-color='2'] { --card-glow: var(--dept-color-2); }
+.dept-card[data-color='3'] { --card-glow: var(--dept-color-3); }
+.dept-card[data-color='4'] { --card-glow: var(--dept-color-4); }
+.dept-card[data-color='5'] { --card-glow: var(--dept-color-5); }
+.dept-card[data-color='6'] { --card-glow: var(--dept-color-6); }
 
 /* Tint the mini-stats to match the strip color */
 .dept-card[data-color='1'] .dept-mini-stat.tint-a { background: var(--dept-mini-1); }
@@ -2646,7 +2801,8 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   position: relative;
   overflow: hidden;
 }
-/* Left accent stripe — very thin, subtle, professional */
+/* Left accent stripe — very thin, subtle, professional.
+   On hover the stripe reaches full opacity so the KPI's accent asserts itself. */
 .udash-kpi::before {
   content: '';
   position: absolute;
@@ -2656,10 +2812,18 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   width: 3px;
   background: var(--accent);
   opacity: 0.85;
+  transition: opacity 0.22s ease;
 }
-/* Warm accent palette — softer, muted, easier on the eyes than pure saturated tones.
-   Uses color-mix so the soft chip background is a semi-transparent tint of the accent, which
-   automatically re-tints itself against light vs dark surfaces (no dark-mode override needed). */
+@media (hover: hover) and (pointer: fine) {
+  .udash-kpi:hover::before { opacity: 1; }
+}
+.udash-kpi:focus-visible::before,
+.udash-kpi:has(:focus-visible)::before { opacity: 1; }
+
+/* Every KPI variant maps --card-glow to its own --accent so the lift halo
+   tracks the accent automatically. --accent-soft uses color-mix so the chip
+   re-tints against light vs dark surfaces without a dark-mode override. */
+.udash-kpi { --card-glow: var(--accent); }
 .udash-kpi[data-accent="blue"]   { --accent: #0f5fd1; --accent-soft: color-mix(in srgb, #0f5fd1 12%, transparent); }
 .udash-kpi[data-accent="green"]  { --accent: #0e9f7c; --accent-soft: color-mix(in srgb, #0e9f7c 12%, transparent); }
 .udash-kpi[data-accent="amber"]  { --accent: #f0a020; --accent-soft: color-mix(in srgb, #f0a020 12%, transparent); }
