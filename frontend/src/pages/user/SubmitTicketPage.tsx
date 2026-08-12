@@ -19,7 +19,7 @@ import type {
   ResourceInput,
   Subcategory,
 } from '../../api/types';
-import { IconPlus } from '../../components/Icons';
+import { IconFolder, IconPlus, IconTasks } from '../../components/Icons';
 import { useT } from '../../i18n';
 import { AiCheckDialog, type AiResult } from './submit/AiCheckDialog';
 import {
@@ -27,6 +27,7 @@ import {
   articleErrorKey,
   documentErrorKey,
   resourceErrorKey,
+  type ArticleMode,
   type ArticleRow,
   type DocumentRow,
   type ResourceRow,
@@ -82,6 +83,7 @@ export function SubmitTicketPage() {
     add: addArticle, remove: removeArticle, update: updateArticle,
     addResource, removeResource, updateResource,
     addDocument, removeDocument, updateDocument,
+    appendExtractedImages, removeExtractedImage, updateExtractedImage,
     reset: resetArticles,
   } = useArticles();
 
@@ -89,6 +91,11 @@ export function SubmitTicketPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Which half of the article form is visible. Null on first render — nothing shows
+  // until the user picks a mode from the two big picker cards. Once picked they can
+  // switch freely; there is no "back to unpicked" state, only a swap.
+  const [articleMode, setArticleMode] = useState<ArticleMode | null>(null);
 
   // -- AI check dialog --
   const [aiOpen, setAiOpen] = useState(false);
@@ -204,7 +211,32 @@ export function SubmitTicketPage() {
     }
 
     setErrors(errs);
+
+    // If we caught errors in a tab the user isn't looking at (or none picked yet),
+    // flip to the tab that actually has the failure. Content errors — including
+    // resource links, which now live in the Content tab — outrank pure Attachments
+    // errors because a required title/content blocks the submit outright.
+    if (Object.keys(errs).length > 0) {
+      const hasContentErr = articles.some((a) =>
+        errs[articleErrorKey(a.id, 'title')]
+        || errs[articleErrorKey(a.id, 'content')]
+        || a.resources.some((r) => errs[resourceErrorKey(a.id, r.id, 'link')]));
+      if (hasContentErr && articleMode !== 'content') setArticleMode('content');
+    }
+
     return Object.keys(errs).length === 0;
+  }
+
+  /** Errors sitting in the article's OTHER tab — used to flag the collapsed section
+   *  so the user knows to flip tabs to fix them. Resources are visible in BOTH tabs
+   *  now, so a broken resource link surfaces on its own no matter where the user is;
+   *  only title and content are Content-tab exclusive and need the badge. */
+  function hiddenErrorFor(a: ArticleRow): boolean {
+    if (articleMode === 'attachments') {
+      return !!errors[articleErrorKey(a.id, 'title')]
+          || !!errors[articleErrorKey(a.id, 'content')];
+    }
+    return false;
   }
 
   // ---- submit ----
@@ -260,6 +292,11 @@ export function SubmitTicketPage() {
           websiteName: primary.name,
           websiteLink: primary.url,
           resources: buildResources(a),
+          extractedImages: a.extractedImages.map((img) => ({
+            name: img.name.trim() || img.filename,
+            extractionId: img.extractionId,
+            filename: img.filename,
+          })),
         };
       });
 
@@ -355,6 +392,15 @@ export function SubmitTicketPage() {
       title: target.title.trim() ? target.title : suggestedTitle,
       content: target.content.trim() ? `${target.content}\n\n${docResult.text}` : docResult.text,
     });
+    // Fold the extracted images into the article so they travel with the submission.
+    if (docResult.extractionId && docResult.images.length > 0) {
+      appendExtractedImages(
+        docTargetId,
+        docResult.extractionId,
+        docResult.images,
+        suggestedTitle || t('user.submit.extractedImageDefaultName'),
+      );
+    }
     setDocOpen(false);
   }
 
@@ -469,26 +515,77 @@ export function SubmitTicketPage() {
             </button>
           </div>
 
-          {articles.map((a: ArticleRow, idx: number) => (
-            <ArticleCard
-              key={a.id}
-              article={a}
-              index={idx}
-              showRemove={articles.length > 1}
-              submitting={submitting}
-              errors={errors}
-              onChange={(patch) => updateArticle(a.id, patch)}
-              onRemove={() => removeArticle(a.id)}
-              onUploadDoc={() => openDocModalFor(a.id)}
-              onAiCheck={() => openAiCheck(a.id)}
-              onAddResource={() => addResource(a.id)}
-              onRemoveResource={(rid: number) => removeResource(a.id, rid)}
-              onUpdateResource={(rid: number, patch: Partial<ResourceRow>) => updateResource(a.id, rid, patch)}
-              onAddDocument={() => addDocument(a.id)}
-              onRemoveDocument={(did: number) => removeDocument(a.id, did)}
-              onUpdateDocument={(did: number, patch: Partial<DocumentRow>) => updateDocument(a.id, did, patch)}
-            />
-          ))}
+          {/* Two big picker cards — one per view. On first load neither is selected
+              and the article form stays collapsed, so the page opens quiet and the
+              user's first decision is which surface they want to work on. Once
+              picked, the cards stay visible as an active/inactive pair for switching. */}
+          <div
+            className="article-mode-picker"
+            role="tablist"
+            aria-label={t('user.submit.tabAriaLabel')}
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={articleMode === 'content'}
+              className={`article-mode-card article-mode-card-content ${articleMode === 'content' ? 'is-active' : ''} ${articleMode === 'attachments' ? 'is-dim' : ''}`}
+              onClick={() => setArticleMode('content')}
+            >
+              <span className="article-mode-card-icon" aria-hidden="true">
+                <IconTasks size={22} />
+              </span>
+              <span className="article-mode-card-text">
+                <span className="article-mode-card-title">{t('user.submit.tabContent')}</span>
+                <span className="article-mode-card-desc">{t('user.submit.tabContentDesc')}</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={articleMode === 'attachments'}
+              className={`article-mode-card article-mode-card-attachments ${articleMode === 'attachments' ? 'is-active' : ''} ${articleMode === 'content' ? 'is-dim' : ''}`}
+              onClick={() => setArticleMode('attachments')}
+            >
+              <span className="article-mode-card-icon" aria-hidden="true">
+                <IconFolder size={22} />
+              </span>
+              <span className="article-mode-card-text">
+                <span className="article-mode-card-title">{t('user.submit.tabAttachments')}</span>
+                <span className="article-mode-card-desc">{t('user.submit.tabAttachmentsDesc')}</span>
+              </span>
+            </button>
+          </div>
+
+          {/* The article list only mounts after the user has picked a mode.
+              key={articleMode} makes the reveal animation replay on tab swap too. */}
+          {articleMode !== null && (
+            <div className="article-mode-panel" data-mode={articleMode} key={articleMode}>
+              {articles.map((a: ArticleRow, idx: number) => (
+                <ArticleCard
+                  key={a.id}
+                  article={a}
+                  index={idx}
+                  mode={articleMode}
+                  showRemove={articles.length > 1}
+                  submitting={submitting}
+                  errors={errors}
+                  hasHiddenError={hiddenErrorFor(a)}
+                  onChange={(patch) => updateArticle(a.id, patch)}
+                  onRemove={() => removeArticle(a.id)}
+                  onUploadDoc={() => openDocModalFor(a.id)}
+                  onAiCheck={() => openAiCheck(a.id)}
+                  onAddResource={() => addResource(a.id)}
+                  onRemoveResource={(rid: number) => removeResource(a.id, rid)}
+                  onUpdateResource={(rid: number, patch: Partial<ResourceRow>) => updateResource(a.id, rid, patch)}
+                  onAddDocument={() => addDocument(a.id)}
+                  onRemoveDocument={(did: number) => removeDocument(a.id, did)}
+                  onUpdateDocument={(did: number, patch: Partial<DocumentRow>) => updateDocument(a.id, did, patch)}
+                  onRemoveExtractedImage={(iid: number) => removeExtractedImage(a.id, iid)}
+                  onUpdateExtractedImage={(iid, patch) => updateExtractedImage(a.id, iid, patch)}
+                />
+              ))}
+            </div>
+          )}
 
           <div className="form-row-end">
             <button

@@ -64,8 +64,31 @@ export function DocumentUploadDialog({
           <div className="small muted mb-tight">
             {t('user.submit.pdfExtractedFrom', { name: result.filename })} · {result.characters.toLocaleString()} {t('user.submit.pdfChars')}
             {result.truncated ? ` · ${t('user.submit.pdfTruncated')}` : ''}
+            {result.images.length > 0 && (
+              <> · {t('user.submit.pdfImagesFound', { count: result.images.length })}</>
+            )}
           </div>
           <textarea className="textarea textarea-lg" readOnly value={result.text} />
+          {result.images.length > 0 && (
+            <div className="field-group mt-tight">
+              <div className="field-label">{t('user.submit.pdfImagesPreview')}</div>
+              <div className="extracted-images-preview">
+                {result.images.map((img) => (
+                  <a
+                    key={img.filename}
+                    className="extracted-images-preview-item"
+                    href={img.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={t('user.submit.extractedImageOpen')}
+                  >
+                    <img src={img.url} alt={img.filename} loading="lazy" />
+                    <span>{t('user.submit.extractedImagePage', { page: img.page })}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
           {result.warnings.length > 0 && (
             <div className="alert alert-info mt-tight">
               <ul className="inline-list-flush">

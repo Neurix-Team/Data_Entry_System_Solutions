@@ -6,6 +6,7 @@ import com.dataentry.model.TicketDocument;
 import com.dataentry.model.User;
 import com.dataentry.repository.TicketDocumentRepository;
 import com.dataentry.repository.TicketRepository;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -77,15 +78,18 @@ public class TicketDocumentService {
     private final TicketRepository ticketRepository;
     private final TicketDocumentRepository documentRepository;
     private final UploadQuotaService quota;
+    private final ExtractionStagingService staging;
     private final Path baseDir;
 
     public TicketDocumentService(TicketRepository ticketRepository,
                                  TicketDocumentRepository documentRepository,
                                  UploadQuotaService quota,
+                                 ExtractionStagingService staging,
                                  @Value("${app.attachments.dir:./data/attachments}") String baseDir) {
         this.ticketRepository = ticketRepository;
         this.documentRepository = documentRepository;
         this.quota = quota;
+        this.staging = staging;
         this.baseDir = Paths.get(baseDir).toAbsolutePath().normalize();
         try {
             Files.createDirectories(this.baseDir);
@@ -202,6 +206,84 @@ public class TicketDocumentService {
             try { Files.deleteIfExists(abs); } catch (IOException ignored) { }
         }
         documentRepository.delete(doc);
+    }
+
+    /**
+     * Promote a batch of images that were previously written to the extractions staging
+     * area into permanent attachments on {@code ticket}. Each staged file is moved onto the
+     * ticket's attachments folder and a {@link TicketDocument} row is inserted.
+     * <p>
+     * References that point at an already-consumed or missing staged file are skipped
+     * silently — the client is allowed to resubmit the same list without erroring.
+     * <p>
+     * The staging folder is discarded once every reference has been walked, whether or not
+     * every individual move succeeded, so we don't leak on-disk state.
+     */
+    @Transactional
+    public void attachExtractedImages(Ticket ticket,
+                                      List<TicketDtos.ExtractedImageRef> refs,
+                                      User currentUser) {
+        if (refs == null || refs.isEmpty()) return;
+
+        Path ticketDir = baseDir.resolve(String.valueOf(ticket.getId()));
+        try {
+            Files.createDirectories(ticketDir);
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Could not prepare attachments storage for ticket");
+        }
+
+        java.util.Set<String> touchedExtractions = new java.util.HashSet<>();
+        for (TicketDtos.ExtractedImageRef ref : refs) {
+            touchedExtractions.add(ref.extractionId());
+
+            String suffix = suffixOf(ref.filename());
+            String storedName = UUID.randomUUID() + suffix;
+            Path target = ticketDir.resolve(storedName);
+
+            boolean moved = staging.moveOut(ref.extractionId(), ref.filename(),
+                    currentUser.getId(), target);
+            if (!moved) {
+                log.debug("Staged image {}/{} already consumed — skipping", ref.extractionId(), ref.filename());
+                continue;
+            }
+
+            long size;
+            try {
+                size = Files.size(target);
+            } catch (IOException e) {
+                size = 0;
+            }
+
+            String safeName = ref.name() == null || ref.name().isBlank()
+                    ? ref.filename()
+                    : ref.name().trim();
+            if (safeName.length() > 250) safeName = safeName.substring(0, 250);
+
+            TicketDocument doc = TicketDocument.builder()
+                    .ticket(ticket)
+                    .name(safeName)
+                    .originalFilename(ref.filename())
+                    .contentType(guessContentType(ref.filename()))
+                    .sizeBytes(size)
+                    .storagePath(ticket.getId() + "/" + storedName)
+                    .uploadedAt(Instant.now())
+                    .build();
+            documentRepository.save(doc);
+        }
+
+        // Cleanup the staging folders once we're done — image files are gone but the
+        // .owner marker and empty dir still sit around.
+        touchedExtractions.forEach(staging::discard);
+    }
+
+    private String guessContentType(String filename) {
+        String lower = filename.toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".png")) return "image/png";
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+        if (lower.endsWith(".webp")) return "image/webp";
+        if (lower.endsWith(".gif")) return "image/gif";
+        return "application/octet-stream";
     }
 
     /** Best-effort recursive wipe of every file stored under {ticketId}/.

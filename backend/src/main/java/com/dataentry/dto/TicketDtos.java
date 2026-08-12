@@ -22,7 +22,23 @@ public class TicketDtos {
             @Size(max = 250) String websiteName,
             @Size(max = 500) String websiteLink,
             @Valid List<ResourceRequest> resources,
+            @Valid List<ExtractedImageRef> extractedImages,
             Map<String, String> customValues
+    ) {}
+
+    /**
+     * A reference to an image the server previously wrote into the extractions staging
+     * area. On submit the server moves the file into the ticket's attachments and creates
+     * a matching TicketDocument row; the file then follows the same lifecycle as any other
+     * ticket attachment. The client-visible {@code name} is stored on that document row.
+     */
+    public record ExtractedImageRef(
+            @NotBlank @Size(max = 250) String name,
+            @NotBlank @Size(max = 64) String extractionId,
+            @NotBlank @Size(max = 120)
+            @Pattern(regexp = "^[A-Za-z0-9._-]+$",
+                    message = "Extracted image filename must contain only letters, digits, dot, dash or underscore")
+            String filename
     ) {}
 
     public record ResourceResponse(
@@ -55,7 +71,8 @@ public class TicketDtos {
             @NotBlank @Size(max = 200000) String content,
             @Size(max = 250) String websiteName,
             @Size(max = 500) String websiteLink,
-            @Valid List<ResourceRequest> resources
+            @Valid List<ResourceRequest> resources,
+            @Valid List<ExtractedImageRef> extractedImages
     ) {}
 
     /** Bulk-create request: shared metadata + N articles, each becoming its own Ticket. */

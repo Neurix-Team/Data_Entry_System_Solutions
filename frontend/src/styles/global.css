@@ -2234,7 +2234,7 @@ html[dir='rtl'] .chat-msg-user .chat-bubble {
   inset: 0;
   background: radial-gradient(circle at 50% 50%, rgba(6, 16, 41, 0.28), transparent 60%);
   pointer-events: none;
-  animation: toastScrim 0.35s ease-out both;
+  animation: toastScrim 0.15s ease-out both;
   z-index: -1;
 }
 @keyframes toastScrim {
@@ -2258,7 +2258,7 @@ html[dir='rtl'] .chat-msg-user .chat-bubble {
   line-height: 1.45;
   pointer-events: auto;
   overflow: hidden;
-  animation: toastIn 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: toastIn 0.18s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 .toast-success {
   padding: 22px 22px;
@@ -2271,7 +2271,10 @@ html[dir='rtl'] .chat-msg-user .chat-bubble {
   box-shadow: 0 12px 28px -12px rgba(0, 0, 0, 0.6);
 }
 @keyframes toastIn {
-  from { opacity: 0; transform: translateY(20px) scale(0.9); }
+  /* Shorter travel + less scale-down so the entrance reads as "snap in"
+     rather than "float up" — matters because users often navigate away
+     immediately after the action that triggered the toast. */
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 .toast-icon {
@@ -2612,6 +2615,316 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   margin-bottom: 0.75rem;
 }
 .article-card-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.article-card-head-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.article-card-head-preview {
+  color: var(--text-tertiary);
+  font-weight: 400;
+  font-size: var(--fs-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 320px;
+}
+/* Small red badge floated next to the article label when the OTHER tab has a
+   validation error — so a user editing the Content tab still sees that their
+   Attachments tab has a broken link, and vice-versa. */
+.article-card-hidden-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--danger);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   Article-mode picker — two big colored cards. The user picks
+   which surface they want to work on (write article vs. attach
+   files) and only THEN does the article form reveal below.
+   Content card owns the brand-blue identity; attachments card
+   owns the cyan accent from the Neurix circuit dots.
+   ============================================================ */
+.article-mode-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin: 1rem 0 1.25rem;
+}
+@media (max-width: 640px) {
+  .article-mode-picker { grid-template-columns: 1fr; }
+}
+
+.article-mode-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1.1rem 1.25rem;
+  min-height: 88px;
+  text-align: start;
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition:
+    transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.2s ease,
+    background 0.25s ease,
+    opacity 0.25s ease;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* Soft accent-tinted wash that fades in on hover / active. Layered under content
+   via z-index so text stays fully legible. */
+.article-mode-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(135deg,
+    color-mix(in oklch, var(--card-accent) 12%, transparent) 0%,
+    color-mix(in oklch, var(--card-accent)  4%, transparent) 100%);
+  opacity: 0;
+  transition: opacity 0.28s ease;
+}
+.article-mode-card:hover::before { opacity: 0.7; }
+.article-mode-card.is-active::before { opacity: 1; }
+
+.article-mode-card-content     { --card-accent: var(--brand); }
+.article-mode-card-attachments { --card-accent: var(--accent-cyan); }
+
+@media (hover: hover) and (pointer: fine) {
+  .article-mode-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--card-accent);
+    box-shadow: 0 12px 32px -14px color-mix(in oklch, var(--card-accent) 45%, transparent);
+  }
+}
+.article-mode-card:active { transform: translateY(-1px); transition: transform 0.09s ease-out; }
+.article-mode-card:focus-visible {
+  outline: 2px solid var(--card-accent);
+  outline-offset: 3px;
+}
+
+.article-mode-card.is-active {
+  border-color: var(--card-accent);
+  box-shadow: 0 14px 36px -14px color-mix(in oklch, var(--card-accent) 55%, transparent);
+}
+.article-mode-card.is-dim { opacity: 0.7; }
+.article-mode-card.is-dim:hover { opacity: 1; }
+
+.article-mode-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: color-mix(in oklch, var(--card-accent) 14%, var(--bg-surface));
+  color: var(--card-accent);
+  flex-shrink: 0;
+  transition: background 0.28s ease, color 0.28s ease, transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.article-mode-card.is-active .article-mode-card-icon {
+  background: var(--card-accent);
+  color: #fff;
+  transform: scale(1.06);
+}
+
+.article-mode-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.article-mode-card-title {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+.article-mode-card-desc {
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+/* Small active-check pip in the top corner of the selected card. */
+.article-mode-card.is-active::after {
+  content: '';
+  position: absolute;
+  top: 10px;
+  inset-inline-end: 10px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--card-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--card-accent) 22%, transparent);
+  animation: articleModePip 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes articleModePip {
+  from { transform: scale(0); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+/* Panel reveal — the article list is unmounted when no mode is picked, and gets a
+   fresh key on every tab swap. Both cases play this fade-and-lift keyframe. */
+.article-mode-panel {
+  animation: articleModeReveal 0.36s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes articleModeReveal {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Individual field-groups inside a freshly-mounted card stagger in. Runs off the
+   same key remount that plays the panel keyframe. */
+.article-mode-panel .article-card-section > .field,
+.article-mode-panel .article-card-section > .field-group {
+  animation: articleFieldFade 0.36s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.08s;
+}
+.article-mode-panel .article-card-section > *:nth-child(2) { animation-delay: 0.14s; }
+.article-mode-panel .article-card-section > *:nth-child(3) { animation-delay: 0.2s; }
+@keyframes articleFieldFade {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .article-mode-card,
+  .article-mode-card::before,
+  .article-mode-card-icon,
+  .article-mode-panel,
+  .article-mode-panel .article-card-section > .field,
+  .article-mode-panel .article-card-section > .field-group {
+    animation: none;
+    transition: none;
+  }
+  .article-mode-card:hover { transform: none; }
+  .article-mode-card.is-active::after { animation: none; }
+}
+
+/* ============================================================
+   Extracted images — the gallery of raster images pulled out of
+   an uploaded PDF and shown under an article. Thumbnails link out
+   to the staged URL so the user can verify the image before submit;
+   the caption input carries a rename that becomes the attachment's
+   display name.
+   ============================================================ */
+.extracted-images-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+.extracted-image-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.extracted-image-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+}
+.extracted-image-thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 4 / 3;
+  background: var(--bg-sunken);
+  overflow: hidden;
+  text-decoration: none;
+}
+.extracted-image-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.extracted-image-page {
+  position: absolute;
+  inset-block-start: 0.4rem;
+  inset-inline-end: 0.4rem;
+  padding: 0.15rem 0.5rem;
+  background: rgba(13, 26, 51, 0.72);
+  color: #fff;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  backdrop-filter: blur(4px);
+}
+.extracted-image-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.55rem 0.65rem 0.65rem;
+}
+.extracted-image-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+/* Inline gallery inside the extraction preview dialog — smaller than the article grid. */
+.extracted-images-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+.extracted-images-preview-item {
+  position: relative;
+  display: block;
+  width: 96px;
+  height: 96px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg-sunken);
+  text-decoration: none;
+  transition: border-color 0.18s ease;
+}
+.extracted-images-preview-item:hover {
+  border-color: var(--brand);
+}
+.extracted-images-preview-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.extracted-images-preview-item span {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-start: 0;
+  right: 0;
+  padding: 0.1rem 0.4rem;
+  background: rgba(13, 26, 51, 0.72);
+  color: #fff;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-align: center;
+}
 
 .pre-block {
   padding: 0.65rem 0.85rem;

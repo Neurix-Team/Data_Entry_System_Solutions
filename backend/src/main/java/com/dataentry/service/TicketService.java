@@ -73,7 +73,9 @@ public class TicketService {
         );
         applyCustomValues(ticket, sub, req.customValues());
         applyResources(ticket, req.resources());
-        return toDto(ticketRepository.save(ticket));
+        Ticket saved = ticketRepository.save(ticket);
+        promoteExtractedImages(saved, req.extractedImages(), currentUser);
+        return toDto(saved);
     }
 
     @Transactional
@@ -91,9 +93,25 @@ public class TicketService {
             );
             applyCustomValues(ticket, sub, req.customValues());
             applyResources(ticket, article.resources());
-            saved.add(toDto(ticketRepository.save(ticket)));
+            Ticket persisted = ticketRepository.save(ticket);
+            promoteExtractedImages(persisted, article.extractedImages(), currentUser);
+            saved.add(toDto(persisted));
         }
         return new TicketDtos.BulkCreateResponse(saved.size(), saved);
+    }
+
+    /**
+     * Fan-out to TicketDocumentService via the ObjectProvider so we don't recreate the
+     * cycle-breaking indirection here. Called after each ticket is persisted so the moved
+     * images point at a ticket that already has an id.
+     */
+    private void promoteExtractedImages(Ticket ticket,
+                                        List<TicketDtos.ExtractedImageRef> images,
+                                        User currentUser) {
+        if (images == null || images.isEmpty() || documentServiceProvider == null) return;
+        TicketDocumentService docs = documentServiceProvider.getIfAvailable();
+        if (docs == null) return;
+        docs.attachExtractedImages(ticket, images, currentUser);
     }
 
     private void applyResources(Ticket ticket, List<TicketDtos.ResourceRequest> resources) {

@@ -205,7 +205,9 @@ public class DocumentExtractionService {
                 cleaned.length(),
                 truncated,
                 Instant.now(),
-                warnings
+                warnings,
+                null,     // non-PDF paths don't emit staged images
+                List.of()
         );
     }
 

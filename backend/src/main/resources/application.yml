@@ -56,6 +56,15 @@ app:
   pdf:
     max-chars: 200000
     output-dir: ${java.io.tmpdir}/dataentry-pdf
+    # Where extracted PDF images sit between /pdf/extract and ticket submit.
+    # Anything older than extractions-ttl-hours is swept lazily on the next extraction.
+    extractions-dir: ./data/extractions
+    extractions-ttl-hours: 24
+    images:
+      # Skip tiny icons/decorations so the user isn't flooded with noise.
+      min-side-px: 64
+      # Hard cap per document to keep a pathological PDF from filling disk.
+      max-per-doc: 40
   ocr:
     tessdata-path: /usr/share/tesseract-ocr/4.00/tessdata/
     languages: ara+eng

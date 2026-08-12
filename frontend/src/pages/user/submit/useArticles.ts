@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
-import type { ArticleRow, DocumentRow, ResourceRow } from './ArticleCard';
+import type { ArticleRow, DocumentRow, ExtractedImageRow, ResourceRow } from './ArticleCard';
+import type { ExtractedImage } from '../../../api/types';
 
 function newRow(id: number, resourceId: number, documentId: number): ArticleRow {
   return {
@@ -8,6 +9,7 @@ function newRow(id: number, resourceId: number, documentId: number): ArticleRow 
     content: '',
     resources: [{ id: resourceId, name: '', link: '' }],
     documents: [{ id: documentId, name: '', file: null }],
+    extractedImages: [],
   };
 }
 
@@ -17,6 +19,7 @@ export function useArticles() {
   const nextArticleId = useRef(1);
   const nextResourceId = useRef(2);
   const nextDocumentId = useRef(2);
+  const nextImageId = useRef(1);
   const [articles, setArticles] = useState<ArticleRow[]>(() => [newRow(0, 0, 0)]);
 
   const add = useCallback(() => {
@@ -84,10 +87,51 @@ export function useArticles() {
     []
   );
 
+  /** Merge a batch of freshly-extracted images into an article. Called from
+   *  SubmitTicketPage when the user inserts a PDF extraction result. */
+  const appendExtractedImages = useCallback(
+    (articleId: number, extractionId: string, images: ExtractedImage[], suggestedNamePrefix: string) => {
+      if (images.length === 0) return;
+      const rows: ExtractedImageRow[] = images.map((img, idx) => ({
+        id: nextImageId.current++,
+        name: `${suggestedNamePrefix} — ${idx + 1}`.slice(0, 250),
+        url: img.url,
+        extractionId,
+        filename: img.filename,
+        page: img.page,
+        width: img.width,
+        height: img.height,
+      }));
+      setArticles((prev) => prev.map((a) => a.id === articleId
+        ? { ...a, extractedImages: [...a.extractedImages, ...rows] }
+        : a));
+    },
+    []
+  );
+
+  const removeExtractedImage = useCallback((articleId: number, rowId: number) => {
+    setArticles((prev) => prev.map((a) => a.id === articleId
+      ? { ...a, extractedImages: a.extractedImages.filter((r) => r.id !== rowId) }
+      : a));
+  }, []);
+
+  const updateExtractedImage = useCallback(
+    (articleId: number, rowId: number, patch: Partial<ExtractedImageRow>) => {
+      setArticles((prev) => prev.map((a) => a.id === articleId
+        ? {
+            ...a,
+            extractedImages: a.extractedImages.map((r) => (r.id === rowId ? { ...r, ...patch } : r)),
+          }
+        : a));
+    },
+    []
+  );
+
   const reset = useCallback(() => {
     nextArticleId.current = 1;
     nextResourceId.current = 2;
     nextDocumentId.current = 2;
+    nextImageId.current = 1;
     setArticles([newRow(0, 0, 0)]);
   }, []);
 
@@ -96,6 +140,7 @@ export function useArticles() {
     add, remove, update,
     addResource, removeResource, updateResource,
     addDocument, removeDocument, updateDocument,
+    appendExtractedImages, removeExtractedImage, updateExtractedImage,
     reset,
   };
 }

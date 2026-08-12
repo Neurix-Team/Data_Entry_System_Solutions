@@ -123,12 +123,21 @@ export interface ResourceInput {
   url: string;
 }
 
+/** Reference to an image the server extracted from an uploaded PDF and parked in staging.
+ *  On ticket submit these are moved into the ticket's permanent attachments. */
+export interface ExtractedImageRefInput {
+  name: string;
+  extractionId: string;
+  filename: string;
+}
+
 export interface ArticleInput {
   title: string;
   content: string;
   websiteName?: string;
   websiteLink?: string;
   resources?: ResourceInput[];
+  extractedImages?: ExtractedImageRefInput[];
 }
 
 export interface TicketResource {
@@ -346,6 +355,17 @@ export interface MyDashboard {
 
 // --- pdf ---
 
+export interface ExtractedImage {
+  filename: string;
+  /** API path served by ExtractionController. Browser can render it directly with the auth cookie. */
+  url: string;
+  contentType: string;
+  sizeBytes: number;
+  page: number;
+  width: number;
+  height: number;
+}
+
 export interface ExtractedPdf {
   filename: string;
   text: string;
@@ -354,4 +374,8 @@ export interface ExtractedPdf {
   truncated: boolean;
   extractedAt: string;
   warnings: string[];
+  /** Present only when the backend staged images. Bundle these back with the article
+   *  on submit so the server promotes them into permanent ticket attachments. */
+  extractionId: string | null;
+  images: ExtractedImage[];
 }

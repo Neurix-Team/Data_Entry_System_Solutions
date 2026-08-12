@@ -1,11 +1,13 @@
 package com.dataentry.service;
 
 import com.dataentry.dto.PdfDtos;
+import com.dataentry.model.User;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
@@ -31,14 +33,20 @@ public class PdfExtractionService {
     private final Path baseOutputDir;
     private final int maxChars;
     private final PdfOcrService ocrService;
+    private final PdfImageExtractor imageExtractor;
+    private final ExtractionStagingService staging;
 
     public PdfExtractionService(
             @Value("${app.pdf.output-dir}") String outputDir,
             @Value("${app.pdf.max-chars:200000}") int maxChars,
-            PdfOcrService ocrService) {
+            PdfOcrService ocrService,
+            PdfImageExtractor imageExtractor,
+            ExtractionStagingService staging) {
         this.baseOutputDir = Paths.get(outputDir);
         this.maxChars = maxChars;
         this.ocrService = ocrService;
+        this.imageExtractor = imageExtractor;
+        this.staging = staging;
         try {
             Files.createDirectories(this.baseOutputDir);
         } catch (IOException e) {
@@ -120,8 +128,44 @@ public class PdfExtractionService {
                 warnings.add("Text was truncated to " + maxChars + " characters");
             }
 
-            log.info("PDF extraction OK: name='{}' chars={} took={}ms via={}",
-                    originalName, plain.length(),
+            // Pull embedded raster images out to the staging area regardless of which
+            // text path we took. Failures here are non-fatal — the extracted text is the
+            // primary deliverable; images are a nice-to-have.
+            String extractionId = null;
+            List<PdfDtos.ExtractedImage> images = List.of();
+            try {
+                Long ownerId = currentUserId();
+                if (ownerId != null) {
+                    ExtractionStagingService.Handle handle = staging.create(ownerId);
+                    List<PdfImageExtractor.Extracted> found =
+                            imageExtractor.extractInto(input.toFile(), handle.directory());
+                    if (found.isEmpty()) {
+                        // Nothing to stage — clean up the empty folder so we don't leak dirs.
+                        staging.discard(handle.extractionId());
+                    } else {
+                        extractionId = handle.extractionId();
+                        images = found.stream()
+                                .map(f -> new PdfDtos.ExtractedImage(
+                                        f.filename(),
+                                        "/api/user/extractions/" + handle.extractionId()
+                                                + "/images/" + f.filename(),
+                                        "image/png",
+                                        f.sizeBytes(),
+                                        f.page(),
+                                        f.width(),
+                                        f.height()))
+                                .toList();
+                    }
+                }
+            } catch (Exception e) {
+                // Do not fail the whole request if image extraction hits an unexpected snag.
+                log.warn("Image extraction failed for '{}' — continuing with text only: {}",
+                        originalName, e.getMessage());
+                warnings.add("Could not extract images from this PDF");
+            }
+
+            log.info("PDF extraction OK: name='{}' chars={} images={} took={}ms via={}",
+                    originalName, plain.length(), images.size(),
                     (System.currentTimeMillis() - started),
                     usedOcr ? "OCR" : "opendataloader");
 
@@ -132,7 +176,9 @@ public class PdfExtractionService {
                     plain.length(),
                     truncated,
                     Instant.now(),
-                    warnings
+                    warnings,
+                    extractionId,
+                    images
             );
         } catch (IOException e) {
             log.error("Failed to persist upload '{}'", originalName, e);
@@ -144,6 +190,15 @@ public class PdfExtractionService {
         } finally {
             if (work != null) deleteRecursively(work);
         }
+    }
+
+    /** Pulls the authenticated user's id off the security context; null for anonymous callers. */
+    private Long currentUserId() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return null;
+        Object principal = auth.getPrincipal();
+        if (principal instanceof User u) return u.getId();
+        return null;
     }
 
     private String listContents(Path dir) {
