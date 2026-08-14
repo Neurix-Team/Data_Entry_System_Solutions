@@ -9,7 +9,7 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
@@ -74,8 +74,10 @@ public class UserAvatarController {
 
     @PostMapping(value = "/api/user/me/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<AvatarInfo> upload(@RequestParam("file") MultipartFile file,
-                                             Authentication auth) throws IOException {
-        User me = currentUser(auth);
+                                             @AuthenticationPrincipal User me) throws IOException {
+        if (me == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+        }
         if (file == null || file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No file uploaded");
         }
@@ -109,24 +111,16 @@ public class UserAvatarController {
     // ---------- Delete (self) ----------
 
     @DeleteMapping("/api/user/me/avatar")
-    public ResponseEntity<Void> remove(Authentication auth) {
-        User me = currentUser(auth);
+    public ResponseEntity<Void> remove(@AuthenticationPrincipal User me) {
+        if (me == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+        }
         avatarRepository.deleteById(me.getId());
         me.setAvatarUpdatedAt(null);
         userRepository.save(me);
         audit.record(AuditService.Action.UPDATE, AuditService.EntityType.USER, me.getId(),
                 "avatar removed");
         return ResponseEntity.noContent().build();
-    }
-
-    // ---------- Helpers ----------
-
-    private User currentUser(Authentication auth) {
-        if (auth == null || auth.getName() == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
-        }
-        return userRepository.findByUsername(auth.getName())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
     }
 
     public record AvatarInfo(Long userId, Instant updatedAt) {}
