@@ -353,6 +353,7 @@ export const en = {
       errFieldNumber: '{label} must be a number.',
       errFieldUrl: '{label} must be a valid URL.',
       errFieldEmail: '{label} must be a valid email.',
+      errAttachmentRequired: 'Add at least one file or a resource link before submitting.',
       uploadPdf: '📄 Upload PDF',
       uploadDoc: '✨ Extract text from file',
       pdfTitle: 'Import content from PDF',

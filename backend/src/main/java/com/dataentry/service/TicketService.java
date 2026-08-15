@@ -35,12 +35,10 @@ public class TicketService {
     private final Localizer localizer;
     private final AuditService audit;
     private final org.springframework.beans.factory.ObjectProvider<TicketDocumentService> documentServiceProvider;
-    /** Self-reference so we invoke the transactional methods via the Spring proxy — a direct
-     *  `this.createTx(...)` call would bypass the @Transactional advice entirely. */
+    
     private final org.springframework.beans.factory.ObjectProvider<TicketService> selfProvider;
 
-    /** Types where the value is human-language text and worth translating.  Numbers/URLs/dates
-     *  keep the same value on both sides. */
+ 
     private static final Set<FieldType> TRANSLATABLE_TYPES =
             EnumSet.of(FieldType.TEXT, FieldType.TEXTAREA, FieldType.SELECT);
 
@@ -67,10 +65,7 @@ public class TicketService {
     }
 
     public TicketDtos.TicketResponse create(User currentUser, TicketDtos.CreateTicketRequest req) {
-        // Do all translation work (LibreTranslate HTTP round-trips) BEFORE opening the DB
-        // transaction. On SQLite, holding the writer lock across network calls stalls every
-        // other writer for the duration of the translate — which for a bulk create can be
-        // many seconds. Precomputing the bilingual map lets the persistence step stay tight.
+         
         List<CustomField> fields = loadActiveFields(req.subcategoryId());
         Map<String, TranslationService.Bilingual> translations =
                 prepareTranslations(req.title(), req.content(), req.websiteName(),
@@ -256,7 +251,7 @@ public class TicketService {
         // don't reject inserts from legacy databases.
         String cleanName = websiteName == null ? "" : websiteName.trim();
         String cleanTitle = title == null ? "" : title.trim();
-        String cleanContent = content.trim();
+        String cleanContent = content == null ? "" : content.trim();
 
         Ticket t = Ticket.builder()
                 .submittedBy(currentUser)
@@ -498,8 +493,7 @@ public class TicketService {
             if (host == null || host.isBlank()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Website link is missing a host");
             }
-            // SSRF guard — if this app ever fetches the stored URL later, we don't want an
-            // attacker aiming it at the AWS metadata endpoint or an internal service.
+ 
             String h = host.toLowerCase();
             boolean isPrivate = h.equals("localhost")
                     || h.equals("0.0.0.0")

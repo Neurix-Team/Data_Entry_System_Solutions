@@ -355,6 +355,7 @@ export const ar: Dict = {
       errFieldNumber: '{label} يجب أن يكون رقماً.',
       errFieldUrl: '{label} يجب أن يكون رابطاً صحيحاً.',
       errFieldEmail: '{label} يجب أن يكون بريداً إلكترونياً صحيحاً.',
+      errAttachmentRequired: 'أضف ملفاً واحداً على الأقل أو رابط مصدر قبل الإرسال.',
       uploadPdf: '📄 رفع ملف PDF',
       uploadDoc: '✨ استخراج نص من ملف',
       pdfTitle: 'استيراد المحتوى من PDF',

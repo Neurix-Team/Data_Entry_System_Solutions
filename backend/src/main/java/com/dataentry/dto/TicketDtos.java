@@ -65,10 +65,12 @@ public class TicketDtos {
             @NotBlank @Size(max = 500) String url
     ) {}
 
-    /** A single article within a bulk submission. */
+    /** A single article within a bulk submission. Title and content are optional so a user
+     *  can submit an attachments-only article (files/extracted images with no written body).
+     *  The frontend enforces "at least one of title+content OR attachments" before calling. */
     public record ArticleRequest(
-            @NotBlank @Size(max = 500) String title,
-            @NotBlank @Size(max = 2000000) String content,
+            @Size(max = 500) String title,
+            @Size(max = 2000000) String content,
             @Size(max = 250) String websiteName,
             @Size(max = 500) String websiteLink,
             @Valid List<ResourceRequest> resources,

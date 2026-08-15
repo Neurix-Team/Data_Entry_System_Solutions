@@ -11,11 +11,6 @@ import java.util.Deque;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Tracks per-user upload bytes in a rolling 24h window and rejects requests that would push
- * the user over the configured cap.  Kept in-memory — quotas reset on process restart, which
- * is acceptable because they exist to smooth out spikes, not to enforce billing.
- */
 @Component
 public class UploadQuotaService {
 
@@ -29,11 +24,6 @@ public class UploadQuotaService {
         this.dailyBytes = dailyBytes;
     }
 
-    /**
-     * Records an upload attempt. Throws 413 (Payload Too Large) if the user would exceed the
-     * rolling-24h byte cap.  Call before you actually start processing the file so we don't
-     * do work we're about to discard.
-     */
     public void chargeOrThrow(Long userId, long bytes) {
         if (userId == null || bytes <= 0) return;
         Instant now = Instant.now();

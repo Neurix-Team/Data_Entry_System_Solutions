@@ -209,44 +209,45 @@ export function SubmitTicketPage() {
     }
 
     for (const a of articles) {
-      if (!a.title.trim()) errs[articleErrorKey(a.id, 'title')] = t('user.submit.errTitle');
-      if (!a.content.trim()) errs[articleErrorKey(a.id, 'content')] = t('user.submit.errContent');
+      // The two tabs are independent submission surfaces:
+      //   • 'content' tab       → the article is written text; require title + content.
+      //   • 'attachments' tab   → the article is a file bundle; the text fields are
+      //                            invisible on this tab and are NOT enforced.
+      // The user explicitly asked that submitting from one tab never trigger errors in
+      // the other tab. We still block a totally empty article as a last-line sanity check.
+      if (articleMode === 'content') {
+        if (!a.title.trim()) errs[articleErrorKey(a.id, 'title')] = t('user.submit.errTitle');
+        if (!a.content.trim()) errs[articleErrorKey(a.id, 'content')] = t('user.submit.errContent');
+      }
       for (const r of a.resources) {
         const link = r.link.trim();
         if (link && !isValidUrl(link)) {
           errs[resourceErrorKey(a.id, r.id, 'link')] = t('user.submit.errUrlInvalid');
         }
       }
-      // documents: a row with a name but no file, or a file with no name, is fine to submit
-      // (we upload whatever has a file; the name defaults to the filename).
+      // In attachments mode a completely empty article (no file, no image, no resource)
+      // would create a ghost ticket — flag it on the first document slot so the message
+      // lands where the user is looking.
+      if (articleMode === 'attachments') {
+        const hasAttachments =
+          a.documents.some((d) => d.file != null) || a.extractedImages.length > 0;
+        const hasResource = a.resources.some((r) => r.link.trim().length > 0);
+        if (!hasAttachments && !hasResource) {
+          const firstDocId = a.documents[0]?.id;
+          if (firstDocId != null) {
+            errs[documentErrorKey(a.id, firstDocId, 'file')] = t('user.submit.errAttachmentRequired');
+          }
+        }
+      }
     }
 
     setErrors(errs);
-
-    // If we caught errors in a tab the user isn't looking at (or none picked yet),
-    // flip to the tab that actually has the failure. Content errors — including
-    // resource links, which now live in the Content tab — outrank pure Attachments
-    // errors because a required title/content blocks the submit outright.
-    if (Object.keys(errs).length > 0) {
-      const hasContentErr = articles.some((a) =>
-        errs[articleErrorKey(a.id, 'title')]
-        || errs[articleErrorKey(a.id, 'content')]
-        || a.resources.some((r) => errs[resourceErrorKey(a.id, r.id, 'link')]));
-      if (hasContentErr && articleMode !== 'content') setArticleMode('content');
-    }
-
     return Object.keys(errs).length === 0;
   }
 
-  /** Errors sitting in the article's OTHER tab — used to flag the collapsed section
-   *  so the user knows to flip tabs to fix them. Resources are visible in BOTH tabs
-   *  now, so a broken resource link surfaces on its own no matter where the user is;
-   *  only title and content are Content-tab exclusive and need the badge. */
-  function hiddenErrorFor(a: ArticleRow): boolean {
-    if (articleMode === 'attachments') {
-      return !!errors[articleErrorKey(a.id, 'title')]
-          || !!errors[articleErrorKey(a.id, 'content')];
-    }
+  /** Validation is now mode-scoped: the tab the user is looking at is the ONLY tab that
+   *  can generate errors, so there is never anything hidden in the other half to warn about. */
+  function hiddenErrorFor(_: ArticleRow): boolean {
     return false;
   }
 

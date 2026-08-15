@@ -45,15 +45,14 @@ public class DatabaseLoginRateLimiter implements LoginRateLimiter {
         repository.deleteByKey(key);
     }
 
-    /** Amortized cleanup — roughly once per 500 successful acquires we sweep rows older than
-     *  the window so the table stays roughly bounded to (unique_keys * max_attempts) rows. */
+     
     private void maybePrune(Instant now) {
         if (sinceLastPrune.incrementAndGet() < 500) return;
         sinceLastPrune.set(0);
         try {
             repository.deleteOlderThan(now.minus(window).minusSeconds(60));
         } catch (Exception ignored) {
-            // Prune is best-effort — a failure here must not block a legitimate login.
+             
         }
     }
 }

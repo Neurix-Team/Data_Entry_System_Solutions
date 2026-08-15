@@ -31,13 +31,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-/**
- * Single entry-point for extracting text from any uploaded file. Routes by MIME:
- * PDF -> {@link PdfExtractionService} (has OCR for scanned pages),
- * images (jpg/png/tiff/...) -> Tesseract (via Tess4J) with Arabic + English,
- * everything else Tika supports (Word / Excel / PowerPoint / ODF / RTF / EPUB / CSV / HTML / TXT)
- * -> Apache Tika.
- */
+ 
 @Service
 public class DocumentExtractionService {
 

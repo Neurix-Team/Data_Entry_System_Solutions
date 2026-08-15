@@ -8,20 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
-/**
- * In-process assistant for the Neurix workspace.
- *
- * The behavior contract this class holds:
- *   1. If the message is a short small-talk phrase (hi / thanks / bye) → respond in kind.
- *   2. Otherwise → always find the best matching page and hand the user a navigation action.
- *      There is no "I don't understand" branch. If nothing scores above zero, the reply lists
- *      every page the user can open, as tappable action chips — so the user never gets stuck.
- *
- * The matcher is normalization-based: both the input and every keyword are stripped of
- * Arabic diacritics, hamza variants are unified, ya/alef-maksura are unified, and the ال
- * definite article is optional. That way "التقارير", "تقارير", "تَقارير", and "التقاير"
- * all route to the reports page.
- */
+ 
 @Service
 public class ChatService {
 
@@ -31,7 +18,6 @@ public class ChatService {
     private static final Pattern DIACRITICS = Pattern.compile("[ً-ْٰ]");
     private static final Pattern WS = Pattern.compile("\\s+");
 
-    /** A page the assistant can route the user to. */
     private record Page(
             String path,
             String[] keywordsEn,
@@ -179,18 +165,13 @@ public class ChatService {
             return new ChatResponse(reply, actions);
         }
 
-        // ---- Last resort: no keyword matched. Never say "I don't understand" —
-        // present the whole navigable surface as buttons so the user is always one tap away. ----
+         
         String reply = ar
                 ? "قوللي أروح على أنهي صفحة — اختار من الأسفل:"
                 : "Which page should I open? Pick one below:";
         return new ChatResponse(reply, accessibleAllPages(ar, isAdmin));
     }
-
-    // -----------------------------------------------------------
-    // Scoring
-    // -----------------------------------------------------------
-
+ 
     private static int scorePage(String normInput, PageNorm p) {
         int score = 0;
         for (String k : p.enNorm()) {
@@ -204,18 +185,12 @@ public class ChatService {
         return score;
     }
 
-    /** Longer keyword = more specific = higher score. Minimum-length guard avoids matching
-     * one-letter noise like "a" or a single Arabic letter. */
+     
     private static int weight(String k) {
         return k.length() >= 3 ? k.length() : 0;
     }
 
-    // -----------------------------------------------------------
-    // Small-talk matching
-    // -----------------------------------------------------------
-
-    /** True if the whole normalized message is *just* one of the phrases (or trivially wraps it).
-     * Prevents "hi, take me to reports" from firing the greeting response. */
+     
     private static boolean isShortAndOnly(String normInput, String[] normPhrases) {
         if (normInput.length() > 30) return false;
         for (String p : normPhrases) {
@@ -236,9 +211,7 @@ public class ChatService {
         return false;
     }
 
-    // -----------------------------------------------------------
-    // Action helpers
-    // -----------------------------------------------------------
+ 
 
     private List<ChatAction> accessibleQuickLinks(boolean ar, boolean isAdmin) {
         List<ChatAction> a = new ArrayList<>();
@@ -254,7 +227,7 @@ public class ChatService {
         return a;
     }
 
-    /** Every page the user can reach — used as the "which page?" fallback. */
+ 
     private List<ChatAction> accessibleAllPages(boolean ar, boolean isAdmin) {
         List<ChatAction> a = new ArrayList<>();
         for (Page p : PAGES) {
@@ -268,10 +241,7 @@ public class ChatService {
         return new ChatAction("navigate", path, label);
     }
 
-    // -----------------------------------------------------------
-    // Normalization — the single most important function in this class.
-    // -----------------------------------------------------------
-
+ 
     /**
      * Fold the input so that near-variants match. Applied to both the user's message and
      * every keyword before comparison.
@@ -299,9 +269,7 @@ public class ChatService {
                  .replace('ؤ', 'و')
                  .replace('ة', 'ه')
                  .replace('ـ', ' ');
-        // Remove Arabic hamza on-the-line (ء) which sometimes appears mid-word
         out = out.replace("ء", "");
-        // Common punctuation → spaces so word matching still works
         out = out.replace(',', ' ').replace('،', ' ').replace('.', ' ').replace('؟', ' ')
                  .replace('?', ' ').replace('!', ' ').replace('"', ' ').replace('\'', ' ');
         out = WS.matcher(out).replaceAll(" ").trim();
@@ -313,11 +281,7 @@ public class ChatService {
         for (int i = 0; i < arr.length; i++) out[i] = normalize(arr[i]);
         return out;
     }
-
-    // -----------------------------------------------------------
-    // Small-talk & meta-intent keyword banks (pre-normalized at load)
-    // -----------------------------------------------------------
-
+ 
     private static final String[] GREETING_ALL = normalizeAll(new String[]{
             "hi", "hello", "hey", "yo", "hiya", "good morning", "good evening", "good afternoon",
             "اهلا", "أهلاً", "مرحبا", "مرحباً", "ازيك", "إزيك", "السلام عليكم",

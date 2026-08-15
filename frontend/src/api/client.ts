@@ -32,6 +32,18 @@ api.interceptors.request.use((config) => {
   // right side of bilingual (name_en / name_ar) fields.  Written by i18n/index.tsx.
   const lang = localStorage.getItem(LANG_KEY);
   config.headers['Accept-Language'] = lang === 'ar' ? 'ar' : 'en';
+  // Multipart uploads (FormData) must be sent with the browser-generated boundary in the
+  // Content-Type header. Our axios instance defaults to application/json for JSON APIs;
+  // strip that default for FormData so the browser can inject "multipart/form-data;
+  // boundary=…" itself — otherwise Spring rejects the request with "Content-Type
+  // 'application/json' is not supported".
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    if (config.headers && typeof (config.headers as { delete?: (k: string) => void }).delete === 'function') {
+      (config.headers as { delete: (k: string) => void }).delete('Content-Type');
+    } else if (config.headers) {
+      delete (config.headers as Record<string, unknown>)['Content-Type'];
+    }
+  }
   return config;
 });
 

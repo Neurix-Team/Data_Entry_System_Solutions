@@ -14,20 +14,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import java.util.stream.Stream;
-
-/**
- * Owns the {@code data/extractions/{extractionId}/} directory tree where images pulled
- * out of an uploaded PDF live between the extraction API call and the ticket-submit call.
- * <p>
- * Each staging folder holds:
- * <ul>
- *   <li>the image files themselves ({@code image-01.png}, {@code image-02.png}, ...);</li>
- *   <li>a {@code .owner} marker containing the owning user id — used by
- *       {@link #assertOwned(String, Long)} to gate serving and promotion.</li>
- * </ul>
- * Old folders are swept lazily whenever a new staging is created, so we don't need to wire
- * up Spring's scheduling infrastructure just for this.
- */
 @Service
 public class ExtractionStagingService {
 
