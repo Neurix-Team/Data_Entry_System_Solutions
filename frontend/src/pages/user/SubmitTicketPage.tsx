@@ -3,21 +3,13 @@ import { extractError } from '../../api/client';
 import { useToast } from '../../components/toast/ToastContext';
 import {
   aiApi,
-  departmentsApi,
   documentsApi,
-  fieldsApi,
-  projectsApi,
-  subcategoriesApi,
   ticketsApi,
 } from '../../api/resources';
 import type {
   ArticleInput,
-  CustomField,
-  Department,
   ExtractedPdf,
-  Project,
   ResourceInput,
-  Subcategory,
 } from '../../api/types';
 import { IconFolder, IconPlus, IconTasks } from '../../components/Icons';
 import { useT } from '../../i18n';
@@ -36,14 +28,7 @@ import {
 import { CustomFieldsSection } from './submit/CustomFieldsSection';
 import { DocumentUploadDialog } from './submit/DocumentUploadDialog';
 import { useArticles } from './submit/useArticles';
-
-interface CoreForm {
-  departmentId: string;
-  subcategoryId: string;
-  projectId: string;
-}
-
-const initialCore: CoreForm = { departmentId: '', subcategoryId: '', projectId: '' };
+import { useSubmitTicketData } from './submit/useSubmitTicketData';
 
 function useNowTick() {
   const [now, setNow] = useState(() => new Date());
@@ -68,17 +53,21 @@ export function SubmitTicketPage() {
   const toast = useToast();
   const now = useNowTick();
 
-  // -- reference data --
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [fields, setFields] = useState<CustomField[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  // Reference data (dropdowns + custom fields) lives in a dedicated hook so this component
+  // stays focused on the submit/validate flow.
+  const {
+    projects, departments, subcategories, fields,
+    loading, loadError,
+    projectId, departmentId, subcategoryId,
+    setProjectId, setDepartmentId, setSubcategoryId,
+  } = useSubmitTicketData();
 
-  // -- form state --
-  const [core, setCore] = useState<CoreForm>(initialCore);
   const [customValues, setCustomValues] = useState<Record<string, string>>({});
+
+  // Reset field values when subcategory changes — the field set they belong to no longer applies.
+  useEffect(() => {
+    setCustomValues({});
+  }, [subcategoryId]);
   const {
     articles,
     add: addArticle, remove: removeArticle, update: updateArticle,
@@ -112,74 +101,6 @@ export function SubmitTicketPage() {
   const [docResult, setDocResult] = useState<ExtractedPdf | null>(null);
   const [docError, setDocError] = useState<string | null>(null);
 
-  // ---- data loading effects (split into single-purpose effects) ----
-
-  useEffect(() => {
-    // Projects are optional on a ticket — silently drop the list if the request fails
-    // (e.g. the /api/projects endpoint isn't deployed yet on an older backend).
-    const ctrl = new AbortController();
-    projectsApi.userList(ctrl.signal).then(setProjects).catch(() => setProjects([]));
-    return () => ctrl.abort();
-  }, []);
-
-  // Fetch departments whenever project scope changes. AbortController stops a stale
-  // response from overwriting a fresher one if the user changes the dropdown quickly.
-  useEffect(() => {
-    const ctrl = new AbortController();
-    const pid = core.projectId ? Number(core.projectId) : undefined;
-    departmentsApi.userList(pid, ctrl.signal)
-      .then(setDepartments)
-      .catch((e) => { if (!ctrl.signal.aborted) setLoadError(extractError(e)); })
-      .finally(() => { if (!ctrl.signal.aborted) setLoading(false); });
-    return () => ctrl.abort();
-  }, [core.projectId]);
-
-  // Reset department & downstream state whenever the project scope changes.
-  useEffect(() => {
-    setCore((c) => (c.departmentId || c.subcategoryId ? { ...c, departmentId: '', subcategoryId: '' } : c));
-    setSubcategories([]);
-    setFields([]);
-    setCustomValues({});
-  }, [core.projectId]);
-
-  // Fetch subcategories whenever department changes
-  useEffect(() => {
-    if (!core.departmentId) {
-      setSubcategories([]);
-      return;
-    }
-    const ctrl = new AbortController();
-    subcategoriesApi.userList(Number(core.departmentId), ctrl.signal)
-      .then(setSubcategories)
-      .catch((e) => { if (!ctrl.signal.aborted) setLoadError(extractError(e)); });
-    return () => ctrl.abort();
-  }, [core.departmentId]);
-
-  // Reset subcategory selection and downstream state when department changes
-  useEffect(() => {
-    setCore((c) => (c.subcategoryId ? { ...c, subcategoryId: '' } : c));
-    setFields([]);
-    setCustomValues({});
-  }, [core.departmentId]);
-
-  // Fetch custom fields whenever subcategory changes
-  useEffect(() => {
-    if (!core.subcategoryId) {
-      setFields([]);
-      return;
-    }
-    const ctrl = new AbortController();
-    fieldsApi.activeList(Number(core.subcategoryId), ctrl.signal)
-      .then(setFields)
-      .catch((e) => { if (!ctrl.signal.aborted) setLoadError(extractError(e)); });
-    return () => ctrl.abort();
-  }, [core.subcategoryId]);
-
-  // Reset field values when subcategory changes
-  useEffect(() => {
-    setCustomValues({});
-  }, [core.subcategoryId]);
-
   const dateLabel = useMemo(
     () => now.toLocaleString(lang === 'ar' ? 'ar-EG' : undefined),
     [now, lang]
@@ -189,8 +110,8 @@ export function SubmitTicketPage() {
 
   function validate(): boolean {
     const errs: Record<string, string> = {};
-    if (!core.departmentId) errs.departmentId = t('user.submit.errDepartment');
-    if (!core.subcategoryId) errs.subcategoryId = t('user.submit.errSubcategory');
+    if (!departmentId) errs.departmentId = t('user.submit.errDepartment');
+    if (!subcategoryId) errs.subcategoryId = t('user.submit.errSubcategory');
 
     for (const f of fields) {
       const v = (customValues[f.fieldKey] ?? '').trim();
@@ -315,9 +236,9 @@ export function SubmitTicketPage() {
       });
 
       const res = await ticketsApi.submitBulk({
-        departmentId: Number(core.departmentId),
-        subcategoryId: Number(core.subcategoryId),
-        projectId: core.projectId ? Number(core.projectId) : null,
+        departmentId: Number(departmentId),
+        subcategoryId: Number(subcategoryId),
+        projectId: projectId ? Number(projectId) : null,
         articles: payloadArticles,
         customValues: trimmedCustom,
       });
@@ -462,8 +383,8 @@ export function SubmitTicketPage() {
               </label>
               <select
                 className="select"
-                value={core.projectId}
-                onChange={(e) => setCore({ ...core, projectId: e.target.value })}
+                value={projectId}
+                onChange={(e) => setProjectId(e.target.value)}
                 disabled={projects.length === 0}
               >
                 <option value="">
@@ -480,8 +401,8 @@ export function SubmitTicketPage() {
               </label>
               <select
                 className={`select ${errors.departmentId ? 'has-error' : ''}`}
-                value={core.departmentId}
-                onChange={(e) => setCore({ ...core, departmentId: e.target.value })}
+                value={departmentId}
+                onChange={(e) => setDepartmentId(e.target.value)}
                 disabled={departments.length === 0}
               >
                 <option value="">{t('user.submit.chooseDepartment')}</option>
@@ -497,9 +418,9 @@ export function SubmitTicketPage() {
               </label>
               <select
                 className={`select ${errors.subcategoryId ? 'has-error' : ''}`}
-                value={core.subcategoryId}
-                onChange={(e) => setCore({ ...core, subcategoryId: e.target.value })}
-                disabled={!core.departmentId}
+                value={subcategoryId}
+                onChange={(e) => setSubcategoryId(e.target.value)}
+                disabled={!departmentId}
               >
                 <option value="">{t('user.submit.chooseSubcategory')}</option>
                 {subcategories.map((s) => (

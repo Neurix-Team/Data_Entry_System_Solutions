@@ -11,13 +11,14 @@ import com.dataentry.model.User;
 import com.dataentry.repository.CustomFieldRepository;
 import com.dataentry.repository.DepartmentRepository;
 import com.dataentry.repository.SubcategoryRepository;
+import com.dataentry.repository.ProjectRepository;
 import com.dataentry.repository.TicketRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -35,12 +36,13 @@ class TicketServiceTest {
     @Mock TicketRepository ticketRepository;
     @Mock DepartmentRepository departmentRepository;
     @Mock SubcategoryRepository subcategoryRepository;
+    @Mock ProjectRepository projectRepository;
     @Mock CustomFieldRepository customFieldRepository;
     @Mock TranslationService translator;
     @Mock Localizer localizer;
     @Mock AuditService audit;
 
-    @InjectMocks TicketService ticketService;
+    private TicketService ticketService;
 
     private User agent;
     private Department dept;
@@ -56,6 +58,24 @@ class TicketServiceTest {
         org.mockito.Mockito.lenient()
                 .when(translator.toBoth(org.mockito.ArgumentMatchers.anyString()))
                 .thenAnswer(inv -> new TranslationService.Bilingual(inv.getArgument(0), inv.getArgument(0)));
+
+        // Real preparer wrapping the mocked translator — gives us the actual dedup logic under
+        // test rather than a mock that would silently return empty caches.
+        TicketTranslationPreparer preparer = new TicketTranslationPreparer(translator);
+
+        // selfProvider re-enters this same instance so @Transactional self-invocation paths
+        // (create → createTx, createMany → createManyTx) route back into the real object.
+        @SuppressWarnings("unchecked")
+        ObjectProvider<TicketService> selfProvider = org.mockito.Mockito.mock(ObjectProvider.class);
+        @SuppressWarnings("unchecked")
+        ObjectProvider<TicketDocumentService> docProvider = org.mockito.Mockito.mock(ObjectProvider.class);
+
+        ticketService = new TicketService(
+                ticketRepository, departmentRepository, subcategoryRepository,
+                projectRepository, customFieldRepository,
+                preparer, translator, localizer, audit,
+                docProvider, selfProvider);
+        org.mockito.Mockito.when(selfProvider.getObject()).thenReturn(ticketService);
     }
 
     @Test

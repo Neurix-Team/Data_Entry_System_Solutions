@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -45,6 +46,21 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleTooLarge(MaxUploadSizeExceededException ex) {
         return build(HttpStatus.PAYLOAD_TOO_LARGE,
                 "Uploaded file is too large. Maximum allowed size is 200 MB.", null);
+    }
+
+    /**
+     * Return the semantically-correct 415 when a client sends the wrong Content-Type (e.g.
+     * JSON to a multipart-only endpoint). Without this handler the exception would fall
+     * through to {@link #handleOther} and surface as an opaque 500 "Unexpected server error"
+     * — which is exactly what tripped up the axios FormData upload bug.
+     */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<Map<String, Object>> handleUnsupportedMediaType(
+            HttpMediaTypeNotSupportedException ex) {
+        String detail = ex.getContentType() == null
+                ? "Content-Type is missing or not supported for this endpoint."
+                : "Content-Type '" + ex.getContentType() + "' is not supported for this endpoint.";
+        return build(HttpStatus.UNSUPPORTED_MEDIA_TYPE, detail, null);
     }
 
     /**

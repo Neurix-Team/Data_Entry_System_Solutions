@@ -18,7 +18,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -31,14 +30,18 @@ public class TicketService {
     private final SubcategoryRepository subcategoryRepository;
     private final ProjectRepository projectRepository;
     private final CustomFieldRepository customFieldRepository;
+    private final TicketTranslationPreparer translations;
+    // Retained for the one-off resource-name translation path inside applyResources — every
+    // other translation now goes through the preparer's dedup cache built up-front.
     private final TranslationService translator;
     private final Localizer localizer;
     private final AuditService audit;
     private final org.springframework.beans.factory.ObjectProvider<TicketDocumentService> documentServiceProvider;
-    
+
     private final org.springframework.beans.factory.ObjectProvider<TicketService> selfProvider;
 
- 
+    // Kept here (as well as in TicketTranslationPreparer) because applyCustomValues below still
+    // needs to know which field types roundtrip through the translator vs. mirror as-is.
     private static final Set<FieldType> TRANSLATABLE_TYPES =
             EnumSet.of(FieldType.TEXT, FieldType.TEXTAREA, FieldType.SELECT);
 
@@ -47,6 +50,7 @@ public class TicketService {
                          SubcategoryRepository subcategoryRepository,
                          ProjectRepository projectRepository,
                          CustomFieldRepository customFieldRepository,
+                         TicketTranslationPreparer translations,
                          TranslationService translator,
                          Localizer localizer,
                          AuditService audit,
@@ -57,6 +61,7 @@ public class TicketService {
         this.subcategoryRepository = subcategoryRepository;
         this.projectRepository = projectRepository;
         this.customFieldRepository = customFieldRepository;
+        this.translations = translations;
         this.translator = translator;
         this.localizer = localizer;
         this.audit = audit;
@@ -65,12 +70,10 @@ public class TicketService {
     }
 
     public TicketDtos.TicketResponse create(User currentUser, TicketDtos.CreateTicketRequest req) {
-         
         List<CustomField> fields = loadActiveFields(req.subcategoryId());
-        Map<String, TranslationService.Bilingual> translations =
-                prepareTranslations(req.title(), req.content(), req.websiteName(),
-                        req.customValues(), fields);
-        return selfProvider.getObject().createTx(currentUser, req, fields, translations);
+        Map<String, TranslationService.Bilingual> tr = translations.prepareForOne(
+                req.title(), req.content(), req.websiteName(), req.customValues(), fields);
+        return selfProvider.getObject().createTx(currentUser, req, fields, tr);
     }
 
     @Transactional
@@ -97,12 +100,9 @@ public class TicketService {
     public TicketDtos.BulkCreateResponse createMany(User currentUser, TicketDtos.BulkCreateRequest req) {
         List<CustomField> fields = loadActiveFields(req.subcategoryId());
         // Translate every article + the shared custom values in one pass, outside the DB tx.
-        Map<String, TranslationService.Bilingual> translations = new HashMap<>();
-        translations.putAll(prepareTranslations(null, null, null, req.customValues(), fields));
-        for (TicketDtos.ArticleRequest a : req.articles()) {
-            translations.putAll(prepareTranslations(a.title(), a.content(), a.websiteName(), null, fields));
-        }
-        return selfProvider.getObject().createManyTx(currentUser, req, fields, translations);
+        Map<String, TranslationService.Bilingual> tr = translations.prepareForBulk(
+                req.articles(), req.customValues(), fields);
+        return selfProvider.getObject().createManyTx(currentUser, req, fields, tr);
     }
 
     @Transactional
@@ -134,42 +134,6 @@ public class TicketService {
         if (subcategoryId == null) return List.of();
         return customFieldRepository
                 .findAllBySubcategoryIdAndActiveTrueOrderByDisplayOrderAscIdAsc(subcategoryId);
-    }
-
-    /**
-     * Walks every user-facing string in a request and calls {@link TranslationService#toBoth}
-     * up-front, returning a de-duplicated map keyed by the original text. Called outside any
-     * transaction so slow translate calls never hold the SQLite writer lock.
-     */
-    private Map<String, TranslationService.Bilingual> prepareTranslations(
-            String title, String content, String websiteName,
-            Map<String, String> customValues, List<CustomField> fields) {
-        Map<String, TranslationService.Bilingual> out = new HashMap<>();
-        translateIfNeeded(out, title);
-        translateIfNeeded(out, content);
-        translateIfNeeded(out, websiteName);
-        if (customValues != null && fields != null) {
-            for (CustomField f : fields) {
-                if (!TRANSLATABLE_TYPES.contains(f.getType())) continue;
-                String v = customValues.get(f.getFieldKey());
-                translateIfNeeded(out, v);
-            }
-        }
-        return out;
-    }
-
-    private void translateIfNeeded(Map<String, TranslationService.Bilingual> cache, String text) {
-        if (text == null) return;
-        String cleaned = text.trim();
-        if (cleaned.isEmpty() || cache.containsKey(cleaned)) return;
-        cache.put(cleaned, translator.toBoth(cleaned));
-    }
-
-    private TranslationService.Bilingual biOrMirror(Map<String, TranslationService.Bilingual> cache,
-                                                    String text) {
-        if (text == null || text.isBlank()) return new TranslationService.Bilingual("", "");
-        TranslationService.Bilingual b = cache.get(text.trim());
-        return b != null ? b : new TranslationService.Bilingual(text, text);
     }
 
     /**
@@ -265,14 +229,14 @@ public class TicketService {
                 .status(TicketStatus.IN_PROGRESS)
                 .build();
 
-        TranslationService.Bilingual titleBi = biOrMirror(tr, cleanTitle);
+        TranslationService.Bilingual titleBi = translations.lookup(tr, cleanTitle);
         t.setTitleEn(titleBi.en());
         t.setTitleAr(titleBi.ar());
-        TranslationService.Bilingual contentBi = biOrMirror(tr, cleanContent);
+        TranslationService.Bilingual contentBi = translations.lookup(tr, cleanContent);
         t.setContentEn(contentBi.en());
         t.setContentAr(contentBi.ar());
         if (!cleanName.isBlank()) {
-            TranslationService.Bilingual nameBi = biOrMirror(tr, cleanName);
+            TranslationService.Bilingual nameBi = translations.lookup(tr, cleanName);
             t.setWebsiteNameEn(nameBi.en());
             t.setWebsiteNameAr(nameBi.ar());
         }
@@ -300,7 +264,7 @@ public class TicketService {
                     .value(stored)
                     .build();
             if (TRANSLATABLE_TYPES.contains(field.getType()) && !stored.isBlank()) {
-                TranslationService.Bilingual bi = biOrMirror(tr, stored);
+                TranslationService.Bilingual bi = translations.lookup(tr, stored);
                 tfv.setValueEn(bi.en());
                 tfv.setValueAr(bi.ar());
             } else {
