@@ -9,10 +9,6 @@ import java.util.Deque;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Per-key sliding-window limiter kept in this process's heap.  Fine when there is only one
- * backend instance.  Wired up by {@code RateLimiterConfig} when {@code app.security.login-rate.storage=memory}.
- */
 public class InMemoryLoginRateLimiter implements LoginRateLimiter {
 
     private static final int MAX_TRACKED_KEYS = 10_000;

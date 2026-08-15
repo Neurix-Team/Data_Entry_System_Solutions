@@ -4,6 +4,8 @@ import { dashboardApi, subcategoriesApi } from '../../api/resources';
 import type { Department, DomainDetail, Subcategory } from '../../api/types';
 import { IconClose, IconFolder, IconPlus } from '../../components/Icons';
 import { Modal } from '../../components/Modal';
+import { useConfirm } from '../../components/ConfirmDialog';
+import { useToast } from '../../components/toast/ToastContext';
 import { useT } from '../../i18n';
 
 interface Props {
@@ -20,6 +22,8 @@ interface SubForm {
 
 export function DepartmentDetailModal({ department, onClose, onChanged }: Props) {
   const { t } = useT();
+  const confirm = useConfirm();
+  const toast = useToast();
   const [detail, setDetail] = useState<DomainDetail | null>(null);
   const [subs, setSubs] = useState<Subcategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,13 +97,17 @@ export function DepartmentDetailModal({ department, onClose, onChanged }: Props)
     }
   }
   async function onDeleteSub(s: Subcategory) {
-    if (!confirm(t('common.confirmDelete', { name: s.name }))) return;
+    const ok = await confirm({
+      message: t('common.confirmDelete', { name: s.name }),
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await subcategoriesApi.remove(s.id);
       await refresh();
       onChanged();
     } catch (e) {
-      alert(extractError(e));
+      toast.error(extractError(e));
     }
   }
 

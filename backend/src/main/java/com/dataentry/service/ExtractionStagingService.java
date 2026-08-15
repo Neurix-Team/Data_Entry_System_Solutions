@@ -49,7 +49,6 @@ public class ExtractionStagingService {
         }
     }
 
-    /** Create a fresh staging directory owned by {@code userId} and return its id + path. */
     public Handle create(Long userId) {
         sweepExpired();
         String extractionId = UUID.randomUUID().toString();
@@ -64,16 +63,13 @@ public class ExtractionStagingService {
         return new Handle(extractionId, dir);
     }
 
-    /**
-     * Resolve a staged image file, first checking that the current user owns the extraction
-     * and that the filename does not escape the folder. Throws 404 / 403 as appropriate.
-     */
+ 
     public Path resolveOwned(String extractionId, String filename, Long userId) {
         Path dir = resolveDir(extractionId);
         assertOwned(extractionId, userId);
         Path target = dir.resolve(filename).normalize();
         if (!target.startsWith(dir)) {
-            // Traversal attempt (e.g., filename="../.owner"). Refuse before touching disk.
+             
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
         if (!Files.exists(target) || Files.isDirectory(target)) {
@@ -85,14 +81,7 @@ public class ExtractionStagingService {
         return target;
     }
 
-    /**
-     * Move a staged file out of the staging folder into an arbitrary destination.
-     * Used by TicketService to promote images into a ticket's attachments folder.
-     * The staging entry is deleted after a successful move.
-     * <p>
-     * Silently ignored (returns false) if the file has already been consumed — this keeps
-     * the submit call idempotent when the same image is referenced twice.
-     */
+ 
     public boolean moveOut(String extractionId, String filename, Long userId, Path destination) {
         Path source = resolveDir(extractionId).resolve(filename).normalize();
         if (!source.startsWith(resolveDir(extractionId))) {
@@ -110,8 +99,7 @@ public class ExtractionStagingService {
         }
     }
 
-    /** Delete a whole extraction folder — called after all images have been consumed. */
-    public void discard(String extractionId) {
+     public void discard(String extractionId) {
         Path dir = baseDir.resolve(extractionId).normalize();
         if (!dir.startsWith(baseDir) || !Files.exists(dir)) return;
         deleteRecursively(dir);

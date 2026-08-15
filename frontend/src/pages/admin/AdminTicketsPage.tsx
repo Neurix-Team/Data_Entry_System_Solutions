@@ -7,7 +7,9 @@ import { IconAlert, IconCheck, IconClock, IconClose, IconPlus } from '../../comp
 import { Modal } from '../../components/Modal';
 import { StatusPill } from '../../components/StatusPill';
 import { useToast } from '../../components/toast/ToastContext';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { useT } from '../../i18n';
+import { pickLocalized } from '../../i18n/localized';
 
 interface Filters {
   q: string;
@@ -22,6 +24,7 @@ const emptyFilters: Filters = { q: '', departmentId: '', status: '', from: '', t
 export function AdminTicketsPage() {
   const { t, lang } = useT();
   const toast = useToast();
+  const confirm = useConfirm();
   const isAr = lang === 'ar';
   const [bulkSel, setBulkSel] = useState<Set<number>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -37,7 +40,8 @@ export function AdminTicketsPage() {
   const [deletingDocId, setDeletingDocId] = useState<number | null>(null);
 
   async function onDeleteDocument(ticketId: number, docId: number) {
-    if (!window.confirm(t('ticket.confirmDeleteDocument'))) return;
+    const ok = await confirm({ message: t('ticket.confirmDeleteDocument'), destructive: true });
+    if (!ok) return;
     setDeletingDocId(docId);
     try {
       await ticketsApi.removeDocument(ticketId, docId);
@@ -113,7 +117,11 @@ export function AdminTicketsPage() {
   }
 
   async function onDelete(tk: Ticket) {
-    if (!confirm(t('common.confirmDelete', { name: `#${tk.id}` }))) return;
+    const ok = await confirm({
+      message: t('common.confirmDelete', { name: `#${tk.id}` }),
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await ticketsApi.remove(tk.id);
       toast.success(isAr ? 'تم حذف التذكرة' : 'Ticket deleted');
@@ -132,12 +140,16 @@ export function AdminTicketsPage() {
   async function onBulkDeleteTickets() {
     const ids = Array.from(bulkSel);
     if (ids.length === 0) return;
-    if (!confirm(isAr ? `تأكيد حذف ${ids.length} تذكرة؟` : `Delete ${ids.length} ticket${ids.length === 1 ? '' : 's'}?`)) return;
+    const proceed = await confirm({
+      message: isAr ? `تأكيد حذف ${ids.length} تذكرة؟` : `Delete ${ids.length} ticket${ids.length === 1 ? '' : 's'}?`,
+      destructive: true,
+    });
+    if (!proceed) return;
     setBulkDeleting(true);
     let ok = 0; let fail = 0;
-    for (const id of ids) {
-      try { await ticketsApi.remove(id); ok++; } catch { fail++; }
-    }
+    // Fire all deletes in parallel so a large selection doesn't lock up the UI serially.
+    const results = await Promise.allSettled(ids.map((id) => ticketsApi.remove(id)));
+    for (const r of results) { if (r.status === 'fulfilled') ok++; else fail++; }
     setBulkDeleting(false);
     if (fail === 0) toast.success(isAr ? `تم حذف ${ok} تذكرة` : `Deleted ${ok}`);
     else toast.warning(isAr ? `تم حذف ${ok}، فشل ${fail}` : `Deleted ${ok}, ${fail} failed`);
@@ -203,7 +215,7 @@ export function AdminTicketsPage() {
           onChange={(e) => setFilters({ ...filters, departmentId: e.target.value })}
         >
           <option value="">{t('admin.tickets.filterAllDepartments')}</option>
-          {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+          {departments.map((d) => <option key={d.id} value={d.id}>{pickLocalized(d, 'name', lang)}</option>)}
         </select>
         <select
           className="select"
@@ -315,10 +327,10 @@ export function AdminTicketsPage() {
                     <span>{tk.submittedByDisplayName || tk.submittedByUsername}</span>
                   </div>
                 </td>
-                <td>{tk.departmentName}</td>
+                <td>{pickLocalized(tk, 'departmentName', lang)}</td>
                 <td>
                   {tk.subcategoryName
-                    ? <span className="chip">{tk.subcategoryName}</span>
+                    ? <span className="chip">{pickLocalized(tk, 'subcategoryName', lang)}</span>
                     : <span className="muted small">—</span>}
                 </td>
                 <td>
@@ -439,9 +451,9 @@ function TicketDetails({
           <span>{ticket.submittedByDisplayName || ticket.submittedByUsername}</span>
         </div>
       } />
-      <Detail label={t('ticket.department')} value={ticket.departmentName} />
+      <Detail label={t('ticket.department')} value={pickLocalized(ticket, 'departmentName', lang)} />
       {ticket.subcategoryName && (
-        <Detail label={t('user.submit.subcategory')} value={ticket.subcategoryName} />
+        <Detail label={t('user.submit.subcategory')} value={pickLocalized(ticket, 'subcategoryName', lang)} />
       )}
       <Detail label={t('ticket.submittedAt')} value={new Date(ticket.submittedAt).toLocaleString(lang === 'ar' ? 'ar-EG' : undefined)} />
       {ticket.title && <Detail label={t('ticket.titleLabel')} value={ticket.title} />}

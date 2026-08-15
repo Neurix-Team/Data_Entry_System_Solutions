@@ -17,9 +17,9 @@ export const profileApi = {
   async upload(file: File): Promise<AvatarInfo> {
     const fd = new FormData();
     fd.append('file', file);
-    const { data } = await api.post<AvatarInfo>('/user/me/avatar', fd, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    // Don't set Content-Type manually — the browser must generate the multipart boundary
+    // itself, and a hand-set 'multipart/form-data' with no boundary breaks parsing.
+    const { data } = await api.post<AvatarInfo>('/user/me/avatar', fd);
     return data;
   },
 

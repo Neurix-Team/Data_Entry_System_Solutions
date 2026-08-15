@@ -6,20 +6,26 @@ import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { LocaleProvider } from './i18n';
 import { ToastProvider } from './components/toast/ToastContext';
+import { ConfirmProvider } from './components/ConfirmDialog';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import './styles/global.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ThemeProvider>
-      <LocaleProvider>
-        <ToastProvider>
-          <BrowserRouter>
-            <AuthProvider>
-              <App />
-            </AuthProvider>
-          </BrowserRouter>
-        </ToastProvider>
-      </LocaleProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <LocaleProvider>
+          <ToastProvider>
+            <ConfirmProvider>
+              <BrowserRouter>
+                <AuthProvider>
+                  <App />
+                </AuthProvider>
+              </BrowserRouter>
+            </ConfirmProvider>
+          </ToastProvider>
+        </LocaleProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   </React.StrictMode>
 );

@@ -21,6 +21,7 @@ import type {
 } from '../../api/types';
 import { IconFolder, IconPlus, IconTasks } from '../../components/Icons';
 import { useT } from '../../i18n';
+import { pickLocalized } from '../../i18n/localized';
 import { AiCheckDialog, type AiResult } from './submit/AiCheckDialog';
 import {
   ArticleCard,
@@ -116,15 +117,21 @@ export function SubmitTicketPage() {
   useEffect(() => {
     // Projects are optional on a ticket — silently drop the list if the request fails
     // (e.g. the /api/projects endpoint isn't deployed yet on an older backend).
-    projectsApi.userList().then(setProjects).catch(() => setProjects([]));
+    const ctrl = new AbortController();
+    projectsApi.userList(ctrl.signal).then(setProjects).catch(() => setProjects([]));
+    return () => ctrl.abort();
   }, []);
 
+  // Fetch departments whenever project scope changes. AbortController stops a stale
+  // response from overwriting a fresher one if the user changes the dropdown quickly.
   useEffect(() => {
+    const ctrl = new AbortController();
     const pid = core.projectId ? Number(core.projectId) : undefined;
-    departmentsApi.userList(pid)
+    departmentsApi.userList(pid, ctrl.signal)
       .then(setDepartments)
-      .catch((e) => setLoadError(extractError(e)))
-      .finally(() => setLoading(false));
+      .catch((e) => { if (!ctrl.signal.aborted) setLoadError(extractError(e)); })
+      .finally(() => { if (!ctrl.signal.aborted) setLoading(false); });
+    return () => ctrl.abort();
   }, [core.projectId]);
 
   // Reset department & downstream state whenever the project scope changes.
@@ -141,9 +148,11 @@ export function SubmitTicketPage() {
       setSubcategories([]);
       return;
     }
-    subcategoriesApi.userList(Number(core.departmentId))
+    const ctrl = new AbortController();
+    subcategoriesApi.userList(Number(core.departmentId), ctrl.signal)
       .then(setSubcategories)
-      .catch((e) => setLoadError(extractError(e)));
+      .catch((e) => { if (!ctrl.signal.aborted) setLoadError(extractError(e)); });
+    return () => ctrl.abort();
   }, [core.departmentId]);
 
   // Reset subcategory selection and downstream state when department changes
@@ -159,9 +168,11 @@ export function SubmitTicketPage() {
       setFields([]);
       return;
     }
-    fieldsApi.activeList(Number(core.subcategoryId))
+    const ctrl = new AbortController();
+    fieldsApi.activeList(Number(core.subcategoryId), ctrl.signal)
       .then(setFields)
-      .catch((e) => setLoadError(extractError(e)));
+      .catch((e) => { if (!ctrl.signal.aborted) setLoadError(extractError(e)); });
+    return () => ctrl.abort();
   }, [core.subcategoryId]);
 
   // Reset field values when subcategory changes
@@ -255,20 +266,22 @@ export function SubmitTicketPage() {
     };
   }
 
-  async function uploadArticleDocuments(ticketId: number, docs: DocumentRow[]): Promise<{ ok: number; failed: string[] }> {
+  /**
+   * Uploads every document for one ticket. Throws on the first failure so the caller can
+   * roll the ticket back — partial success would leave orphan tickets with no attachments,
+   * which the user cannot distinguish from a working ticket.
+   */
+  async function uploadArticleDocumentsAllOrNothing(
+    ticketId: number, docs: DocumentRow[],
+  ): Promise<number> {
     let ok = 0;
-    const failed: string[] = [];
     for (const d of docs) {
       if (!d.file) continue;
       const name = d.name.trim() || d.file.name;
-      try {
-        await ticketsApi.uploadDocument(ticketId, name, d.file);
-        ok += 1;
-      } catch {
-        failed.push(name);
-      }
+      await ticketsApi.uploadDocument(ticketId, name, d.file);
+      ok += 1;
     }
-    return { ok, failed };
+    return ok;
   }
 
   async function onSubmit(e: FormEvent) {
@@ -308,15 +321,20 @@ export function SubmitTicketPage() {
         customValues: trimmedCustom,
       });
 
-      // Upload documents per article, aligned by index with the returned tickets.
+      // Upload documents per article. If any upload fails, roll back every ticket in this
+      // batch so the user isn't left with orphan rows they think succeeded.
       let uploaded = 0;
-      const allFailed: string[] = [];
-      for (let i = 0; i < res.tickets.length && i < articles.length; i++) {
-        const ticket = res.tickets[i];
-        const docs = articles[i].documents;
-        const outcome = await uploadArticleDocuments(ticket.id, docs);
-        uploaded += outcome.ok;
-        allFailed.push(...outcome.failed);
+      try {
+        for (let i = 0; i < res.tickets.length && i < articles.length; i++) {
+          uploaded += await uploadArticleDocumentsAllOrNothing(
+            res.tickets[i].id, articles[i].documents,
+          );
+        }
+      } catch (uploadErr) {
+        // Best-effort rollback; if one delete also fails, keep trying the rest so we
+        // clean up as much as we can before surfacing the original failure to the user.
+        await Promise.allSettled(res.tickets.map((tk) => ticketsApi.removeMine(tk.id)));
+        throw uploadErr;
       }
 
       const msg = t('user.submit.bulkSuccess', { count: res.created });
@@ -324,9 +342,6 @@ export function SubmitTicketPage() {
       toast.success(msg);
       if (uploaded > 0) {
         toast.success(t('user.submit.documentUploadedCount', { count: uploaded }));
-      }
-      for (const name of allFailed) {
-        toast.error(t('user.submit.documentUploadFailed', { name }));
       }
       resetArticles();
       setErrors({});
@@ -454,7 +469,7 @@ export function SubmitTicketPage() {
                   {lang === 'ar' ? 'بدون مشروع (اختياري)' : 'No project (optional)'}
                 </option>
                 {projects.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
+                  <option key={p.id} value={p.id}>{pickLocalized(p, 'name', lang)}</option>
                 ))}
               </select>
             </div>
@@ -470,7 +485,7 @@ export function SubmitTicketPage() {
               >
                 <option value="">{t('user.submit.chooseDepartment')}</option>
                 {departments.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
+                  <option key={d.id} value={d.id}>{pickLocalized(d, 'name', lang)}</option>
                 ))}
               </select>
               {errors.departmentId && <span className="field-error">{errors.departmentId}</span>}
@@ -487,7 +502,7 @@ export function SubmitTicketPage() {
               >
                 <option value="">{t('user.submit.chooseSubcategory')}</option>
                 {subcategories.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
+                  <option key={s.id} value={s.id}>{pickLocalized(s, 'name', lang)}</option>
                 ))}
               </select>
               {errors.subcategoryId && <span className="field-error">{errors.subcategoryId}</span>}

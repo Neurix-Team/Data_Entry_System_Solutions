@@ -8,7 +8,9 @@ import { Avatar } from '../../components/Avatar';
 import { IconFilter, IconFolder, IconSearch } from '../../components/Icons';
 import { Modal } from '../../components/Modal';
 import { useToast } from '../../components/toast/ToastContext';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { useT } from '../../i18n';
+import { pickLocalized } from '../../i18n/localized';
 
 interface FormState {
   id?: number;
@@ -36,6 +38,7 @@ function hashHue(name: string): number {
 export function AdminProjectsPage() {
   const { t, lang } = useT();
   const toast = useToast();
+  const confirm = useConfirm();
   const isAr = lang === 'ar';
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -143,7 +146,11 @@ export function AdminProjectsPage() {
   }
 
   async function onDelete(p: Project) {
-    if (!confirm(t('common.confirmDelete', { name: p.name }))) return;
+    const ok = await confirm({
+      message: t('common.confirmDelete', { name: p.name }),
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await projectsApi.remove(p.id);
       toast.success(isAr ? 'تم حذف المشروع' : 'Project deleted');
@@ -164,12 +171,15 @@ export function AdminProjectsPage() {
   async function onBulkDeleteProjects() {
     const ids = Array.from(selected);
     if (ids.length === 0) return;
-    if (!confirm(isAr ? `تأكيد حذف ${ids.length} مشروع؟` : `Delete ${ids.length} project${ids.length === 1 ? '' : 's'}?`)) return;
+    const proceed = await confirm({
+      message: isAr ? `تأكيد حذف ${ids.length} مشروع؟` : `Delete ${ids.length} project${ids.length === 1 ? '' : 's'}?`,
+      destructive: true,
+    });
+    if (!proceed) return;
     setBulkDeleting(true);
     let ok = 0; let fail = 0;
-    for (const id of ids) {
-      try { await projectsApi.remove(id); ok++; } catch { fail++; }
-    }
+    const results = await Promise.allSettled(ids.map((id) => projectsApi.remove(id)));
+    for (const r of results) { if (r.status === 'fulfilled') ok++; else fail++; }
     setBulkDeleting(false);
     if (fail === 0) toast.success(isAr ? `تم حذف ${ok} مشروع` : `Deleted ${ok}`);
     else toast.warning(isAr ? `تم حذف ${ok}، فشل ${fail}` : `Deleted ${ok}, ${fail} failed`);
@@ -241,7 +251,7 @@ export function AdminProjectsPage() {
         >
           <option value="">{t('projects.filterDepartment')}</option>
           {departments.map((d) => (
-            <option key={d.id} value={d.id}>{d.name}</option>
+            <option key={d.id} value={d.id}>{pickLocalized(d, 'name', lang)}</option>
           ))}
         </select>
         <div style={{ marginInlineStart: 'auto', display: 'flex', gap: 6 }}>
@@ -315,7 +325,7 @@ export function AdminProjectsPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                       <span className="project-avatar" data-hue={hue}>{initial}</span>
                       <div>
-                        <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{p.name}</div>
+                        <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{pickLocalized(p, 'name', lang)}</div>
                         {p.subtitle && <div className="small muted">{p.subtitle}</div>}
                       </div>
                     </div>
@@ -325,7 +335,7 @@ export function AdminProjectsPage() {
                       {p.departments.length === 0
                         ? <span className="muted small">—</span>
                         : p.departments.map((d) => (
-                            <span key={d.id} className="dept-chip">{d.name}</span>
+                            <span key={d.id} className="dept-chip">{pickLocalized(d, 'name', lang)}</span>
                           ))}
                     </div>
                   </td>
@@ -430,7 +440,7 @@ export function AdminProjectsPage() {
                     aria-pressed={on}
                   >
                     {on && <span className="chip-toggle-check" aria-hidden="true">✓</span>}
-                    {d.name}
+                    {pickLocalized(d, 'name', lang)}
                   </button>
                 );
               })}

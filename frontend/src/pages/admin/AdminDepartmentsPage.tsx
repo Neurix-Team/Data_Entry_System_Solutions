@@ -6,7 +6,9 @@ import { BulkAddModal } from '../../components/BulkAddModal';
 import { IconBuilding, IconFolder, IconMembers } from '../../components/Icons';
 import { Modal } from '../../components/Modal';
 import { useToast } from '../../components/toast/ToastContext';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { useT } from '../../i18n';
+import { pickLocalized } from '../../i18n/localized';
 import { DepartmentDetailModal } from './DepartmentDetailModal';
 
 interface FormState {
@@ -20,6 +22,7 @@ const empty: FormState = { name: '', active: true };
 export function AdminDepartmentsPage() {
   const { t, lang } = useT();
   const toast = useToast();
+  const confirm = useConfirm();
   const isAr = lang === 'ar';
 
   const [items, setItems] = useState<Department[]>([]);
@@ -87,7 +90,11 @@ export function AdminDepartmentsPage() {
   }
 
   async function onDelete(d: Department) {
-    if (!confirm(t('common.confirmDelete', { name: d.name }))) return;
+    const ok = await confirm({
+      message: t('common.confirmDelete', { name: d.name }),
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await departmentsApi.remove(d.id);
       toast.success(isAr ? 'تم حذف القسم' : 'Department deleted');
@@ -113,17 +120,18 @@ export function AdminDepartmentsPage() {
   async function onBulkDelete() {
     const ids = Array.from(selected);
     if (ids.length === 0) return;
-    if (!confirm(isAr
-      ? `تأكيد حذف ${ids.length} قسم؟ الإجراء غير قابل للتراجع.`
-      : `Delete ${ids.length} department${ids.length === 1 ? '' : 's'}? This can't be undone.`
-    )) return;
+    const proceed = await confirm({
+      message: isAr
+        ? `تأكيد حذف ${ids.length} قسم؟ الإجراء غير قابل للتراجع.`
+        : `Delete ${ids.length} department${ids.length === 1 ? '' : 's'}? This can't be undone.`,
+      destructive: true,
+    });
+    if (!proceed) return;
 
     setBulkDeleting(true);
     let ok = 0; let fail = 0;
-    for (const id of ids) {
-      try { await departmentsApi.remove(id); ok++; }
-      catch { fail++; }
-    }
+    const results = await Promise.allSettled(ids.map((id) => departmentsApi.remove(id)));
+    for (const r of results) { if (r.status === 'fulfilled') ok++; else fail++; }
     setBulkDeleting(false);
     if (fail === 0) {
       toast.success(isAr ? `تم حذف ${ok} قسم بنجاح` : `Deleted ${ok} department${ok === 1 ? '' : 's'}`);
@@ -210,7 +218,7 @@ export function AdminDepartmentsPage() {
                   }}
                 >
                   <div className="dept-card-head">
-                    <div className="dept-card-name">{d.name}</div>
+                    <div className="dept-card-name">{pickLocalized(d, 'name', lang)}</div>
                     <span className={`badge ${d.active ? 'badge-active' : 'badge-inactive'}`}>
                       {d.active ? t('common.active') : t('common.inactive')}
                     </span>

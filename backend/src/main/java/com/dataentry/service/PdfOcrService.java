@@ -1,6 +1,5 @@
 package com.dataentry.service;
 
-import net.sourceforge.tess4j.Tesseract;
 import net.sourceforge.tess4j.TesseractException;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -25,20 +24,17 @@ public class PdfOcrService {
 
     private static final Logger log = LoggerFactory.getLogger(PdfOcrService.class);
 
-    private final String tessdataPath;
-    private final String languages;
     private final int renderDpi;
     private final int maxPages;
+    private final OcrGate ocrGate;
 
     public PdfOcrService(
-            @Value("${app.ocr.tessdata-path:/usr/share/tesseract-ocr/4.00/tessdata/}") String tessdataPath,
-            @Value("${app.ocr.languages:ara+eng}") String languages,
             @Value("${app.ocr.pdf-dpi:200}") int renderDpi,
-            @Value("${app.ocr.pdf-max-pages:200}") int maxPages) {
-        this.tessdataPath = tessdataPath;
-        this.languages = languages;
+            @Value("${app.ocr.pdf-max-pages:200}") int maxPages,
+            OcrGate ocrGate) {
         this.renderDpi = renderDpi;
         this.maxPages = maxPages;
+        this.ocrGate = ocrGate;
     }
 
     /** OCR each page of the PDF and return the concatenated text. */
@@ -49,22 +45,24 @@ public class PdfOcrService {
         try (PDDocument doc = Loader.loadPDF(pdfFile)) {
             int total = doc.getNumberOfPages();
             int pagesToProcess = Math.min(total, maxPages);
-            log.info("PDF OCR: {} pages (processing {}), dpi={}, langs={}",
-                    total, pagesToProcess, renderDpi, languages);
+            log.info("PDF OCR: {} pages (processing {}), dpi={}", total, pagesToProcess, renderDpi);
 
             PDFRenderer renderer = new PDFRenderer(doc);
-            Tesseract tesseract = new Tesseract();
-            tesseract.setDatapath(tessdataPath);
-            tesseract.setLanguage(languages);
-            // PSM 3 = fully automatic page segmentation (default)
-            // OEM 1 = LSTM only (best accuracy, ships with tesseract 4.x)
-            tesseract.setPageSegMode(3);
-            tesseract.setOcrEngineMode(1);
 
             for (int page = 0; page < pagesToProcess; page++) {
                 try {
                     BufferedImage image = renderer.renderImageWithDPI(page, renderDpi, ImageType.RGB);
-                    String pageText = tesseract.doOCR(image);
+                    // PSM 3 = fully automatic page segmentation (default)
+                    // OEM 1 = LSTM only (best accuracy, ships with tesseract 4.x)
+                    String pageText = ocrGate.run(t -> {
+                        t.setPageSegMode(3);
+                        t.setOcrEngineMode(1);
+                        try {
+                            return t.doOCR(image);
+                        } catch (TesseractException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
                     String cleaned = cleanOcrOutput(pageText);
                     if (!cleaned.isBlank()) {
                         if (out.length() > 0) out.append("\n\n");

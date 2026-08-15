@@ -7,6 +7,7 @@ import { IconCamera, IconChart, IconFolder, IconMembers } from '../../components
 import { PasswordInput } from '../../components/PasswordInput';
 import { SidePanel } from '../../components/SidePanel';
 import { useToast } from '../../components/toast/ToastContext';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { avatarUrl } from '../../api/profile';
 import { useAuth } from '../../context/AuthContext';
 import { useT } from '../../i18n';
@@ -31,6 +32,7 @@ export function AdminUsersPage() {
   const { user: current } = useAuth();
   const { t, lang } = useT();
   const toast = useToast();
+  const confirm = useConfirm();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -125,7 +127,11 @@ export function AdminUsersPage() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
   async function onDelete(u: AdminUser) {
-    if (!confirm(t('common.confirmDelete', { name: u.username }))) return;
+    const ok = await confirm({
+      message: t('common.confirmDelete', { name: u.username }),
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await usersApi.remove(u.id);
       toast.success(isAr ? 'تم حذف المستخدم' : 'User deleted');
@@ -146,12 +152,15 @@ export function AdminUsersPage() {
   async function onBulkDeleteUsers() {
     const ids = Array.from(selected).filter((id) => id !== current?.id);
     if (ids.length === 0) return;
-    if (!confirm(isAr ? `تأكيد حذف ${ids.length} مستخدم؟` : `Delete ${ids.length} user${ids.length === 1 ? '' : 's'}?`)) return;
+    const proceed = await confirm({
+      message: isAr ? `تأكيد حذف ${ids.length} مستخدم؟` : `Delete ${ids.length} user${ids.length === 1 ? '' : 's'}?`,
+      destructive: true,
+    });
+    if (!proceed) return;
     setBulkDeleting(true);
     let ok = 0; let fail = 0;
-    for (const id of ids) {
-      try { await usersApi.remove(id); ok++; } catch { fail++; }
-    }
+    const results = await Promise.allSettled(ids.map((id) => usersApi.remove(id)));
+    for (const r of results) { if (r.status === 'fulfilled') ok++; else fail++; }
     setBulkDeleting(false);
     if (fail === 0) toast.success(isAr ? `تم حذف ${ok} مستخدم` : `Deleted ${ok} user${ok === 1 ? '' : 's'}`);
     else toast.warning(isAr ? `تم حذف ${ok}، فشل ${fail}` : `Deleted ${ok}, ${fail} failed`);

@@ -1,15 +1,29 @@
 server:
   port: 8080
   tomcat:
-    max-http-form-post-size: 200MB
-    max-swallow-size: 200MB
+    # 60 MB gives a small margin over the 50 MB per-file cap in TicketDocumentService so
+    # a legitimate at-the-limit upload isn't rejected by the container before the service
+    # can return a clean 413.
+    max-http-form-post-size: 60MB
+    max-swallow-size: 60MB
 
 spring:
   datasource:
-    url: jdbc:sqlite:./data/dataentry.db
+    # WAL journal lets one writer + many readers coexist without global locks; busy_timeout
+    # makes the driver wait instead of throwing SQLITE_BUSY on transient contention;
+    # foreign_keys=on is off by default in SQLite despite the schema declaring FKs.
+    url: jdbc:sqlite:./data/dataentry.db?journal_mode=WAL&busy_timeout=5000&foreign_keys=on&synchronous=NORMAL
     driver-class-name: org.sqlite.JDBC
     username:
     password:
+    hikari:
+      # SQLite in WAL mode supports many readers + one writer. A small pool keeps read
+      # concurrency without letting many threads race to acquire the writer lock; anything
+      # blocked on a writer waits inside busy_timeout instead of erroring.
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 10000
+      max-lifetime: 0
   jpa:
     hibernate:
       ddl-auto: update
@@ -21,8 +35,8 @@ spring:
     open-in-view: false
   servlet:
     multipart:
-      max-file-size: 200MB
-      max-request-size: 200MB
+      max-file-size: 60MB
+      max-request-size: 60MB
       file-size-threshold: 2MB
 
 app:

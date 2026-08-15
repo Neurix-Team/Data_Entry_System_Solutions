@@ -5,7 +5,7 @@ export const authApi = {
   login: (username: string, password: string) =>
     api.post<LoginResponse>('/auth/login', { username, password }).then(r => r.data),
 
-  me: () => api.get<User>('/auth/me').then(r => r.data),
+  me: (signal?: AbortSignal) => api.get<User>('/auth/me', { signal }).then(r => r.data),
 
   /** Clears the httpOnly auth cookie on the server. */
   logout: () => api.post('/auth/logout').then(() => undefined),

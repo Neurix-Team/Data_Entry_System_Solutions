@@ -38,10 +38,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Cookie-based session — we can't read the httpOnly cookie from JS, so probe /auth/me
     // to see if the browser already has a valid session.  401 → not logged in.
-    authApi.me()
-      .then(setUser)
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false));
+    const ctrl = new AbortController();
+    let mounted = true;
+    authApi.me(ctrl.signal)
+      .then((u) => { if (mounted) setUser(u); })
+      .catch(() => { if (mounted) setUser(null); })
+      .finally(() => { if (mounted) setLoading(false); });
+    return () => {
+      mounted = false;
+      ctrl.abort();
+    };
   }, []);
 
   const login = useCallback(async (username: string, password: string) => {

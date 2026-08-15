@@ -7,7 +7,6 @@ import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 import { AdminDepartmentsPage } from './pages/admin/AdminDepartmentsPage';
 import { AdminSubcategoriesPage } from './pages/admin/AdminSubcategoriesPage';
-import { AdminFieldsPage } from './pages/admin/AdminFieldsPage';
 import { AdminTicketsPage } from './pages/admin/AdminTicketsPage';
 import { AdminProjectsPage } from './pages/admin/AdminProjectsPage';
 import { AdminReportsPage } from './pages/admin/AdminReportsPage';
@@ -42,7 +41,6 @@ export default function App() {
         <Route path="/admin/departments" element={<ProtectedRoute roles={['ADMIN']}><AdminDepartmentsPage /></ProtectedRoute>} />
         <Route path="/admin/subcategories" element={<ProtectedRoute roles={['ADMIN']}><AdminSubcategoriesPage /></ProtectedRoute>} />
         <Route path="/admin/projects" element={<ProtectedRoute roles={['ADMIN']}><AdminProjectsPage /></ProtectedRoute>} />
-        <Route path="/admin/fields" element={<ProtectedRoute roles={['ADMIN']}><AdminFieldsPage /></ProtectedRoute>} />
         <Route path="/admin/reports" element={<ProtectedRoute roles={['ADMIN']}><AdminReportsPage /></ProtectedRoute>} />
         <Route path="/admin/users/:id/activity" element={<ProtectedRoute roles={['ADMIN']}><AdminUserActivityPage /></ProtectedRoute>} />
 

@@ -18,6 +18,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,6 +35,9 @@ public class TicketService {
     private final Localizer localizer;
     private final AuditService audit;
     private final org.springframework.beans.factory.ObjectProvider<TicketDocumentService> documentServiceProvider;
+    /** Self-reference so we invoke the transactional methods via the Spring proxy — a direct
+     *  `this.createTx(...)` call would bypass the @Transactional advice entirely. */
+    private final org.springframework.beans.factory.ObjectProvider<TicketService> selfProvider;
 
     /** Types where the value is human-language text and worth translating.  Numbers/URLs/dates
      *  keep the same value on both sides. */
@@ -48,7 +52,8 @@ public class TicketService {
                          TranslationService translator,
                          Localizer localizer,
                          AuditService audit,
-                         org.springframework.beans.factory.ObjectProvider<TicketDocumentService> documentServiceProvider) {
+                         org.springframework.beans.factory.ObjectProvider<TicketDocumentService> documentServiceProvider,
+                         org.springframework.beans.factory.ObjectProvider<TicketService> selfProvider) {
         this.ticketRepository = ticketRepository;
         this.departmentRepository = departmentRepository;
         this.subcategoryRepository = subcategoryRepository;
@@ -58,10 +63,26 @@ public class TicketService {
         this.localizer = localizer;
         this.audit = audit;
         this.documentServiceProvider = documentServiceProvider;
+        this.selfProvider = selfProvider;
+    }
+
+    public TicketDtos.TicketResponse create(User currentUser, TicketDtos.CreateTicketRequest req) {
+        // Do all translation work (LibreTranslate HTTP round-trips) BEFORE opening the DB
+        // transaction. On SQLite, holding the writer lock across network calls stalls every
+        // other writer for the duration of the translate — which for a bulk create can be
+        // many seconds. Precomputing the bilingual map lets the persistence step stay tight.
+        List<CustomField> fields = loadActiveFields(req.subcategoryId());
+        Map<String, TranslationService.Bilingual> translations =
+                prepareTranslations(req.title(), req.content(), req.websiteName(),
+                        req.customValues(), fields);
+        return selfProvider.getObject().createTx(currentUser, req, fields, translations);
     }
 
     @Transactional
-    public TicketDtos.TicketResponse create(User currentUser, TicketDtos.CreateTicketRequest req) {
+    public TicketDtos.TicketResponse createTx(User currentUser,
+                                              TicketDtos.CreateTicketRequest req,
+                                              List<CustomField> fields,
+                                              Map<String, TranslationService.Bilingual> tr) {
         Department dept = loadActiveDepartment(req.departmentId());
         Subcategory sub = loadActiveSubcategory(req.subcategoryId(), dept);
         Project project = loadOptionalProject(req.projectId());
@@ -69,17 +90,31 @@ public class TicketService {
         Ticket ticket = buildTicket(
                 currentUser, dept, sub, project,
                 req.title(), req.content(),
-                req.websiteName(), req.websiteLink()
+                req.websiteName(), req.websiteLink(), tr
         );
-        applyCustomValues(ticket, sub, req.customValues());
+        applyCustomValues(ticket, fields, req.customValues(), tr);
         applyResources(ticket, req.resources());
         Ticket saved = ticketRepository.save(ticket);
         promoteExtractedImages(saved, req.extractedImages(), currentUser);
         return toDto(saved);
     }
 
-    @Transactional
     public TicketDtos.BulkCreateResponse createMany(User currentUser, TicketDtos.BulkCreateRequest req) {
+        List<CustomField> fields = loadActiveFields(req.subcategoryId());
+        // Translate every article + the shared custom values in one pass, outside the DB tx.
+        Map<String, TranslationService.Bilingual> translations = new HashMap<>();
+        translations.putAll(prepareTranslations(null, null, null, req.customValues(), fields));
+        for (TicketDtos.ArticleRequest a : req.articles()) {
+            translations.putAll(prepareTranslations(a.title(), a.content(), a.websiteName(), null, fields));
+        }
+        return selfProvider.getObject().createManyTx(currentUser, req, fields, translations);
+    }
+
+    @Transactional
+    public TicketDtos.BulkCreateResponse createManyTx(User currentUser,
+                                                      TicketDtos.BulkCreateRequest req,
+                                                      List<CustomField> fields,
+                                                      Map<String, TranslationService.Bilingual> tr) {
         Department dept = loadActiveDepartment(req.departmentId());
         Subcategory sub = loadActiveSubcategory(req.subcategoryId(), dept);
         Project project = loadOptionalProject(req.projectId());
@@ -89,15 +124,57 @@ public class TicketService {
             Ticket ticket = buildTicket(
                     currentUser, dept, sub, project,
                     article.title(), article.content(),
-                    article.websiteName(), article.websiteLink()
+                    article.websiteName(), article.websiteLink(), tr
             );
-            applyCustomValues(ticket, sub, req.customValues());
+            applyCustomValues(ticket, fields, req.customValues(), tr);
             applyResources(ticket, article.resources());
             Ticket persisted = ticketRepository.save(ticket);
             promoteExtractedImages(persisted, article.extractedImages(), currentUser);
             saved.add(toDto(persisted));
         }
         return new TicketDtos.BulkCreateResponse(saved.size(), saved);
+    }
+
+    private List<CustomField> loadActiveFields(Long subcategoryId) {
+        if (subcategoryId == null) return List.of();
+        return customFieldRepository
+                .findAllBySubcategoryIdAndActiveTrueOrderByDisplayOrderAscIdAsc(subcategoryId);
+    }
+
+    /**
+     * Walks every user-facing string in a request and calls {@link TranslationService#toBoth}
+     * up-front, returning a de-duplicated map keyed by the original text. Called outside any
+     * transaction so slow translate calls never hold the SQLite writer lock.
+     */
+    private Map<String, TranslationService.Bilingual> prepareTranslations(
+            String title, String content, String websiteName,
+            Map<String, String> customValues, List<CustomField> fields) {
+        Map<String, TranslationService.Bilingual> out = new HashMap<>();
+        translateIfNeeded(out, title);
+        translateIfNeeded(out, content);
+        translateIfNeeded(out, websiteName);
+        if (customValues != null && fields != null) {
+            for (CustomField f : fields) {
+                if (!TRANSLATABLE_TYPES.contains(f.getType())) continue;
+                String v = customValues.get(f.getFieldKey());
+                translateIfNeeded(out, v);
+            }
+        }
+        return out;
+    }
+
+    private void translateIfNeeded(Map<String, TranslationService.Bilingual> cache, String text) {
+        if (text == null) return;
+        String cleaned = text.trim();
+        if (cleaned.isEmpty() || cache.containsKey(cleaned)) return;
+        cache.put(cleaned, translator.toBoth(cleaned));
+    }
+
+    private TranslationService.Bilingual biOrMirror(Map<String, TranslationService.Bilingual> cache,
+                                                    String text) {
+        if (text == null || text.isBlank()) return new TranslationService.Bilingual("", "");
+        TranslationService.Bilingual b = cache.get(text.trim());
+        return b != null ? b : new TranslationService.Bilingual(text, text);
     }
 
     /**
@@ -169,7 +246,8 @@ public class TicketService {
     }
 
     private Ticket buildTicket(User currentUser, Department dept, Subcategory sub, Project project,
-                               String title, String content, String websiteName, String websiteLink) {
+                               String title, String content, String websiteName, String websiteLink,
+                               Map<String, TranslationService.Bilingual> tr) {
         String cleanUrl = websiteLink == null ? "" : websiteLink.trim();
         if (!cleanUrl.isEmpty()) {
             validateUrl(cleanUrl);
@@ -192,23 +270,23 @@ public class TicketService {
                 .status(TicketStatus.IN_PROGRESS)
                 .build();
 
-        TranslationService.Bilingual titleBi = translator.toBoth(cleanTitle);
+        TranslationService.Bilingual titleBi = biOrMirror(tr, cleanTitle);
         t.setTitleEn(titleBi.en());
         t.setTitleAr(titleBi.ar());
-        TranslationService.Bilingual contentBi = translator.toBoth(cleanContent);
+        TranslationService.Bilingual contentBi = biOrMirror(tr, cleanContent);
         t.setContentEn(contentBi.en());
         t.setContentAr(contentBi.ar());
         if (!cleanName.isBlank()) {
-            TranslationService.Bilingual nameBi = translator.toBoth(cleanName);
+            TranslationService.Bilingual nameBi = biOrMirror(tr, cleanName);
             t.setWebsiteNameEn(nameBi.en());
             t.setWebsiteNameAr(nameBi.ar());
         }
         return t;
     }
 
-    private void applyCustomValues(Ticket ticket, Subcategory sub, Map<String, String> inputs) {
-        List<CustomField> activeFields = customFieldRepository
-                .findAllBySubcategoryIdAndActiveTrueOrderByDisplayOrderAscIdAsc(sub.getId());
+    private void applyCustomValues(Ticket ticket, List<CustomField> activeFields,
+                                   Map<String, String> inputs,
+                                   Map<String, TranslationService.Bilingual> tr) {
         Map<String, String> values = inputs == null ? Map.of() : inputs;
 
         for (CustomField field : activeFields) {
@@ -227,7 +305,7 @@ public class TicketService {
                     .value(stored)
                     .build();
             if (TRANSLATABLE_TYPES.contains(field.getType()) && !stored.isBlank()) {
-                TranslationService.Bilingual bi = translator.toBoth(stored);
+                TranslationService.Bilingual bi = biOrMirror(tr, stored);
                 tfv.setValueEn(bi.en());
                 tfv.setValueAr(bi.ar());
             } else {
@@ -292,6 +370,29 @@ public class TicketService {
     @Transactional
     public void delete(Long id) {
         assertAdminAuthenticated();
+        deleteInternal(id);
+    }
+
+    /**
+     * Delete a ticket the caller owns. Rejects with 403 if the ticket belongs to someone else
+     * or the caller is anonymous. Admins should use {@link #delete(Long)}; this path exists so
+     * a regular user can roll back their own submission when a follow-up step (attachment
+     * upload) fails.
+     */
+    @Transactional
+    public void deleteOwn(Long id, User currentUser) {
+        if (currentUser == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+        }
+        Ticket t = ticketRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ticket not found"));
+        if (!t.getSubmittedBy().getId().equals(currentUser.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
+        deleteInternal(id);
+    }
+
+    private void deleteInternal(Long id) {
         if (!ticketRepository.existsById(id)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ticket not found");
         }

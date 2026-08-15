@@ -6,11 +6,14 @@ import { IconClose } from '../../components/Icons';
 import { Modal } from '../../components/Modal';
 import { StatusPill } from '../../components/StatusPill';
 import { useToast } from '../../components/toast/ToastContext';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { useT } from '../../i18n';
+import { pickLocalized } from '../../i18n/localized';
 
 export function MyTicketsPage() {
   const { t, lang } = useT();
   const toast = useToast();
+  const confirm = useConfirm();
   const [data, setData] = useState<TicketPage | null>(null);
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -20,7 +23,11 @@ export function MyTicketsPage() {
   const [deletingDocId, setDeletingDocId] = useState<number | null>(null);
 
   async function onDeleteDocument(ticketId: number, docId: number) {
-    if (!window.confirm(t('ticket.confirmDeleteDocument'))) return;
+    const ok = await confirm({
+      message: t('ticket.confirmDeleteDocument'),
+      destructive: true,
+    });
+    if (!ok) return;
     setDeletingDocId(docId);
     try {
       await ticketsApi.removeDocument(ticketId, docId);
@@ -116,7 +123,7 @@ export function MyTicketsPage() {
                   <div style={{ fontWeight: 500 }}>#{tk.id} · {tk.title || tk.websiteName || t('admin.tickets.untitled')}</div>
                   <div className="small muted truncate">{tk.content}</div>
                 </td>
-                <td>{tk.departmentName}</td>
+                <td>{pickLocalized(tk, 'departmentName', lang)}</td>
                 <td>
                   <StatusPill status={tk.status} />
                 </td>
@@ -158,9 +165,9 @@ export function MyTicketsPage() {
             <div style={{ marginBottom: '1rem' }}>
               <StatusPill status={selected.status} />
             </div>
-            <Detail label={t('ticket.department')} value={selected.departmentName} />
+            <Detail label={t('ticket.department')} value={pickLocalized(selected, 'departmentName', lang)} />
             {selected.subcategoryName && (
-              <Detail label={t('user.submit.subcategory')} value={selected.subcategoryName} />
+              <Detail label={t('user.submit.subcategory')} value={pickLocalized(selected, 'subcategoryName', lang)} />
             )}
             <Detail label={t('ticket.submittedAt')} value={new Date(selected.submittedAt).toLocaleString(lang === 'ar' ? 'ar-EG' : undefined)} />
             {selected.title && <Detail label={t('ticket.titleLabel')} value={selected.title} />}

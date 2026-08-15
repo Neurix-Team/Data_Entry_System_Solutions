@@ -7,6 +7,7 @@ import com.dataentry.model.User;
 import com.dataentry.repository.TicketDocumentRepository;
 import com.dataentry.repository.TicketRepository;
 import java.util.List;
+import org.apache.tika.Tika;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,6 +20,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -46,13 +48,17 @@ public class TicketDocumentService {
             "reg", "hta", "chm", "lnk", "url", "wsf", "wsh"
     );
 
-    /** Broad allow-list of MIME categories we accept for attachments. Anything else is refused. */
-    private static final Set<String> ALLOWED_MIME_PREFIXES = Set.of(
-            "image/", "text/", "audio/", "video/"
-    );
-
-    /** Specific MIME types that don't fit a prefix and are still allowed. */
+    /**
+     * Narrow allowlist. `text/html`, `image/svg+xml`, `application/xhtml+xml`, and other
+     * script-carrying types are intentionally absent — attachments are served back on the
+     * API origin, so allowing HTML would let a user store a script that runs with any
+     * viewer's session (Stored XSS).
+     */
     private static final Set<String> ALLOWED_MIME_TYPES = Set.of(
+            "image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp", "image/tiff",
+            "audio/mpeg", "audio/mp4", "audio/ogg", "audio/wav", "audio/webm",
+            "video/mp4", "video/webm", "video/ogg", "video/quicktime",
+            "text/plain", "text/csv", "text/markdown",
             "application/pdf",
             "application/msword",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -65,15 +71,16 @@ public class TicketDocumentService {
             "application/vnd.oasis.opendocument.presentation",
             "application/rtf",
             "application/json",
-            "application/xml",
             "application/zip",
             "application/x-zip-compressed",
             "application/x-7z-compressed",
             "application/x-rar-compressed",
             "application/x-tar",
-            "application/gzip",
-            "application/octet-stream" // some browsers send this for uncommon extensions; extension check covers us
+            "application/gzip"
     );
+
+    /** Tika instance for magic-byte detection. Safe to share — Tika.detect is thread-safe. */
+    private static final Tika TIKA = new Tika();
 
     private final TicketRepository ticketRepository;
     private final TicketDocumentRepository documentRepository;
@@ -119,16 +126,24 @@ public class TicketDocumentService {
         if (safeName.length() > 250) safeName = safeName.substring(0, 250);
         String originalFilename = sanitiseFilename(file.getOriginalFilename());
 
-        // Reject risky extensions and MIME types before we touch disk or the quota.
+        // Reject risky extensions first — cheap and covers most obvious cases.
         String ext = extensionOf(originalFilename);
         if (BLOCKED_EXTENSIONS.contains(ext)) {
             throw new ResponseStatusException(HttpStatus.UNSUPPORTED_MEDIA_TYPE,
                     "File type '." + ext + "' is not allowed");
         }
-        String mime = file.getContentType() == null ? "" : file.getContentType().toLowerCase(Locale.ROOT);
-        if (!mime.isBlank() && !isMimeAllowed(mime)) {
+
+        // Sniff the real MIME by content, not the header the browser sent. This is what
+        // catches a `.jpg`-renamed HTML payload that would otherwise be served as an image.
+        String detectedMime;
+        try (InputStream sniff = file.getInputStream()) {
+            detectedMime = TIKA.detect(sniff, originalFilename).toLowerCase(Locale.ROOT);
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Could not read file");
+        }
+        if (!ALLOWED_MIME_TYPES.contains(detectedMime)) {
             throw new ResponseStatusException(HttpStatus.UNSUPPORTED_MEDIA_TYPE,
-                    "File type '" + mime + "' is not allowed");
+                    "File type '" + detectedMime + "' is not allowed");
         }
 
         quota.chargeOrThrow(currentUser.getId(), file.getSize());
@@ -152,7 +167,9 @@ public class TicketDocumentService {
                 .ticket(ticket)
                 .name(safeName)
                 .originalFilename(originalFilename)
-                .contentType(file.getContentType())
+                // Store the *detected* type, not the client-supplied one. This is what the
+                // download endpoint replays, so it must reflect what's really on disk.
+                .contentType(detectedMime)
                 .sizeBytes(file.getSize())
                 .storagePath(ticketId + "/" + storedName)
                 .uploadedAt(Instant.now())
@@ -326,14 +343,6 @@ public class TicketDocumentService {
         int dot = filename.lastIndexOf('.');
         if (dot <= 0 || dot >= filename.length() - 1) return "";
         return filename.substring(dot + 1).toLowerCase(Locale.ROOT);
-    }
-
-    private boolean isMimeAllowed(String mime) {
-        if (ALLOWED_MIME_TYPES.contains(mime)) return true;
-        for (String prefix : ALLOWED_MIME_PREFIXES) {
-            if (mime.startsWith(prefix)) return true;
-        }
-        return false;
     }
 
     public record DownloadHandle(Resource resource, String filename, String contentType, long size) {}

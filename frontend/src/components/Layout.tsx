@@ -83,10 +83,6 @@ export function Layout() {
               <span className="side-icon"><IconFolder /></span>
               {t('nav.subcategories')}
             </NavLink>
-            <NavLink to="/admin/fields" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
-              <span className="side-icon"><IconSettings /></span>
-              {t('nav.fields')}
-            </NavLink>
             <NavLink to="/admin/tickets" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
               <span className="side-icon"><IconTasks /></span>
               {t('nav.tasks')}

@@ -80,17 +80,46 @@ public class AuthController {
                 .build();
     }
 
-    /** IP + lowercased username. Trust X-Forwarded-For only if the deployment sets it via a
-     *  trusted reverse proxy — behind our own Nginx that's fine. */
+    /**
+     * IP + lowercased username. Only trust X-Forwarded-For when the direct peer is on a
+     * private subnet — a public client that ships the header itself would otherwise be able
+     * to rotate its perceived IP and bypass the login rate limiter.
+     */
     private String clientKey(HttpServletRequest http, String username) {
-        String ip = http.getHeader("X-Forwarded-For");
-        if (ip != null && !ip.isBlank()) {
-            int comma = ip.indexOf(',');
-            ip = (comma > 0 ? ip.substring(0, comma) : ip).trim();
-        } else {
-            ip = http.getRemoteAddr();
+        String peer = http.getRemoteAddr();
+        String ip = peer;
+        if (isTrustedProxy(peer)) {
+            String xff = http.getHeader("X-Forwarded-For");
+            if (xff != null && !xff.isBlank()) {
+                int comma = xff.indexOf(',');
+                ip = (comma > 0 ? xff.substring(0, comma) : xff).trim();
+            }
         }
         String u = username == null ? "" : username.trim().toLowerCase();
         return ip + ":" + u;
+    }
+
+    private static boolean isTrustedProxy(String addr) {
+        if (addr == null) return false;
+        // Private IPv4 ranges + loopback + IPv6 loopback + ULA. Requests coming directly
+        // from the public internet will not match, so their XFF is ignored.
+        return addr.startsWith("10.")
+                || addr.startsWith("192.168.")
+                || addr.startsWith("127.")
+                || addr.equals("::1")
+                || addr.startsWith("fd") || addr.startsWith("fc")
+                || matchesRange172(addr);
+    }
+
+    private static boolean matchesRange172(String addr) {
+        if (!addr.startsWith("172.")) return false;
+        int firstDot = addr.indexOf('.', 4);
+        if (firstDot < 0) return false;
+        try {
+            int octet = Integer.parseInt(addr.substring(4, firstDot));
+            return octet >= 16 && octet <= 31;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 }

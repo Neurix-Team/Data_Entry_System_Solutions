@@ -5,6 +5,7 @@ import com.dataentry.model.Role;
 import com.dataentry.model.User;
 import com.dataentry.service.TicketDocumentService;
 import org.springframework.core.io.Resource;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -12,7 +13,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
 /** Attachments: upload/download/delete files hanging off a specific ticket. */
@@ -42,18 +42,29 @@ public class TicketDocumentController {
             @AuthenticationPrincipal User current) {
         TicketDocumentService.DownloadHandle h = service.download(
                 ticketId, docId, current, current.getRole() == Role.ADMIN);
-        String encoded = URLEncoder.encode(h.filename(), StandardCharsets.UTF_8).replace("+", "%20");
+
         MediaType type;
         try {
             type = h.contentType() != null ? MediaType.parseMediaType(h.contentType()) : MediaType.APPLICATION_OCTET_STREAM;
         } catch (Exception e) {
             type = MediaType.APPLICATION_OCTET_STREAM;
         }
+
+        // ContentDisposition.builder handles quoting, RFC 5987 encoding, and CRLF-injection
+        // safety in filenames without manual string glue.
+        ContentDisposition cd = ContentDisposition.attachment()
+                .filename(h.filename() == null ? "file" : h.filename(), StandardCharsets.UTF_8)
+                .build();
+
         return ResponseEntity.ok()
                 .contentType(type)
                 .contentLength(h.size())
-                .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"" + h.filename().replace("\"", "") + "\"; filename*=UTF-8''" + encoded)
+                .header(HttpHeaders.CONTENT_DISPOSITION, cd.toString())
+                // Prevent browsers from second-guessing the Content-Type and executing an
+                // HTML/JS response as script. Paired with the attachment disposition above,
+                // this closes the Stored-XSS path for uploaded files.
+                .header("X-Content-Type-Options", "nosniff")
+                .header("Content-Security-Policy", "default-src 'none'; sandbox")
                 .body(h.resource());
     }
 

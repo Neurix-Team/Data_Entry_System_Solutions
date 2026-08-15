@@ -19,16 +19,17 @@ public class JwtService {
 
     public JwtService(@Value("${app.jwt.secret}") String secret,
                       @Value("${app.jwt.expiration-ms}") long expirationMs) {
-        // Fail fast on the placeholder default from application.yml — this catches deployments
-        // that forgot to override JWT_SECRET.  Also enforce HS256's 32-byte minimum ourselves so
-        // the error is readable instead of the jjwt WeakKeyException stack.
         if (secret == null || secret.isBlank()) {
             throw new IllegalStateException(
                     "JWT_SECRET is missing — set it via env (min 32 chars of high entropy).");
         }
-        if (secret.startsWith("change-me")) {
+        String lower = secret.toLowerCase();
+        if (lower.startsWith("change-me")
+                || lower.contains("please-rotate")
+                || lower.contains("local-dev-secret")) {
             throw new IllegalStateException(
-                    "JWT_SECRET is still the built-in placeholder — override it via env before booting.");
+                    "JWT_SECRET is a known placeholder — generate a real random secret before booting " +
+                    "(e.g. `openssl rand -base64 48`).");
         }
         byte[] bytes = secret.getBytes(StandardCharsets.UTF_8);
         if (bytes.length < 32) {

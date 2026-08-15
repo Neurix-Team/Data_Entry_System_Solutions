@@ -81,6 +81,20 @@ public class TicketController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * User-side delete for tickets the caller owns. Used by the submit form to roll back a
+     * batch when a subsequent attachment upload fails — otherwise the user would be left
+     * with orphan tickets they think succeeded. Admins can also hit this; the service
+     * enforces ownership so a user cannot delete someone else's ticket.
+     */
+    @DeleteMapping("/user/tickets/{id}")
+    public ResponseEntity<Void> deleteMine(
+            @PathVariable Long id,
+            @AuthenticationPrincipal User current) {
+        service.deleteOwn(id, current);
+        return ResponseEntity.noContent().build();
+    }
+
     // ----- Stats & reports (delegate to DashboardService) -----
 
     @GetMapping("/admin/stats")

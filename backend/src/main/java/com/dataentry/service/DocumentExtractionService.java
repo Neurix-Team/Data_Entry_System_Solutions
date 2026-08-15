@@ -2,7 +2,6 @@ package com.dataentry.service;
 
 import com.dataentry.dto.PdfDtos;
 import com.dataentry.model.User;
-import net.sourceforge.tess4j.Tesseract;
 import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
@@ -63,24 +62,21 @@ public class DocumentExtractionService {
     private final PdfExtractionService pdfService;
     private final Tika tika = new Tika();
     private final int maxChars;
-    private final String tessdataPath;
-    private final String ocrLanguages;
     private final OfficeImageExtractor officeImageExtractor;
     private final ExtractionStagingService staging;
+    private final OcrGate ocrGate;
 
     public DocumentExtractionService(
             PdfExtractionService pdfService,
             @Value("${app.pdf.max-chars:2000000}") int maxChars,
-            @Value("${app.ocr.tessdata-path:/usr/share/tesseract-ocr/4.00/tessdata/}") String tessdataPath,
-            @Value("${app.ocr.languages:ara+eng}") String ocrLanguages,
             OfficeImageExtractor officeImageExtractor,
-            ExtractionStagingService staging) {
+            ExtractionStagingService staging,
+            OcrGate ocrGate) {
         this.pdfService = pdfService;
         this.maxChars = maxChars;
-        this.tessdataPath = tessdataPath;
-        this.ocrLanguages = ocrLanguages;
         this.officeImageExtractor = officeImageExtractor;
         this.staging = staging;
+        this.ocrGate = ocrGate;
     }
 
     public PdfDtos.ExtractedContentResponse extract(MultipartFile file) {
@@ -167,9 +163,18 @@ public class DocumentExtractionService {
             String msg = e.getMessage() == null ? "" : e.getMessage();
             if (msg.contains("Your document contained more than")) {
                 warnings.add("Document is very large — extraction stopped at the internal Tika limit");
+                // Retry with a much larger body handler, but keep the hardened parse context so
+                // external entities and DTDs are still refused. Plain `tika.parseToString` would
+                // reopen the XXE hole exactly on the large-document path most exposed to attack.
                 try (InputStream in = Files.newInputStream(file)) {
-                    return tika.parseToString(in);
-                } catch (IOException | TikaException fallback) {
+                    BodyContentHandler bigHandler = new BodyContentHandler(-1);
+                    Metadata metadata = new Metadata();
+                    metadata.set(Metadata.CONTENT_TYPE,
+                            declaredContentType == null ? MimeTypes.OCTET_STREAM : declaredContentType);
+                    metadata.set(TikaCoreProperties.RESOURCE_NAME_KEY, originalName);
+                    new AutoDetectParser().parse(in, bigHandler, metadata, hardenedParseContext());
+                    return bigHandler.toString();
+                } catch (IOException | TikaException | SAXException fallback) {
                     log.warn("Tika fallback failed", fallback);
                 }
             }
@@ -232,10 +237,7 @@ public class DocumentExtractionService {
             tmp = Files.createTempFile("ocr-", "-" + safeName(originalName));
             file.transferTo(tmp.toFile());
 
-            Tesseract tesseract = new Tesseract();
-            tesseract.setDatapath(tessdataPath);
-            tesseract.setLanguage(ocrLanguages);
-            String text = tesseract.doOCR(tmp.toFile());
+            String text = ocrGate.ocrFile(tmp.toFile());
             if (text == null || text.isBlank()) {
                 throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
                         "OCR produced no text from this image");

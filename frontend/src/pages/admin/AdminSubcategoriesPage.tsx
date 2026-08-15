@@ -6,7 +6,9 @@ import { BulkAddModal } from '../../components/BulkAddModal';
 import { IconFolder } from '../../components/Icons';
 import { Modal } from '../../components/Modal';
 import { useToast } from '../../components/toast/ToastContext';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { useT } from '../../i18n';
+import { pickLocalized } from '../../i18n/localized';
 
 interface FormState {
   id?: number;
@@ -20,6 +22,7 @@ const empty: FormState = { departmentId: '', name: '', active: true };
 export function AdminSubcategoriesPage() {
   const { t, lang } = useT();
   const toast = useToast();
+  const confirm = useConfirm();
   const isAr = lang === 'ar';
   const [departments, setDepartments] = useState<Department[]>([]);
   const [items, setItems] = useState<Subcategory[]>([]);
@@ -100,7 +103,11 @@ export function AdminSubcategoriesPage() {
   }
 
   async function onDelete(s: Subcategory) {
-    if (!confirm(t('common.confirmDelete', { name: s.name }))) return;
+    const ok = await confirm({
+      message: t('common.confirmDelete', { name: s.name }),
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await subcategoriesApi.remove(s.id);
       toast.success(isAr ? 'تم حذف التصنيف' : 'Subcategory deleted');
@@ -121,15 +128,17 @@ export function AdminSubcategoriesPage() {
   async function onBulkDelete() {
     const ids = Array.from(selected);
     if (ids.length === 0) return;
-    if (!confirm(isAr
-      ? `تأكيد حذف ${ids.length} تصنيف؟`
-      : `Delete ${ids.length} subcategor${ids.length === 1 ? 'y' : 'ies'}?`
-    )) return;
+    const proceed = await confirm({
+      message: isAr
+        ? `تأكيد حذف ${ids.length} تصنيف؟`
+        : `Delete ${ids.length} subcategor${ids.length === 1 ? 'y' : 'ies'}?`,
+      destructive: true,
+    });
+    if (!proceed) return;
     setBulkDeleting(true);
     let ok = 0; let fail = 0;
-    for (const id of ids) {
-      try { await subcategoriesApi.remove(id); ok++; } catch { fail++; }
-    }
+    const results = await Promise.allSettled(ids.map((id) => subcategoriesApi.remove(id)));
+    for (const r of results) { if (r.status === 'fulfilled') ok++; else fail++; }
     setBulkDeleting(false);
     if (fail === 0) toast.success(isAr ? `تم حذف ${ok} تصنيف` : `Deleted ${ok}`);
     else toast.warning(isAr ? `تم حذف ${ok}، فشل ${fail}` : `Deleted ${ok}, ${fail} failed`);
@@ -140,12 +149,15 @@ export function AdminSubcategoriesPage() {
     const map = new Map<number, { dept: string; items: Subcategory[] }>();
     for (const s of items) {
       if (!map.has(s.departmentId)) {
-        map.set(s.departmentId, { dept: s.departmentName, items: [] });
+        map.set(s.departmentId, {
+          dept: pickLocalized(s, 'departmentName', lang) || s.departmentName,
+          items: [],
+        });
       }
       map.get(s.departmentId)!.items.push(s);
     }
     return Array.from(map.entries()).sort((a, b) => a[1].dept.localeCompare(b[1].dept));
-  }, [items]);
+  }, [items, lang]);
 
   return (
     <div className="page">
@@ -190,7 +202,7 @@ export function AdminSubcategoriesPage() {
         >
           <option value="">{t('common.all')}</option>
           {departments.map(d => (
-            <option key={d.id} value={d.id}>{d.name}</option>
+            <option key={d.id} value={d.id}>{pickLocalized(d, 'name', lang)}</option>
           ))}
         </select>
       </div>
@@ -216,7 +228,7 @@ export function AdminSubcategoriesPage() {
                       />
                     </label>
                     <div className="dept-card-head">
-                      <div className="dept-card-name">{s.name}</div>
+                      <div className="dept-card-name">{pickLocalized(s, 'name', lang)}</div>
                       <span className={`badge ${s.active ? 'badge-active' : 'badge-inactive'}`}>
                         {s.active ? t('common.active') : t('common.inactive')}
                       </span>
@@ -267,7 +279,7 @@ export function AdminSubcategoriesPage() {
             >
               <option value="">{t('admin.subcategories.chooseDept')}</option>
               {departments.map(d => (
-                <option key={d.id} value={d.id}>{d.name}</option>
+                <option key={d.id} value={d.id}>{pickLocalized(d, 'name', lang)}</option>
               ))}
             </select>
           </div>
