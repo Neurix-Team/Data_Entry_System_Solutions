@@ -159,8 +159,15 @@ export function AdminUsersPage() {
     if (!proceed) return;
     setBulkDeleting(true);
     let ok = 0; let fail = 0;
-    const results = await Promise.allSettled(ids.map((id) => usersApi.remove(id)));
-    for (const r of results) { if (r.status === 'fulfilled') ok++; else fail++; }
+    // Serial — SQLite is single-writer, parallel deletes drop into SQLITE_BUSY.
+    for (const id of ids) {
+      try {
+        await usersApi.remove(id);
+        ok++;
+      } catch {
+        fail++;
+      }
+    }
     setBulkDeleting(false);
     if (fail === 0) toast.success(isAr ? `تم حذف ${ok} مستخدم` : `Deleted ${ok} user${ok === 1 ? '' : 's'}`);
     else toast.warning(isAr ? `تم حذف ${ok}، فشل ${fail}` : `Deleted ${ok}, ${fail} failed`);

@@ -9,5 +9,6 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
     List<Department> findAllByActiveTrueOrderByNameAsc();
     List<Department> findAllByActiveTrueAndProjectIdOrderByNameAsc(Long projectId);
     List<Department> findAllByActiveTrueAndProjectIdInOrderByNameAsc(java.util.Collection<Long> projectIds);
+    List<Department> findAllByProjectId(Long projectId);
     boolean existsByNameIgnoreCase(String name);
 }

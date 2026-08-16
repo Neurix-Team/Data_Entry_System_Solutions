@@ -147,9 +147,16 @@ export function AdminTicketsPage() {
     if (!proceed) return;
     setBulkDeleting(true);
     let ok = 0; let fail = 0;
-    // Fire all deletes in parallel so a large selection doesn't lock up the UI serially.
-    const results = await Promise.allSettled(ids.map((id) => ticketsApi.remove(id)));
-    for (const r of results) { if (r.status === 'fulfilled') ok++; else fail++; }
+    // Serial — SQLite only accepts one writer at a time. Parallel Promise.allSettled
+    // triggered SQLITE_BUSY on all but the first request and left most rows undeleted.
+    for (const id of ids) {
+      try {
+        await ticketsApi.remove(id);
+        ok++;
+      } catch {
+        fail++;
+      }
+    }
     setBulkDeleting(false);
     if (fail === 0) toast.success(isAr ? `تم حذف ${ok} تذكرة` : `Deleted ${ok}`);
     else toast.warning(isAr ? `تم حذف ${ok}، فشل ${fail}` : `Deleted ${ok}, ${fail} failed`);

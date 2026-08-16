@@ -137,8 +137,16 @@ export function AdminSubcategoriesPage() {
     if (!proceed) return;
     setBulkDeleting(true);
     let ok = 0; let fail = 0;
-    const results = await Promise.allSettled(ids.map((id) => subcategoriesApi.remove(id)));
-    for (const r of results) { if (r.status === 'fulfilled') ok++; else fail++; }
+    // Serial — see AdminProjectsPage note; SQLite doesn't tolerate concurrent writers so
+    // Promise.allSettled would leave most rows behind with a SQLITE_BUSY error.
+    for (const id of ids) {
+      try {
+        await subcategoriesApi.remove(id);
+        ok++;
+      } catch {
+        fail++;
+      }
+    }
     setBulkDeleting(false);
     if (fail === 0) toast.success(isAr ? `تم حذف ${ok} تصنيف` : `Deleted ${ok}`);
     else toast.warning(isAr ? `تم حذف ${ok}، فشل ${fail}` : `Deleted ${ok}, ${fail} failed`);

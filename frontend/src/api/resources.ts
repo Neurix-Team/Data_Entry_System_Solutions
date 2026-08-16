@@ -48,9 +48,13 @@ export const departmentsApi = {
       params: projectId ? { projectId } : {},
       signal,
     }).then(r => r.data),
-  create: (name: string, active = true) =>
-    api.post<Department>('/admin/departments', { name, active }).then(r => r.data),
-  update: (id: number, payload: { name: string; active?: boolean }) =>
+  create: (payload: { name: string; projectId: number; active?: boolean }) =>
+    api.post<Department>('/admin/departments', {
+      name: payload.name,
+      projectId: payload.projectId,
+      active: payload.active ?? true,
+    }).then(r => r.data),
+  update: (id: number, payload: { name: string; projectId: number; active?: boolean }) =>
     api.patch<Department>(`/admin/departments/${id}`, payload).then(r => r.data),
   remove: (id: number) => api.delete(`/admin/departments/${id}`).then(() => undefined),
 };
@@ -61,11 +65,21 @@ export const subcategoriesApi = {
     api.get<Subcategory[]>('/admin/subcategories', {
       params: departmentId ? { departmentId } : {},
     }).then(r => r.data),
-  userList: (departmentId?: number, signal?: AbortSignal) =>
-    api.get<Subcategory[]>('/subcategories', {
-      params: departmentId ? { departmentId } : {},
-      signal,
-    }).then(r => r.data),
+  /**
+   * User-visible list. Pass {@code departmentId} to filter to one department, or
+   * {@code projectId} to get every active subcategory under a project (across all
+   * of that project's departments). With no filter the server scopes to the
+   * caller's assigned projects.
+   */
+  userList: (
+    filter?: { departmentId?: number | null; projectId?: number | null },
+    signal?: AbortSignal,
+  ) => {
+    const params: Record<string, number> = {};
+    if (filter?.departmentId) params.departmentId = filter.departmentId;
+    if (filter?.projectId) params.projectId = filter.projectId;
+    return api.get<Subcategory[]>('/subcategories', { params, signal }).then(r => r.data);
+  },
   create: (payload: { departmentId: number; name: string; active?: boolean }) =>
     api.post<Subcategory>('/admin/subcategories', payload).then(r => r.data),
   update: (id: number, payload: { departmentId: number; name: string; active?: boolean }) =>
@@ -104,7 +118,7 @@ export const ticketsApi = {
     customValues: Record<string, string>;
   }) => api.post<Ticket>('/user/tickets', payload).then(r => r.data),
   submitBulk: (payload: {
-    departmentId: number;
+    departmentId?: number | null;
     subcategoryId: number;
     projectId?: number | null;
     articles: ArticleInput[];

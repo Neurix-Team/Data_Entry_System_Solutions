@@ -30,6 +30,12 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
 
     long countBySubcategoryId(Long subcategoryId);
 
+    List<Ticket> findAllByDepartmentId(Long departmentId);
+
+    List<Ticket> findAllBySubcategoryId(Long subcategoryId);
+
+    List<Ticket> findAllByProjectId(Long projectId);
+
     // ----- derived-name aggregations (used by AdminStats) -----
 
     long countByStatus(TicketStatus status);

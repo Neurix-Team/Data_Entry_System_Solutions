@@ -67,12 +67,90 @@ public class DataSeeder implements CommandLineRunner {
     public void run(String... args) {
         if (!seedEnabled) return;
 
+        migrateSchema();
         seedUsers();
         seedDepartments();
         seedSubcategoriesPerDepartment();
         seedCustomFields();
         backfillLegacyRows();
         backfillTranslations();
+    }
+
+    /**
+     * Startup schema patches for cases Hibernate's {@code ddl-auto=update} can't handle on
+     * SQLite. Currently just one entry: legacy databases created before departments became
+     * optional at project-create time have {@code projects.department_id NOT NULL}, and
+     * SQLite has no {@code ALTER COLUMN DROP NOT NULL} — the only way to relax it is to
+     * rebuild the table. Idempotent: if the column is already nullable this method is a
+     * no-op.
+     */
+    private void migrateSchema() {
+        // Clean up any orphaned rows that earlier half-completed deletes left behind. Two
+        // patterns show up: TicketFieldValues pointing at a CustomField that no longer
+        // exists (breaks the whole ticket list because the EntityGraph tries to load the
+        // missing field), and TicketDocuments/TicketResources pointing at a deleted ticket.
+        try {
+            int fv = jdbc.update("DELETE FROM ticket_field_values WHERE field_id NOT IN (SELECT id FROM custom_fields)");
+            int t1 = jdbc.update("DELETE FROM ticket_field_values WHERE ticket_id NOT IN (SELECT id FROM tickets)");
+            int t2 = jdbc.update("DELETE FROM ticket_documents WHERE ticket_id NOT IN (SELECT id FROM tickets)");
+            int t3 = jdbc.update("DELETE FROM ticket_resources WHERE ticket_id NOT IN (SELECT id FROM tickets)");
+            if (fv + t1 + t2 + t3 > 0) {
+                log.info("Cleaned orphaned rows — field_values(dangling field)={}, "
+                        + "field_values(dangling ticket)={}, documents={}, resources={}",
+                        fv, t1, t2, t3);
+            }
+        } catch (Exception e) {
+            log.warn("Orphan cleanup skipped: {}", e.getMessage());
+        }
+
+        try {
+            Integer notNull = jdbc.queryForObject(
+                    "select \"notnull\" from pragma_table_info('projects') where name = 'department_id'",
+                    Integer.class);
+            if (notNull == null || notNull == 0) return;
+
+            log.info("Migrating projects.department_id to NULLABLE (legacy schema).");
+            // Skip the explicit BEGIN/COMMIT — Spring's @Transactional already owns the
+            // connection, so issuing BEGIN in here would blow up with "cannot start a
+            // transaction within a transaction". Each DDL executes inside the outer tx and
+            // rolls back atomically if any statement throws.
+            jdbc.execute("PRAGMA foreign_keys=OFF");
+            try {
+                jdbc.execute("""
+                        CREATE TABLE projects_new (
+                          id INTEGER PRIMARY KEY AUTOINCREMENT,
+                          name VARCHAR(200) NOT NULL,
+                          name_en VARCHAR(200),
+                          name_ar VARCHAR(200),
+                          subtitle VARCHAR(250),
+                          subtitle_en VARCHAR(250),
+                          subtitle_ar VARCHAR(250),
+                          department_id INTEGER,
+                          start_date DATE,
+                          end_date DATE,
+                          progress INTEGER NOT NULL DEFAULT 0,
+                          status VARCHAR(20) NOT NULL DEFAULT 'ON_TRACK',
+                          created_at TIMESTAMP NOT NULL
+                        )
+                        """);
+                jdbc.execute("""
+                        INSERT INTO projects_new
+                          (id, name, name_en, name_ar, subtitle, subtitle_en, subtitle_ar,
+                           department_id, start_date, end_date, progress, status, created_at)
+                        SELECT
+                          id, name, name_en, name_ar, subtitle, subtitle_en, subtitle_ar,
+                          department_id, start_date, end_date, progress, status, created_at
+                        FROM projects
+                        """);
+                jdbc.execute("DROP TABLE projects");
+                jdbc.execute("ALTER TABLE projects_new RENAME TO projects");
+            } finally {
+                jdbc.execute("PRAGMA foreign_keys=ON");
+            }
+            log.info("projects.department_id is now nullable.");
+        } catch (Exception e) {
+            log.warn("Skipping projects.department_id migration: {}", e.getMessage());
+        }
     }
 
     private void seedUsers() {

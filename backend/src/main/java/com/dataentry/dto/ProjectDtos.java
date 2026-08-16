@@ -8,13 +8,14 @@ import java.util.Set;
 
 public class ProjectDtos {
 
-    /** Create or update payload. departmentIds is required (min 1) — a project must own at
-     *  least one department. The old single-departmentId field stays optional for backwards
-     *  compatibility with older frontend versions; when both are set, departmentIds wins. */
+    /** Create or update payload. {@code departmentIds} is optional — a project can be created
+     *  before any departments exist under it (the admin flow is "make the project first,
+     *  then add departments to it"). If existing departments are passed they get re-parented
+     *  onto this project. The old single-departmentId field stays for backwards compatibility. */
     public record UpsertProjectRequest(
             @NotBlank @Size(max = 200) String name,
             @Size(max = 250) String subtitle,
-            @NotEmpty(message = "At least one department is required") List<Long> departmentIds,
+            List<Long> departmentIds,
             /** Legacy single-department pointer — accepted but ignored when departmentIds is present. */
             Long departmentId,
             Set<Long> memberIds,

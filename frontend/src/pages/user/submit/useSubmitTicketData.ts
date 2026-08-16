@@ -14,9 +14,16 @@ import type {
 } from '../../../api/types';
 
 /**
- * The chained project → department → subcategory → fields dropdowns each need their own
- * fetch, and every parent selection must clear the child's state so the user never sees a
- * stale list. Grouping all of that here keeps SubmitTicketPage focused on submission logic.
+ * The dropdowns on the submit form each need their own fetch, and every parent selection
+ * must clear the child's state so the user never sees a stale list. Grouping all of that
+ * here keeps SubmitTicketPage focused on submission logic.
+ *
+ * Scoping rules the hook enforces:
+ *   • Projects come from the admin-assigned membership list. If exactly one is returned
+ *     it is auto-selected so the user doesn't have to touch the picker at all.
+ *   • Departments load from that project (empty when no project is picked yet).
+ *   • Subcategories load from the picked department if one is chosen, or from the whole
+ *     project when the user leaves the (now optional) department picker empty.
  *
  * Every request runs behind an AbortController so a fast dropdown change doesn't let an
  * older, slower response overwrite the newer one.
@@ -48,20 +55,30 @@ export function useSubmitTicketData(): UseSubmitTicketDataResult {
   const [departmentId, setDepartmentId] = useState('');
   const [subcategoryId, setSubcategoryId] = useState('');
 
+  // Fetch the projects the caller is a member of. When the admin assigned exactly one
+  // project we lock that in immediately so the form arrives pre-scoped.
   useEffect(() => {
-    // Projects are optional on a ticket — silently drop the list if the request fails
-    // (e.g. the /api/projects endpoint isn't deployed yet on an older backend).
     const ctrl = new AbortController();
-    projectsApi.userList(ctrl.signal).then(setProjects).catch(() => setProjects([]));
+    projectsApi.userList(ctrl.signal)
+      .then((list) => {
+        setProjects(list);
+        if (list.length === 1) setProjectId(String(list[0].id));
+      })
+      .catch(() => setProjects([]));
     return () => ctrl.abort();
   }, []);
 
-  // Fetch departments whenever project scope changes. AbortController stops a stale
-  // response from overwriting a fresher one if the user changes the dropdown quickly.
+  // Departments live inside the picked project. Nothing to show until the user (or the
+  // auto-select above) has committed to a project.
   useEffect(() => {
+    if (!projectId) {
+      setDepartments([]);
+      setLoading(false);
+      return;
+    }
     const ctrl = new AbortController();
-    const pid = projectId ? Number(projectId) : undefined;
-    departmentsApi.userList(pid, ctrl.signal)
+    setLoading(true);
+    departmentsApi.userList(Number(projectId), ctrl.signal)
       .then(setDepartments)
       .catch((e) => { if (!ctrl.signal.aborted) setLoadError(extractError(e)); })
       .finally(() => { if (!ctrl.signal.aborted) setLoading(false); });
@@ -76,18 +93,26 @@ export function useSubmitTicketData(): UseSubmitTicketDataResult {
     setFields([]);
   }, [projectId]);
 
+  // Subcategories: prefer department scope when the user picks one, otherwise widen to
+  // the whole project so a user with a single subcategory doesn't have to touch the
+  // department picker at all.
   useEffect(() => {
-    if (!departmentId) {
+    if (!projectId && !departmentId) {
       setSubcategories([]);
       return;
     }
     const ctrl = new AbortController();
-    subcategoriesApi.userList(Number(departmentId), ctrl.signal)
+    const filter = departmentId
+      ? { departmentId: Number(departmentId) }
+      : { projectId: Number(projectId) };
+    subcategoriesApi.userList(filter, ctrl.signal)
       .then(setSubcategories)
       .catch((e) => { if (!ctrl.signal.aborted) setLoadError(extractError(e)); });
     return () => ctrl.abort();
-  }, [departmentId]);
+  }, [projectId, departmentId]);
 
+  // A subcategory chosen under the "any department" mode is still valid if the user then
+  // picks a department; only reset the child selections when the department itself moves.
   useEffect(() => {
     setSubcategoryId('');
     setFields([]);

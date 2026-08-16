@@ -23,4 +23,6 @@ public interface SubcategoryRepository extends JpaRepository<Subcategory, Long> 
     boolean existsByDepartmentIdAndNameIgnoreCase(Long departmentId, String name);
 
     long countByDepartmentId(Long departmentId);
+
+    List<Subcategory> findAllByDepartmentId(Long departmentId);
 }

@@ -35,6 +35,8 @@ export interface Department {
   nameEn?: string | null;
   nameAr?: string | null;
   active: boolean;
+  projectId?: number | null;
+  projectName?: string | null;
 }
 
 export interface Subcategory {

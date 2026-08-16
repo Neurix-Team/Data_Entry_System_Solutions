@@ -701,7 +701,7 @@
   <dl class="cover-meta">
     <div>
       <dt>Document</dt>
-      <dd>Technical Documentation<br><span class="muted">Version 1.0</span></dd>
+      <dd>Technical Documentation<br><span class="muted">Version 1.1</span></dd>
     </div>
     <div>
       <dt>Author</dt>
@@ -1104,6 +1104,12 @@
   <p>A ticket has a fixed core (<em>title, department, subcategory, content, status, created-at, submitted-by</em>) and a variable body (<em>custom-field values</em>). Statuses are: <code>IN_PROGRESS</code>, <code>REVIEW</code>, <code>COMPLETED</code>. There's also an implicit <code>OVERDUE</code> that's derived from the submitted-at timestamp — not a real DB status.</p>
 
   <p>Agents can attach documents. Uploads go through <code>UploadQuotaService</code> (which enforces per-user daily quotas) and, for PDFs, through <code>PdfExtractionService</code> or <code>PdfOcrService</code> depending on whether the PDF is a text PDF or a scan. The extracted text pre-fills the content field.</p>
+
+  <p><strong>Two submission surfaces per article.</strong> The submit form exposes two independent tabs — <em>Write article</em> (title + content) and <em>Attach files</em> (documents + resource links). Each tab validates only its own fields, so an agent whose payload is a pure attachment bundle no longer has to invent a title just to satisfy the form. The DTO layer mirrors this: <code>ArticleRequest.title</code> and <code>ArticleRequest.content</code> are now optional and the frontend requires at least one attachment or resource link before letting a blank-text article through.</p>
+
+  <p><strong>Universal document extractor.</strong> <code>DocumentExtractionService</code> is the single entry point for text extraction across PDFs, Word / Excel / PowerPoint, OpenDocument, RTF, images (JPG/PNG/TIFF), plain text, HTML, JSON and more. It routes PDFs to <code>PdfExtractionService</code> (with an OCR fallback for scans and RTL text), images to Tess4J, and everything else through Apache Tika with hardened XML parser factories that refuse DTDs and external entities so a malicious .docx cannot exfiltrate via XXE. Embedded images from PDF / Office / ODF files are pulled into a per-user staging directory and can be promoted into the ticket's attachments on submit.</p>
+
+  <p><strong>Translation prep is its own component.</strong> <code>TicketTranslationPreparer</code> (extracted from <code>TicketService</code>) walks every user-facing string once, de-duplicates by trimmed text, and hands back a cache the transactional path reads from. Only text-shaped custom fields (TEXT / TEXTAREA / SELECT) round-trip through the translator; numbers, URLs, dates and emails mirror as-is. The dedup guarantees are covered by <code>TicketTranslationPreparerTest</code>.</p>
 
   <h2>AI content check</h2>
 
@@ -1589,11 +1595,13 @@
   <table>
     <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Purpose</th></tr></thead>
     <tbody>
-      <tr><td><span class="method method-POST">POST</span></td><td><code>/user/tickets</code></td><td>any</td><td>Submit a new ticket</td></tr>
+      <tr><td><span class="method method-POST">POST</span></td><td><code>/user/tickets</code></td><td>any</td><td>Submit a single ticket</td></tr>
+      <tr><td><span class="method method-POST">POST</span></td><td><code>/user/tickets/bulk</code></td><td>any</td><td>Submit N articles as N tickets in one transaction — title/content optional so attachments-only articles are accepted</td></tr>
       <tr><td><span class="method method-GET">GET</span></td><td><code>/user/tickets?page=&amp;size=</code></td><td>any</td><td>The current user's own tickets</td></tr>
       <tr><td><span class="method method-GET">GET</span></td><td><code>/admin/tickets?page=&amp;size=</code></td><td>ADMIN</td><td>Every ticket, with filters</td></tr>
       <tr><td><span class="method method-GET">GET</span></td><td><code>/tickets/{id}</code></td><td>any (own) · ADMIN (any)</td><td>Single ticket, with all field values</td></tr>
-      <tr><td><span class="method method-DELETE">DELETE</span></td><td><code>/admin/tickets/{id}</code></td><td>ADMIN</td><td>Delete a ticket</td></tr>
+      <tr><td><span class="method method-DELETE">DELETE</span></td><td><code>/user/tickets/{id}</code></td><td>any (own)</td><td>Delete one of the caller's own tickets (used for bulk-submit rollback)</td></tr>
+      <tr><td><span class="method method-DELETE">DELETE</span></td><td><code>/admin/tickets/{id}</code></td><td>ADMIN</td><td>Delete any ticket</td></tr>
     </tbody>
   </table>
 
@@ -1610,7 +1618,12 @@
   <table>
     <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Purpose</th></tr></thead>
     <tbody>
-      <tr><td><span class="method method-POST">POST</span></td><td><code>/documents/extract</code></td><td>any</td><td>Upload a PDF / image, get back extracted text</td></tr>
+      <tr><td><span class="method method-POST">POST</span></td><td><code>/user/documents/extract</code></td><td>any</td><td>Multipart upload of a PDF / Office / image / text file → returns extracted text + any embedded images staged for promotion</td></tr>
+      <tr><td><span class="method method-POST">POST</span></td><td><code>/user/pdf/extract</code></td><td>any</td><td>Legacy PDF-only extraction endpoint — kept for callers pinned to the older path</td></tr>
+      <tr><td><span class="method method-POST">POST</span></td><td><code>/tickets/{ticketId}/documents</code></td><td>any (own) · ADMIN</td><td>Attach a file to an existing ticket (multipart/form-data only — see media-type note below)</td></tr>
+      <tr><td><span class="method method-GET">GET</span></td><td><code>/tickets/{ticketId}/documents/{docId}</code></td><td>any (own) · ADMIN</td><td>Download an attachment, served with CSP + <code>nosniff</code> so a stored HTML/SVG cannot execute in the viewer's session</td></tr>
+      <tr><td><span class="method method-DELETE">DELETE</span></td><td><code>/tickets/{ticketId}/documents/{docId}</code></td><td>any (own) · ADMIN</td><td>Remove an attachment</td></tr>
+      <tr><td><span class="method method-GET">GET</span></td><td><code>/user/extractions/{id}/images/{filename}</code></td><td>owner</td><td>Fetch a staged image the extractor pulled out of a document, before the ticket is submitted</td></tr>
       <tr><td><span class="method method-GET">GET</span></td><td><code>/admin/audit-log</code></td><td>ADMIN</td><td>Append-only history of every write action</td></tr>
       <tr><td><span class="method method-GET">GET</span></td><td><code>/pdf/{ticketId}</code></td><td>ADMIN or owner</td><td>Rendered PDF of a submitted ticket</td></tr>
     </tbody>
@@ -1618,6 +1631,10 @@
 
   <div class="callout tip">
     <p>All non-public endpoints accept the JWT via either the <code>Authorization: Bearer &lt;token&gt;</code> header or the httpOnly auth cookie. The frontend uses the cookie; direct API consumers can use either.</p>
+  </div>
+
+  <div class="callout">
+    <p><strong>Content-Type note.</strong> The upload endpoints under <code>/documents</code> and <code>/tickets/{id}/documents</code> only accept <code>multipart/form-data</code>. Sending JSON to them now returns a clean <code>415 Unsupported Media Type</code> (handled explicitly in <code>GlobalExceptionHandler</code>) instead of the previous opaque <code>500 Unexpected server error</code>. Browser callers must let the browser set the boundary — do not hard-code <code>Content-Type: application/json</code> on the shared axios instance, or the multipart request will be misrouted.</p>
   </div>
 </section>
 
@@ -1849,6 +1866,24 @@ npm run build     # tsc -b then vite build
 
   <p>The build is set up to fail on TypeScript errors — the <code>tsc -b</code> step runs before <code>vite build</code>. If you want a quick type-check without a full build, run <code>npx tsc -b --noEmit</code>.</p>
 
+  <h2>Running the tests</h2>
+
+  <p>Backend tests live under <code>backend/src/test/java/com/dataentry/</code> and cover both pure service logic (<code>TicketServiceTest</code>, <code>TicketTranslationPreparerTest</code>, <code>PdfOcrServiceTest</code>, <code>DashboardServiceTest</code>, <code>TicketRepositoryTest</code>) and MockMvc web-layer tests (<code>TicketDocumentUploadMvcTest</code>, <code>TicketBulkSubmitMvcTest</code>). The MockMvc suite spins up the full Spring context against H2 with security filters disabled, and asserts the routing invariants the frontend depends on — most importantly that the multipart upload endpoint returns <code>415</code> when a client accidentally posts JSON to it (the exact regression that motivated the axios client fix).</p>
+
+<pre><code># Run everything, with a persistent Maven cache mounted from a named Docker volume:
+docker run --rm \
+  -v "$PWD/backend:/build" \
+  -v "dems-mvn-cache:/root/.m2" \
+  -w /build maven:3.9-eclipse-temurin-17 \
+  mvn -B test
+
+# Or a subset while iterating:
+mvn -B test -Dtest=TicketBulkSubmitMvcTest</code></pre>
+
+  <p>The <code>src/test/resources/application.yml</code> profile swaps SQLite for in-memory H2 and sets a throwaway JWT secret so the context boots without touching real credentials.</p>
+
+  <p>Frontend tests are not wired up yet — this is the largest remaining gap in the codebase. If you add them, use Vitest for units and Playwright for the end-to-end submit / upload flow that keeps regressing.</p>
+
   <h2>The design detector hook</h2>
 
   <p>If you're using the Impeccable skill, the design detector runs after every edit to a UI file. It flags common anti-patterns (gradient text, oversaturated palettes, decoration for its own sake). The rules live in the skill config; per-file suppressions go in <code>.impeccable/config.json</code>.</p>
@@ -2054,7 +2089,21 @@ lsof -ti:5173 | xargs kill</code></pre>
     <li><strong>Bulk import.</strong> Uploading a CSV and mapping columns to fields. A common request from ops.</li>
     <li><strong>Email notifications.</strong> On status changes and daily digests for admins.</li>
     <li><strong>SSO.</strong> SAML or OIDC integration for enterprise deployments.</li>
-    <li><strong>Test coverage.</strong> There isn't much yet. This is the single biggest debt in the codebase.</li>
+    <li><strong>Frontend tests.</strong> Backend now has web-layer regression coverage for the upload &amp; submit paths (see Chapter 11), but the React side is still untested. Vitest for components and Playwright for the end-to-end submit flow are the natural next step.</li>
+  </ul>
+
+  <h2>Recent refinements (v1.1)</h2>
+
+  <p>Changes shipped since v1.0 that either fixed sharp edges or paid down structural debt:</p>
+
+  <ul>
+    <li><strong>Attachments-only tickets.</strong> The submit form's two tabs are now fully independent — an article with files but no written body is a valid submission, and the DTO validation (<code>ArticleRequest</code>) was relaxed to match. See Chapter 5.</li>
+    <li><strong>Universal document extractor.</strong> <code>DocumentExtractionService</code> replaces the PDF-only path with a Tika-backed pipeline for Word / Excel / PowerPoint / ODF / RTF / images, with XXE-hardened parsers and a per-user image staging area.</li>
+    <li><strong>axios FormData fix.</strong> The shared axios instance no longer hard-codes <code>Content-Type: application/json</code>; the browser now injects the multipart boundary correctly. Regression is guarded by <code>TicketDocumentUploadMvcTest</code>.</li>
+    <li><strong>Clean 415 on wrong media type.</strong> <code>GlobalExceptionHandler</code> now catches <code>HttpMediaTypeNotSupportedException</code> explicitly and returns a targeted <code>415</code> instead of the generic <code>500 "Unexpected server error"</code>.</li>
+    <li><strong>Extracted <code>TicketTranslationPreparer</code>.</strong> Translation dedup logic lifted out of <code>TicketService</code> into its own component. <code>TicketService</code> shrank from 536 → 500 lines; new unit test <code>TicketTranslationPreparerTest</code> covers the dedup / blank-skip / textlike-only guarantees.</li>
+    <li><strong>Extracted <code>useSubmitTicketData</code>.</strong> All reference-data loading and cascade-reset effects moved out of <code>SubmitTicketPage.tsx</code> into a dedicated hook. The page dropped from 645 → 566 lines.</li>
+    <li><strong>Web-layer test suite.</strong> New MockMvc tests: <code>TicketDocumentUploadMvcTest</code> (multipart→200, JSON→415), <code>TicketBulkSubmitMvcTest</code> (blank title/content accepted, empty article list still rejected). 18/18 tests currently pass.</li>
   </ul>
 
   <h2>Deliberately not on the list</h2>
@@ -2079,19 +2128,28 @@ lsof -ti:5173 | xargs kill</code></pre>
 ├── backend/
 │   ├── pom.xml                          Maven build, Spring Boot parent
 │   ├── Dockerfile                       Multi-stage: builder → JRE
-│   └── src/main/
-│       ├── java/com/dataentry/
+│   └── src/
+│       ├── main/java/com/dataentry/
 │       │   ├── DataEntryApplication.java    entry point
-│       │   ├── config/                      SecurityConfig, CorsConfig, ...
-│       │   ├── controller/                  12 REST controllers
-│       │   ├── service/                     20 Spring services
-│       │   ├── model/                       13 JPA entities + enums
+│       │   ├── config/                      SecurityConfig, GlobalExceptionHandler, ...
+│       │   ├── controller/                  16 REST controllers
+│       │   ├── service/                     25 Spring services (incl. TicketTranslationPreparer,
+│       │   │                                DocumentExtractionService, ExtractionStagingService)
+│       │   ├── model/                       16 JPA entities + enums
 │       │   ├── repository/                  Spring Data interfaces
 │       │   ├── dto/                         Request/response records
 │       │   └── security/                    JWT filter, user details
-│       └── resources/
-│           ├── application.yml              config: DB, CORS, JWT
-│           └── db/                          seed data, migrations
+│       ├── main/resources/
+│       │   ├── application.yml              config: DB, CORS, JWT
+│       │   └── db/                          seed data, migrations
+│       └── test/                        JUnit 5 + MockMvc, H2 in-memory
+│           ├── java/com/dataentry/
+│           │   ├── controller/              TicketBulkSubmitMvcTest,
+│           │   │                            TicketDocumentUploadMvcTest
+│           │   ├── service/                 TicketServiceTest, PdfOcrServiceTest,
+│           │   │                            DashboardServiceTest, TicketTranslationPreparerTest
+│           │   └── repository/              TicketRepositoryTest
+│           └── resources/application.yml   test profile — H2 + throwaway secrets
 │
 ├── frontend/
 │   ├── package.json                     React 18, TS 5, Vite 5
@@ -2106,10 +2164,14 @@ lsof -ti:5173 | xargs kill</code></pre>
 │       ├── App.tsx                      route tree
 │       ├── main.tsx                     mounts &lt;App /&gt; with providers
 │       ├── api/                         axios wrappers per resource
+│       │   └── client.ts                shared axios instance — no default
+│       │                                Content-Type, so FormData works
 │       ├── components/                  Layout, Modal, chat/, auth/, ...
 │       ├── context/                     Auth, Theme, Preferences
 │       ├── i18n/                        en.ts + ar.ts dictionaries
 │       ├── pages/                       24 pages (admin/, user/, login)
+│       │   └── user/submit/             ArticleCard, DocumentUploadDialog,
+│       │                                useArticles, useSubmitTicketData
 │       └── styles/global.css            the design system, 2.5k lines
 │
 ├── docker-compose.yml                   3 services: frontend, backend, translate
@@ -2126,7 +2188,7 @@ lsof -ti:5173 | xargs kill</code></pre>
   </ul>
 
   <div class="footer-mark">
-    Neurix Technical Documentation · Living document · Last updated August 2026
+    Neurix Technical Documentation · Living document · Last updated August 2026 · v1.1
   </div>
 </section>
 
@@ -2174,7 +2236,7 @@ lsof -ti:5173 | xargs kill</code></pre>
   </table>
 
   <div class="footer-mark">
-    End of document · Neurix Technical Documentation · v1.0
+    End of document · Neurix Technical Documentation · v1.1
   </div>
 </section>
 

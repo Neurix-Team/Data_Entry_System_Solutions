@@ -54,8 +54,7 @@ public class DepartmentController {
     //   - projectId given             → only departments of that project (scoped to member for USER)
     //   - ADMIN with no projectId     → all active departments
     //   - USER member of ≥1 project   → union of departments of the user's member projects
-    //   - USER member of no projects  → fallback to all active departments so the user can still
-    //                                   submit tickets (matches the pre-scoping behaviour)
+    //   - USER member of no projects  → empty list (admin hasn't scoped them yet)
     @GetMapping("/departments")
     public List<DepartmentDtos.DepartmentResponse> userList(
             @RequestParam(required = false) Long projectId,
@@ -71,8 +70,7 @@ public class DepartmentController {
         List<Long> memberProjectIds = projectRepository.findAllByMemberId(current.getId())
                 .stream().map(p -> p.getId()).toList();
         if (memberProjectIds.isEmpty()) {
-            // No project membership → don't block ticket submission; show all active.
-            return service.listActive();
+            return List.of();
         }
         return service.listActiveByProjects(memberProjectIds);
     }

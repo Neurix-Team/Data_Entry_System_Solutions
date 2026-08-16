@@ -14,7 +14,7 @@ import java.util.Map;
 public class TicketDtos {
 
     public record CreateTicketRequest(
-            @NotNull Long departmentId,
+            Long departmentId,
             @NotNull Long subcategoryId,
             Long projectId,
             @NotBlank @Size(max = 500) String title,
@@ -77,10 +77,13 @@ public class TicketDtos {
             @Valid List<ExtractedImageRef> extractedImages
     ) {}
 
-    /** Bulk-create request: shared metadata + N articles, each becoming its own Ticket. */
+    /** Bulk-create request: shared metadata + N articles, each becoming its own Ticket.
+     *  {@code departmentId} and {@code subcategoryId} are both optional — when both are
+     *  omitted the ticket is filed against the first active department in the picked
+     *  project so a user with a single scoped project doesn't have to touch either picker. */
     public record BulkCreateRequest(
-            @NotNull Long departmentId,
-            @NotNull Long subcategoryId,
+            Long departmentId,
+            Long subcategoryId,
             Long projectId,
             @NotEmpty @Valid List<ArticleRequest> articles,
             Map<String, String> customValues

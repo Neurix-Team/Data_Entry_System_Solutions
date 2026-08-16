@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { extractError } from '../../api/client';
 import { useToast } from '../../components/toast/ToastContext';
 import {
@@ -30,13 +30,21 @@ import { DocumentUploadDialog } from './submit/DocumentUploadDialog';
 import { useArticles } from './submit/useArticles';
 import { useSubmitTicketData } from './submit/useSubmitTicketData';
 
-function useNowTick() {
+/**
+ * Self-contained ticking clock. Kept as its own component so the setInterval only
+ * re-renders this tiny leaf — if it lived in {@link SubmitTicketPage} the entire form
+ * (including every focused input) would re-render every second, which was causing
+ * input focus loss on Arabic keyboards and slow devices.
+ */
+function LiveDateInput() {
+  const { lang } = useT();
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
-  return now;
+  const label = now.toLocaleString(lang === 'ar' ? 'ar-EG' : undefined);
+  return <input className="input" value={label} readOnly />;
 }
 
 function isValidUrl(s: string): boolean {
@@ -51,7 +59,6 @@ function isValidUrl(s: string): boolean {
 export function SubmitTicketPage() {
   const { t, lang } = useT();
   const toast = useToast();
-  const now = useNowTick();
 
   // Reference data (dropdowns + custom fields) lives in a dedicated hook so this component
   // stays focused on the submit/validate flow.
@@ -101,16 +108,10 @@ export function SubmitTicketPage() {
   const [docResult, setDocResult] = useState<ExtractedPdf | null>(null);
   const [docError, setDocError] = useState<string | null>(null);
 
-  const dateLabel = useMemo(
-    () => now.toLocaleString(lang === 'ar' ? 'ar-EG' : undefined),
-    [now, lang]
-  );
-
   // ---- validation ----
 
   function validate(): boolean {
     const errs: Record<string, string> = {};
-    if (!departmentId) errs.departmentId = t('user.submit.errDepartment');
     if (!subcategoryId) errs.subcategoryId = t('user.submit.errSubcategory');
 
     for (const f of fields) {
@@ -236,7 +237,7 @@ export function SubmitTicketPage() {
       });
 
       const res = await ticketsApi.submitBulk({
-        departmentId: Number(departmentId),
+        departmentId: departmentId ? Number(departmentId) : null,
         subcategoryId: Number(subcategoryId),
         projectId: projectId ? Number(projectId) : null,
         articles: payloadArticles,
@@ -375,21 +376,29 @@ export function SubmitTicketPage() {
           <div className="form-row">
             <div className="field field-grow-sm">
               <label className="field-label">{t('user.submit.date')}</label>
-              <input className="input" value={dateLabel} readOnly />
+              <LiveDateInput />
             </div>
             <div className="field field-grow">
               <label className="field-label">
                 {lang === 'ar' ? 'المشروع' : 'Project'}
+                {projects.length > 0 && <span className="req">*</span>}
               </label>
               <select
                 className="select"
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
-                disabled={projects.length === 0}
+                disabled={projects.length <= 1}
               >
-                <option value="">
-                  {lang === 'ar' ? 'بدون مشروع (اختياري)' : 'No project (optional)'}
-                </option>
+                {projects.length === 0 && (
+                  <option value="">
+                    {lang === 'ar' ? 'لم يخصص لك مشروع بعد' : 'No project assigned yet'}
+                  </option>
+                )}
+                {projects.length > 1 && (
+                  <option value="">
+                    {lang === 'ar' ? 'اختار المشروع' : 'Choose a project'}
+                  </option>
+                )}
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>{pickLocalized(p, 'name', lang)}</option>
                 ))}
@@ -397,20 +406,22 @@ export function SubmitTicketPage() {
             </div>
             <div className="field field-grow">
               <label className="field-label">
-                {t('user.submit.department')} <span className="req">*</span>
+                {t('user.submit.department')}{' '}
+                <span className="muted small">({t('common.optional')})</span>
               </label>
               <select
-                className={`select ${errors.departmentId ? 'has-error' : ''}`}
+                className="select"
                 value={departmentId}
                 onChange={(e) => setDepartmentId(e.target.value)}
                 disabled={departments.length === 0}
               >
-                <option value="">{t('user.submit.chooseDepartment')}</option>
+                <option value="">
+                  {lang === 'ar' ? 'كل الأقسام في المشروع' : 'All departments in project'}
+                </option>
                 {departments.map((d) => (
                   <option key={d.id} value={d.id}>{pickLocalized(d, 'name', lang)}</option>
                 ))}
               </select>
-              {errors.departmentId && <span className="field-error">{errors.departmentId}</span>}
             </div>
             <div className="field field-grow">
               <label className="field-label">
@@ -420,7 +431,7 @@ export function SubmitTicketPage() {
                 className={`select ${errors.subcategoryId ? 'has-error' : ''}`}
                 value={subcategoryId}
                 onChange={(e) => setSubcategoryId(e.target.value)}
-                disabled={!departmentId}
+                disabled={subcategories.length === 0}
               >
                 <option value="">{t('user.submit.chooseSubcategory')}</option>
                 {subcategories.map((s) => (

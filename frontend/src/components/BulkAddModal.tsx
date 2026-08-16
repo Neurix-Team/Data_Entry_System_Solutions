@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, ReactNode, useEffect, useRef, useState } from 'react';
 import { Modal } from './Modal';
 import { useT } from '../i18n';
 
@@ -9,6 +9,12 @@ interface Props {
   placeholder?: string;
   /** Optional helper line under the input list (e.g. "will be added under X department"). */
   hint?: string;
+  /** Extra fields (usually a select the caller needs answered before it can build each row's
+   *  payload) rendered above the repeater. */
+  headerContent?: ReactNode;
+  /** Optional guard — when false the Save button stays disabled even if rows are filled.
+   *  Use this for prerequisites like "the caller hasn't picked their required parent yet". */
+  canSubmit?: boolean;
   onClose: () => void;
   /** Called once per non-empty row. Throw on failure — the modal collects errors. */
   onCreateEach: (name: string) => Promise<void>;
@@ -30,7 +36,8 @@ const newRow = (): Row => ({ key: rowKey++, value: '' });
  * it. Save walks the list and creates each non-empty row sequentially.
  */
 export function BulkAddModal({
-  open, title, placeholder, hint, onClose, onCreateEach, onDone,
+  open, title, placeholder, hint, headerContent, canSubmit = true,
+  onClose, onCreateEach, onDone,
 }: Props) {
   const { lang } = useT();
   const isAr = lang === 'ar';
@@ -93,7 +100,11 @@ export function BulkAddModal({
           <button className="btn btn-secondary" onClick={onClose} disabled={busy}>
             {isAr ? 'إلغاء' : 'Cancel'}
           </button>
-          <button className="btn btn-primary" onClick={onSubmit} disabled={busy || count === 0}>
+          <button
+            className="btn btn-primary"
+            onClick={onSubmit}
+            disabled={busy || count === 0 || !canSubmit}
+          >
             {busy
               ? (isAr ? 'جارٍ الحفظ…' : 'Saving…')
               : (isAr ? `حفظ ${count > 0 ? `(${count})` : ''}` : `Save ${count > 0 ? `(${count})` : ''}`).trim()}
@@ -102,6 +113,7 @@ export function BulkAddModal({
       }
     >
       <form onSubmit={onSubmit}>
+        {headerContent}
         <div className="repeater">
           {rows.map((r, idx) => (
             <div className="repeater-row" key={r.key}>

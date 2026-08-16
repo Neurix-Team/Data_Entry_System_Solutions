@@ -18,6 +18,13 @@ interface Props {
 export function Modal({ open, title, onClose, children, footer }: Props) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const titleId = useRef(`modal-title-${Math.random().toString(36).slice(2, 9)}`);
+  // Callers usually pass an inline `() => setOpen(false)` — a fresh reference every render.
+  // Store it in a ref so the effect below never re-runs on those churny prop identities;
+  // otherwise every keystroke in a modal input would trigger the effect's cleanup, which
+  // restores focus to whatever element had it before the modal opened and yanks the caret
+  // out of the input the user is typing into.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -30,7 +37,7 @@ export function Modal({ open, title, onClose, children, footer }: Props) {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== 'Tab' || !dialogRef.current) return;
@@ -61,7 +68,7 @@ export function Modal({ open, title, onClose, children, footer }: Props) {
       document.body.style.overflow = prevOverflow;
       previouslyFocused?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

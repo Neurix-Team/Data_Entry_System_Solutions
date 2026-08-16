@@ -111,10 +111,8 @@ export function AdminProjectsPage() {
     e.preventDefault();
     setFormError(null);
     if (!form.name.trim()) { setFormError(t('projects.nameRequired')); return; }
-    if (form.departmentIds.length === 0) {
-      setFormError(lang === 'ar' ? 'اختار على الأقل قسم واحد للمشروع.' : 'Pick at least one department for this project.');
-      return;
-    }
+    // Departments no longer required at project-create time — the admin flow is
+    // "create the project first, then add its departments from the Departments page".
 
     setSaving(true);
     try {
@@ -178,8 +176,17 @@ export function AdminProjectsPage() {
     if (!proceed) return;
     setBulkDeleting(true);
     let ok = 0; let fail = 0;
-    const results = await Promise.allSettled(ids.map((id) => projectsApi.remove(id)));
-    for (const r of results) { if (r.status === 'fulfilled') ok++; else fail++; }
+    // Serial rather than Promise.allSettled — the backend uses SQLite which only allows one
+    // writer at a time. Parallel deletes triggered SQLITE_BUSY errors on all but the first
+    // one or two, so the user saw "Deleted 2, 10 failed" for a selection of 12.
+    for (const id of ids) {
+      try {
+        await projectsApi.remove(id);
+        ok++;
+      } catch {
+        fail++;
+      }
+    }
     setBulkDeleting(false);
     if (fail === 0) toast.success(isAr ? `تم حذف ${ok} مشروع` : `Deleted ${ok}`);
     else toast.warning(isAr ? `تم حذف ${ok}، فشل ${fail}` : `Deleted ${ok}, ${fail} failed`);
@@ -421,12 +428,14 @@ export function AdminProjectsPage() {
           <div className="field">
             <label className="field-label">
               {lang === 'ar' ? 'الأقسام داخل المشروع' : 'Departments in this project'}{' '}
-              <span className="req">*</span>
+              <span className="muted small">({t('common.optional')})</span>
             </label>
             <div className="chip-picker">
               {departments.length === 0 && (
                 <span className="muted small">
-                  {lang === 'ar' ? 'لا توجد أقسام. أضف قسم أولاً.' : 'No departments yet. Create one first.'}
+                  {lang === 'ar'
+                    ? 'ابدأ بإنشاء المشروع، وبعدها أضف أقسامه من صفحة الأقسام.'
+                    : 'Create the project first, then add its departments from the Departments page.'}
                 </span>
               )}
               {departments.map((d) => {

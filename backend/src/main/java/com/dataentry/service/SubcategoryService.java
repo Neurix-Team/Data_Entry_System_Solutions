@@ -1,8 +1,10 @@
 package com.dataentry.service;
 
 import com.dataentry.dto.SubcategoryDtos;
+import com.dataentry.model.CustomField;
 import com.dataentry.model.Department;
 import com.dataentry.model.Subcategory;
+import com.dataentry.model.Ticket;
 import com.dataentry.repository.CustomFieldRepository;
 import com.dataentry.repository.DepartmentRepository;
 import com.dataentry.repository.SubcategoryRepository;
@@ -53,6 +55,25 @@ public class SubcategoryService {
                     : repository.findAllByOrderByDepartmentIdAscNameAsc();
         }
         return rows.stream().map(this::toDto).toList();
+    }
+
+    /**
+     * All active subcategories whose parent department belongs to any of the given projects.
+     * Used by the submit form to show a user only the categories that live inside a project
+     * they were assigned to, without requiring them to pre-pick a department. Wrapped in a
+     * read-only transaction so the lazy Department.project proxy resolves while filtering.
+     */
+    @Transactional(readOnly = true)
+    public List<SubcategoryDtos.SubcategoryResponse> listActiveByProjects(java.util.Collection<Long> projectIds) {
+        if (projectIds == null || projectIds.isEmpty()) return List.of();
+        return repository.findAllByActiveTrueOrderByDepartmentIdAscNameAsc().stream()
+                .filter(s -> {
+                    Department d = s.getDepartment();
+                    return d != null && d.getProject() != null
+                            && projectIds.contains(d.getProject().getId());
+                })
+                .map(this::toDto)
+                .toList();
     }
 
     public SubcategoryDtos.SubcategoryResponse getOne(Long id) {
@@ -114,14 +135,25 @@ public class SubcategoryService {
 
     @Transactional
     public void delete(Long id) {
+        deleteWithChildren(id);
+    }
+
+    /**
+     * Cascade-delete a subcategory along with every custom field and ticket living inside
+     * it. Public so the department cascade path can call it directly — a subcategory that
+     * still had rows attached used to block a department delete with a 409, forcing the
+     * admin to hunt down and hand-clear each child before retrying.
+     */
+    @Transactional
+    public void deleteWithChildren(Long id) {
         Subcategory s = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Subcategory not found"));
-        long tickets = ticketRepository.countBySubcategoryId(id);
-        long fields = customFieldRepository.countBySubcategoryId(id);
-        if (tickets > 0 || fields > 0) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Cannot delete a subcategory with fields or tickets. Deactivate it instead.");
-        }
+        // deleteAll(...) tolerates entities that are already gone (e.g. cascaded away by a
+        // prior delete in this same transaction) instead of throwing
+        // EmptyResultDataAccessException the way deleteById does.
+        ticketRepository.deleteAll(ticketRepository.findAllBySubcategoryId(id));
+        customFieldRepository.deleteAll(
+                customFieldRepository.findAllBySubcategoryIdOrderByDisplayOrderAscIdAsc(id));
         repository.delete(s);
         audit.record(AuditService.Action.DELETE, AuditService.EntityType.SUBCATEGORY, id, "name=" + s.getName());
     }

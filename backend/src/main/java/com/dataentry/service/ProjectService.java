@@ -4,7 +4,9 @@ import com.dataentry.dto.ProjectDtos;
 import com.dataentry.model.*;
 import com.dataentry.repository.DepartmentRepository;
 import com.dataentry.repository.ProjectRepository;
+import com.dataentry.repository.TicketRepository;
 import com.dataentry.repository.UserRepository;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,24 +29,30 @@ public class ProjectService {
     private final ProjectRepository repository;
     private final DepartmentRepository departmentRepository;
     private final UserRepository userRepository;
+    private final TicketRepository ticketRepository;
     private final TranslationService translator;
     private final Localizer localizer;
     private final AuditService audit;
+    private final ObjectProvider<DepartmentService> departmentServiceProvider;
 
     public ProjectService(Clock clock,
                           ProjectRepository repository,
                           DepartmentRepository departmentRepository,
                           UserRepository userRepository,
+                          TicketRepository ticketRepository,
                           TranslationService translator,
                           Localizer localizer,
-                          AuditService audit) {
+                          AuditService audit,
+                          ObjectProvider<DepartmentService> departmentServiceProvider) {
         this.clock = clock;
         this.repository = repository;
         this.departmentRepository = departmentRepository;
         this.userRepository = userRepository;
+        this.ticketRepository = ticketRepository;
         this.translator = translator;
         this.localizer = localizer;
         this.audit = audit;
+        this.departmentServiceProvider = departmentServiceProvider;
     }
 
     @Transactional(readOnly = true)
@@ -61,19 +69,20 @@ public class ProjectService {
 
     @Transactional
     public ProjectDtos.ProjectResponse create(ProjectDtos.UpsertProjectRequest req) {
-        List<Department> depts = loadDepartments(effectiveDepartmentIds(req));
+        // Projects can now be created before their departments exist — the admin flow is
+        // "create the project first, then go add its departments". A non-empty picker is
+        // still honoured (existing departments are re-parented onto this project).
+        List<Long> deptIds = effectiveDepartmentIds(req);
+        List<Department> depts = deptIds.isEmpty() ? List.of() : loadDepartments(deptIds);
         Set<User> members = resolveMembers(req.memberIds());
 
         String name = req.name().trim();
         String subtitle = req.subtitle() != null ? req.subtitle().trim() : null;
 
-        // The legacy single-department pointer stays populated with the first department in
-        // the picker so old DB constraints (department_id NOT NULL) and any code still reading
-        // Project.department keep working.
         Project p = Project.builder()
                 .name(name)
                 .subtitle(subtitle)
-                .department(depts.get(0))
+                .department(depts.isEmpty() ? null : depts.get(0))
                 .members(members)
                 .startDate(req.startDate())
                 .endDate(req.endDate())
@@ -83,8 +92,9 @@ public class ProjectService {
         applyTranslations(p, name, subtitle);
         Project saved = repository.save(p);
 
-        // Point every selected department at this new project.
-        assignDepartmentsToProject(depts, saved);
+        if (!depts.isEmpty()) {
+            assignDepartmentsToProject(depts, saved);
+        }
 
         audit.record(AuditService.Action.CREATE, AuditService.EntityType.PROJECT,
                 saved.getId(), "name=" + name + " departments=" + depts.size());
@@ -153,16 +163,32 @@ public class ProjectService {
         }
     }
 
+    /**
+     * Delete a project and everything living inside it: its departments, each department's
+     * subcategories and custom fields, and every ticket (with attachments) submitted under
+     * any of them. The whole tree used to be preserved with the departments merely detached
+     * from the project, which left behind orphan sections that the admin then had to hunt
+     * down manually — the user asked for a single-click purge instead.
+     */
     @Transactional
     public void delete(Long id) {
         Project p = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
-        // Unassign every department pointing at this project before we delete it.
-        departmentRepository.findAll().stream()
-                .filter(d -> d.getProject() != null && Objects.equals(d.getProject().getId(), id))
-                .forEach(d -> { d.setProject(null); departmentRepository.save(d); });
+
+        DepartmentService deptSvc = departmentServiceProvider.getObject();
+        List<Department> children = departmentRepository.findAllByProjectId(id);
+        for (Department d : children) {
+            deptSvc.deleteWithChildren(d.getId());
+        }
+
+        // Any tickets that were attached at the project level but whose department has
+        // already been unlinked (legacy rows) still need to go. deleteAll tolerates rows
+        // that got cascaded away by the department pass above.
+        ticketRepository.deleteAll(ticketRepository.findAllByProjectId(id));
+
         repository.deleteById(p.getId());
-        audit.record(AuditService.Action.DELETE, AuditService.EntityType.PROJECT, id, null);
+        audit.record(AuditService.Action.DELETE, AuditService.EntityType.PROJECT,
+                id, "cascade=" + children.size() + " departments");
     }
 
     // ---------- helpers ----------
@@ -177,9 +203,7 @@ public class ProjectService {
     }
 
     private List<Department> loadDepartments(List<Long> ids) {
-        if (ids.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one department is required");
-        }
+        if (ids.isEmpty()) return List.of();
         List<Department> found = departmentRepository.findAllById(ids);
         if (found.size() != ids.size()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "One or more departments not found");

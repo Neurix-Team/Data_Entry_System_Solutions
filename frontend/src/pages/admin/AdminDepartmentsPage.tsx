@@ -1,7 +1,7 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { extractError } from '../../api/client';
-import { departmentsApi, ticketsApi } from '../../api/resources';
-import type { Department, Ticket } from '../../api/types';
+import { departmentsApi, projectsApi, ticketsApi } from '../../api/resources';
+import type { Department, Project, Ticket } from '../../api/types';
 import { BulkAddModal } from '../../components/BulkAddModal';
 import { IconBuilding, IconFolder, IconMembers } from '../../components/Icons';
 import { Modal } from '../../components/Modal';
@@ -14,10 +14,11 @@ import { DepartmentDetailModal } from './DepartmentDetailModal';
 interface FormState {
   id?: number;
   name: string;
+  projectId: number | '';
   active: boolean;
 }
 
-const empty: FormState = { name: '', active: true };
+const empty: FormState = { name: '', projectId: '', active: true };
 
 export function AdminDepartmentsPage() {
   const { t, lang } = useT();
@@ -26,15 +27,18 @@ export function AdminDepartmentsPage() {
   const isAr = lang === 'ar';
 
   const [items, setItems] = useState<Department[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkProjectId, setBulkProjectId] = useState<number | ''>('');
   const [form, setForm] = useState<FormState>(empty);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [detail, setDetail] = useState<Department | null>(null);
+  const [projectFilter, setProjectFilter] = useState<number | ''>('');
 
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -42,11 +46,13 @@ export function AdminDepartmentsPage() {
   async function refresh() {
     setLoading(true);
     try {
-      const [d, page] = await Promise.all([
+      const [d, p, page] = await Promise.all([
         departmentsApi.adminList(),
+        projectsApi.list(),
         ticketsApi.listAll(0, 200),
       ]);
       setItems(d);
+      setProjects(p);
       setTickets(page.items);
       setSelected(new Set());
     } catch (e) {
@@ -58,9 +64,24 @@ export function AdminDepartmentsPage() {
 
   useEffect(() => { refresh(); }, []);
 
-  function openCreate() { setForm(empty); setFormError(null); setModalOpen(true); }
+  const visibleItems = useMemo(() => (
+    projectFilter === ''
+      ? items
+      : items.filter((d) => d.projectId === projectFilter)
+  ), [items, projectFilter]);
+
+  function openCreate() {
+    setForm({ ...empty, projectId: projectFilter === '' ? '' : projectFilter });
+    setFormError(null);
+    setModalOpen(true);
+  }
   function openEdit(d: Department) {
-    setForm({ id: d.id, name: d.name, active: d.active });
+    setForm({
+      id: d.id,
+      name: d.name,
+      projectId: d.projectId ?? '',
+      active: d.active,
+    });
     setFormError(null); setModalOpen(true);
   }
 
@@ -69,13 +90,25 @@ export function AdminDepartmentsPage() {
     setFormError(null);
     const name = form.name.trim();
     if (!name) { setFormError(t('admin.departments.nameRequired')); return; }
+    if (form.projectId === '') {
+      setFormError(isAr ? 'اختار مشروع للقسم أولاً' : 'Pick a project for this department');
+      return;
+    }
     setSaving(true);
     try {
       if (form.id) {
-        await departmentsApi.update(form.id, { name, active: form.active });
+        await departmentsApi.update(form.id, {
+          name,
+          projectId: form.projectId as number,
+          active: form.active,
+        });
         toast.success(isAr ? 'تم تحديث القسم' : 'Department updated');
       } else {
-        await departmentsApi.create(name, form.active);
+        await departmentsApi.create({
+          name,
+          projectId: form.projectId as number,
+          active: form.active,
+        });
         toast.success(isAr ? 'تم إضافة القسم 🎉' : 'Department added 🎉');
       }
       setModalOpen(false);
@@ -130,8 +163,16 @@ export function AdminDepartmentsPage() {
 
     setBulkDeleting(true);
     let ok = 0; let fail = 0;
-    const results = await Promise.allSettled(ids.map((id) => departmentsApi.remove(id)));
-    for (const r of results) { if (r.status === 'fulfilled') ok++; else fail++; }
+    // Serial rather than parallel — SQLite only allows one writer, and Promise.allSettled
+    // was firing all deletes concurrently which hit SQLITE_BUSY on all but the first request.
+    for (const id of ids) {
+      try {
+        await departmentsApi.remove(id);
+        ok++;
+      } catch {
+        fail++;
+      }
+    }
     setBulkDeleting(false);
     if (fail === 0) {
       toast.success(isAr ? `تم حذف ${ok} قسم بنجاح` : `Deleted ${ok} department${ok === 1 ? '' : 's'}`);
@@ -188,13 +229,33 @@ export function AdminDepartmentsPage() {
         </div>
       )}
 
+      {/* Project scope filter — helps admins narrow a long list when many projects exist. */}
+      {projects.length > 0 && (
+        <div className="card" style={{ padding: '0.75rem 1rem', marginBottom: '1rem', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label className="field-label" style={{ margin: 0 }}>
+            {isAr ? 'المشروع' : 'Project'}
+          </label>
+          <select
+            className="select"
+            style={{ maxWidth: 260 }}
+            value={projectFilter === '' ? '' : String(projectFilter)}
+            onChange={(e) => setProjectFilter(e.target.value === '' ? '' : Number(e.target.value))}
+          >
+            <option value="">{t('common.all')}</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>{pickLocalized(p, 'name', lang)}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {loading ? (
         <div className="card empty-state">{t('common.loading')}</div>
-      ) : items.length === 0 ? (
+      ) : visibleItems.length === 0 ? (
         <div className="card empty-state">{t('admin.departments.empty')}</div>
       ) : (
         <div className="dept-grid">
-          {items.map((d, idx) => {
+          {visibleItems.map((d, idx) => {
             const color = ((idx % 6) + 1);
             const isChecked = selected.has(d.id);
             return (
@@ -223,6 +284,11 @@ export function AdminDepartmentsPage() {
                       {d.active ? t('common.active') : t('common.inactive')}
                     </span>
                   </div>
+                  {d.projectName && (
+                    <div className="small muted" style={{ marginTop: 4 }}>
+                      <IconFolder size={12} /> {d.projectName}
+                    </div>
+                  )}
                   <div className="dept-card-mini-grid">
                     <div className="dept-mini-stat tint-a">
                       <div className="dept-mini-stat-label">
@@ -270,6 +336,29 @@ export function AdminDepartmentsPage() {
         {formError && <div className="alert alert-error">{formError}</div>}
         <form onSubmit={onSave}>
           <div className="field">
+            <label className="field-label">
+              {isAr ? 'المشروع' : 'Project'} <span className="req">*</span>
+            </label>
+            <select
+              className="select"
+              value={form.projectId === '' ? '' : String(form.projectId)}
+              onChange={(e) => setForm({
+                ...form,
+                projectId: e.target.value === '' ? '' : Number(e.target.value),
+              })}
+              disabled={projects.length === 0}
+            >
+              <option value="">
+                {projects.length === 0
+                  ? (isAr ? 'أضف مشروع الأول قبل ما تكرييت قسم' : 'Create a project first')
+                  : (isAr ? 'اختار المشروع' : 'Choose a project')}
+              </option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>{pickLocalized(p, 'name', lang)}</option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
             <label className="field-label">{t('admin.departments.colName')} <span className="req">*</span></label>
             <input
               className="input"
@@ -299,10 +388,44 @@ export function AdminDepartmentsPage() {
         open={bulkOpen}
         title={isAr ? 'إضافة أقسام دفعة واحدة' : 'Add departments in bulk'}
         placeholder={isAr ? 'مبيعات\nتسويق\nخدمة العملاء' : 'Sales\nMarketing\nCustomer service'}
-        onClose={() => setBulkOpen(false)}
-        onCreateEach={async (name) => { await departmentsApi.create(name, true); }}
+        hint={isAr
+          ? 'كل الأقسام هتتضاف تحت المشروع المختار تحت.'
+          : 'All departments will be added under the project picked below.'}
+        canSubmit={bulkProjectId !== ''}
+        headerContent={
+          <div className="field">
+            <label className="field-label">
+              {isAr ? 'المشروع' : 'Project'} <span className="req">*</span>
+            </label>
+            <select
+              className="select"
+              value={bulkProjectId === '' ? '' : String(bulkProjectId)}
+              onChange={(e) => setBulkProjectId(e.target.value === '' ? '' : Number(e.target.value))}
+              disabled={projects.length === 0}
+            >
+              <option value="">
+                {projects.length === 0
+                  ? (isAr ? 'أضف مشروع الأول قبل ما تكرييت قسم' : 'Create a project first')
+                  : (isAr ? 'اختار المشروع' : 'Choose a project')}
+              </option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>{pickLocalized(p, 'name', lang)}</option>
+              ))}
+            </select>
+          </div>
+        }
+        onClose={() => { setBulkOpen(false); setBulkProjectId(''); }}
+        onCreateEach={async (name) => {
+          if (bulkProjectId === '') throw new Error('No project picked');
+          await departmentsApi.create({
+            name,
+            projectId: bulkProjectId as number,
+            active: true,
+          });
+        }}
         onDone={(res) => {
           setBulkOpen(false);
+          setBulkProjectId('');
           if (res.failed === 0) {
             toast.success(isAr
               ? `تم إضافة ${res.created} قسم 🎉`
