@@ -81,9 +81,9 @@ public class TicketService {
                                               TicketDtos.CreateTicketRequest req,
                                               List<CustomField> fields,
                                               Map<String, TranslationService.Bilingual> tr) {
-        Subcategory sub = loadActiveSubcategory(req.subcategoryId());
-        Department dept = resolveDepartment(req.departmentId(), sub);
         Project project = loadOptionalProject(req.projectId());
+        Subcategory sub = loadOptionalActiveSubcategory(req.subcategoryId());
+        Department dept = resolveDepartment(req.departmentId(), sub, project);
 
         Ticket ticket = buildTicket(
                 currentUser, dept, sub, project,
@@ -110,9 +110,9 @@ public class TicketService {
                                                       TicketDtos.BulkCreateRequest req,
                                                       List<CustomField> fields,
                                                       Map<String, TranslationService.Bilingual> tr) {
-        Subcategory sub = loadActiveSubcategory(req.subcategoryId());
-        Department dept = resolveDepartment(req.departmentId(), sub);
         Project project = loadOptionalProject(req.projectId());
+        Subcategory sub = loadOptionalActiveSubcategory(req.subcategoryId());
+        Department dept = resolveDepartment(req.departmentId(), sub, project);
 
         List<TicketDtos.TicketResponse> saved = new ArrayList<>();
         for (TicketDtos.ArticleRequest article : req.articles()) {
@@ -191,7 +191,8 @@ public class TicketService {
         return dept;
     }
 
-    private Subcategory loadActiveSubcategory(Long id) {
+    private Subcategory loadOptionalActiveSubcategory(Long id) {
+        if (id == null) return null;
         Subcategory sub = subcategoryRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Subcategory not found"));
         if (!sub.isActive()) {
@@ -201,26 +202,45 @@ public class TicketService {
     }
 
     /**
-     * Resolve the ticket's department. Department is now optional in the request — if the
-     * caller sent one we validate it matches the subcategory; if they didn't, we take the
-     * subcategory's own department. This lets the user pick a subcategory directly without
-     * having to pre-select its parent department.
+     * Resolve the ticket's department. Both department and subcategory are optional in the
+     * request now, so this method walks a fallback chain:
+     *   1. {@code departmentId} was sent → use it (and validate consistency with the sub).
+     *   2. {@code subcategoryId} was sent → use the subcategory's own department.
+     *   3. Neither was sent but a project was → pick the first active department in that
+     *      project so a user with a single scoped project can submit without touching any
+     *      cascading picker at all.
+     *   4. Otherwise → 400, we have no way to file the ticket.
      */
-    private Department resolveDepartment(Long departmentId, Subcategory sub) {
-        Department subDept = sub.getDepartment();
-        if (departmentId == null) {
+    private Department resolveDepartment(Long departmentId, Subcategory sub, Project project) {
+        if (departmentId != null) {
+            Department dept = loadActiveDepartment(departmentId);
+            if (sub != null) {
+                Department subDept = sub.getDepartment();
+                if (subDept == null || !subDept.getId().equals(dept.getId())) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            "Subcategory does not belong to the selected department");
+                }
+            }
+            return dept;
+        }
+        if (sub != null) {
+            Department subDept = sub.getDepartment();
             if (subDept == null || !subDept.isActive()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "Subcategory's department is not active");
             }
             return subDept;
         }
-        Department dept = loadActiveDepartment(departmentId);
-        if (subDept == null || !subDept.getId().equals(dept.getId())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Subcategory does not belong to the selected department");
+        if (project != null) {
+            return departmentRepository
+                    .findAllByActiveTrueAndProjectIdOrderByNameAsc(project.getId())
+                    .stream()
+                    .findFirst()
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            "This project has no active departments — add one before submitting."));
         }
-        return dept;
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "Pick a project, department, or subcategory before submitting.");
     }
 
     private Ticket buildTicket(User currentUser, Department dept, Subcategory sub, Project project,

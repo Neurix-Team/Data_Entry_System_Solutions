@@ -3,7 +3,6 @@ package com.dataentry.dto;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -15,7 +14,7 @@ public class TicketDtos {
 
     public record CreateTicketRequest(
             Long departmentId,
-            @NotNull Long subcategoryId,
+            Long subcategoryId,
             Long projectId,
             @NotBlank @Size(max = 500) String title,
             @NotBlank @Size(max = 2000000) String content,

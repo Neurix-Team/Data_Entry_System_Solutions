@@ -116,9 +116,7 @@ public class DocumentExtractionService {
                     "Executable files are not accepted.");
         }
 
-        // Persist the upload to a temp file so both Tika text extraction and the
-        // office image extractor can read it — the latter needs a random-access File,
-        // not a stream.
+ 
         Path tmp = null;
         try {
             tmp = Files.createTempFile("doc-", "-" + safeName(originalName));

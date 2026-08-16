@@ -119,7 +119,7 @@ export const ticketsApi = {
   }) => api.post<Ticket>('/user/tickets', payload).then(r => r.data),
   submitBulk: (payload: {
     departmentId?: number | null;
-    subcategoryId: number;
+    subcategoryId?: number | null;
     projectId?: number | null;
     articles: ArticleInput[];
     customValues: Record<string, string>;

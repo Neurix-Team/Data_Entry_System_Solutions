@@ -112,7 +112,6 @@ export function SubmitTicketPage() {
 
   function validate(): boolean {
     const errs: Record<string, string> = {};
-    if (!subcategoryId) errs.subcategoryId = t('user.submit.errSubcategory');
 
     for (const f of fields) {
       const v = (customValues[f.fieldKey] ?? '').trim();
@@ -238,7 +237,7 @@ export function SubmitTicketPage() {
 
       const res = await ticketsApi.submitBulk({
         departmentId: departmentId ? Number(departmentId) : null,
-        subcategoryId: Number(subcategoryId),
+        subcategoryId: subcategoryId ? Number(subcategoryId) : null,
         projectId: projectId ? Number(projectId) : null,
         articles: payloadArticles,
         customValues: trimmedCustom,
@@ -425,20 +424,22 @@ export function SubmitTicketPage() {
             </div>
             <div className="field field-grow">
               <label className="field-label">
-                {t('user.submit.subcategory')} <span className="req">*</span>
+                {t('user.submit.subcategory')}{' '}
+                <span className="muted small">({t('common.optional')})</span>
               </label>
               <select
-                className={`select ${errors.subcategoryId ? 'has-error' : ''}`}
+                className="select"
                 value={subcategoryId}
                 onChange={(e) => setSubcategoryId(e.target.value)}
                 disabled={subcategories.length === 0}
               >
-                <option value="">{t('user.submit.chooseSubcategory')}</option>
+                <option value="">
+                  {lang === 'ar' ? 'بدون تصنيف' : 'No subcategory'}
+                </option>
                 {subcategories.map((s) => (
                   <option key={s.id} value={s.id}>{pickLocalized(s, 'name', lang)}</option>
                 ))}
               </select>
-              {errors.subcategoryId && <span className="field-error">{errors.subcategoryId}</span>}
             </div>
           </div>
 
