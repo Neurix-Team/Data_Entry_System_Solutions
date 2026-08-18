@@ -2,22 +2,35 @@ package com.dataentry.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.Filter;
 
 import java.time.Instant;
 
 @Entity
 @Table(name = "departments")
+@Filter(name = "teamFilter", condition = "team_id = :teamId")
+@EntityListeners(TenantEntityListener.class)
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Department {
+public class Department implements TeamOwned {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "team_id")
+    private Team team;
+
+    /**
+     * Department names are unique per team, not globally. The {@code unique = true} on the
+     * column has to stay (removing it in SQLite requires a table rebuild) but the
+     * DepartmentService performs the actual per-team lookup so two teams can both have a
+     * "Marketing" department once the legacy unique index is dropped by the startup migration.
+     */
     @Column(nullable = false, unique = true, length = 150)
     private String name;
 

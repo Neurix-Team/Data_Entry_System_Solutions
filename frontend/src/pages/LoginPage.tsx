@@ -8,8 +8,12 @@ import { PreferencesToggle } from '../components/PreferencesToggle';
 import { useAuth } from '../context/AuthContext';
 import { useT } from '../i18n';
 
-function homeFor(role: 'ADMIN' | 'USER'): string {
-  return role === 'ADMIN' ? '/admin' : '/dashboard';
+import type { Role } from '../api/types';
+
+function homeFor(role: Role): string {
+  if (role === 'SUPER_ADMIN') return '/super';
+  if (role === 'ADMIN') return '/admin';
+  return '/dashboard';
 }
 
 export function LoginPage() {

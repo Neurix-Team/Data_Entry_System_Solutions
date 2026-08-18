@@ -2,21 +2,41 @@ package com.dataentry.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.Filter;
 
 import java.time.Instant;
 
 @Entity
 @Table(name = "users")
+@Filter(name = "teamFilter", condition = "team_id = :teamId")
+@EntityListeners(TenantEntityListener.class)
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class User {
+public class User implements TeamOwned {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    /**
+     * Owning tenant. Null for SUPER_ADMIN (cross-team) accounts and for the DataSeeder
+     * bootstrap moment before the default team exists. The Hibernate {@code teamFilter}
+     * uses this column to hide users from other teams.
+     *
+     * <p>Eagerly fetched: the User principal is passed out of the JwtAuthFilter's short
+     * transaction and later used in stateless contexts (e.g. AuthController.me, AuthService.toDto)
+     * where a lazy proxy would fail with "no Session". It's one FK lookup — negligible.
+     *
+     * <p>Note on uniqueness: {@code username} is still globally unique at the DB level for
+     * SQLite compatibility (composite-unique-constraint removal requires a table rebuild).
+     * Enforce per-team uniqueness at the service layer if that becomes a real ask.
+     */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "team_id")
+    private Team team;
 
     @Column(nullable = false, unique = true, length = 100)
     private String username;

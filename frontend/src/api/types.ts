@@ -1,8 +1,21 @@
-export type Role = 'ADMIN' | 'USER';
+export type Role = 'SUPER_ADMIN' | 'ADMIN' | 'USER';
 
 export type FieldType = 'TEXT' | 'TEXTAREA' | 'NUMBER' | 'URL' | 'EMAIL' | 'DATE' | 'SELECT';
 
 export type TicketStatus = 'IN_PROGRESS' | 'REVIEW' | 'COMPLETED';
+
+/**
+ * Compact team info attached to every login response. SUPER_ADMIN users have {@code team = null}
+ * (they operate across every team). Everyone else always has a team.
+ */
+export interface TeamRef {
+  id: number;
+  slug: string;
+  name: string;
+  nameEn?: string | null;
+  nameAr?: string | null;
+  color?: string | null;
+}
 
 export interface User {
   id: number;
@@ -14,6 +27,11 @@ export interface User {
   /** ISO timestamp of the last avatar upload; null means no avatar. Used both as
    *  presence check and as a cache-bust value in the avatar URL. */
   avatarUpdatedAt?: string | null;
+  /** Owning team. Null only for SUPER_ADMIN accounts. */
+  team?: TeamRef | null;
+  /** True while a SUPER_ADMIN is "entered" into a specific team via the header — the UI
+   *  uses this to render the red impersonation banner. */
+  impersonating?: boolean;
 }
 
 export interface AdminUser extends User {

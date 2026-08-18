@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Map;
 
 @Service
@@ -40,12 +41,23 @@ public class JwtService {
         this.expirationMs = expirationMs;
     }
 
-    public String generateToken(String username, String role, Long userId) {
+    /**
+     * Standard login token — 24h lifetime, carries role and (for scoped roles) the team id.
+     * SUPER_ADMIN tokens omit {@code tid} so any request they make bypasses the tenant filter
+     * unless they opt in to impersonation via the {@code X-Impersonate-Team-Id} header.
+     */
+    public String generateToken(String username, String role, Long userId, Long teamId) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + expirationMs);
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("role", role);
+        claims.put("uid", userId);
+        // Omit tid entirely for cross-tenant roles so a stale token can't accidentally scope
+        // a SUPER_ADMIN to a specific team.
+        if (teamId != null) claims.put("tid", teamId);
         return Jwts.builder()
                 .subject(username)
-                .claims(Map.of("role", role, "uid", userId))
+                .claims(claims)
                 .issuedAt(now)
                 .expiration(expiry)
                 .signWith(key)

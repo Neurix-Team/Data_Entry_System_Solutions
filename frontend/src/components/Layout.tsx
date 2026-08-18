@@ -11,6 +11,7 @@ import { PreferencesToggle } from './PreferencesToggle';
 import { ProfileModal } from './ProfileModal';
 import { avatarUrl } from '../api/profile';
 import { ChatWidget } from './chat/ChatWidget';
+import { ImpersonationBanner } from './ImpersonationBanner';
 
 export function Layout() {
   const { user, logout } = useAuth();
@@ -19,8 +20,13 @@ export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const myAvatar = user ? avatarUrl(user.id, user.avatarUpdatedAt) : null;
-  const isAdmin = user?.role === 'ADMIN';
-  const roleLabel = isAdmin ? t('common.teamLeader') : t('common.dataEntryAgent');
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  // Super admin drives admin views (both cross-team and scoped-via-impersonation), so treat
+  // them like an admin for the shell/nav — the ImpersonationBanner makes the difference obvious.
+  const isAdmin = user?.role === 'ADMIN' || isSuperAdmin;
+  const roleLabel = isSuperAdmin
+    ? (t('super.roleLabel') || 'Super Admin')
+    : isAdmin ? t('common.teamLeader') : t('common.dataEntryAgent');
 
   // Close mobile sidebar on route change
   useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
@@ -61,6 +67,16 @@ export function Layout() {
           </button>
         </div>
 
+        {isSuperAdmin && (
+          <NavLink
+            to="/super"
+            className="side-link"
+            style={{ color: '#f97316', fontWeight: 700 }}
+          >
+            <span className="side-icon">←</span>
+            {t('super.backToSuper') || 'Super Admin'}
+          </NavLink>
+        )}
         {isAdmin ? (
           <>
             <NavLink to="/admin" end className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
@@ -174,6 +190,7 @@ export function Layout() {
         </header>
 
         <main className="app-main">
+          <ImpersonationBanner />
           <Outlet />
         </main>
       </div>

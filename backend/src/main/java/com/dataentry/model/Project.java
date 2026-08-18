@@ -2,6 +2,7 @@ package com.dataentry.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.Filter;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -10,16 +11,23 @@ import java.util.Set;
 
 @Entity
 @Table(name = "projects")
+@Filter(name = "teamFilter", condition = "team_id = :teamId")
+@EntityListeners(TenantEntityListener.class)
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Project {
+public class Project implements TeamOwned {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    /** Owning tenant. Enforced NOT NULL at the app layer via {@code TenantEntityListener}. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "team_id")
+    private Team team;
 
     @Column(nullable = false, length = 200)
     private String name;

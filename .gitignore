@@ -53,6 +53,7 @@ ehthumbs.db
 # but ignore any accidental host copies.
 **/dataentry.db
 **/*.db-journal
+**/*.sqlite
 
 # ===== Claude Code local artifacts =====
 .claude/settings.local.json

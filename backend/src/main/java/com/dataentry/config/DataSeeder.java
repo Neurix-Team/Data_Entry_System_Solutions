@@ -4,6 +4,7 @@ import com.dataentry.model.*;
 import com.dataentry.repository.CustomFieldRepository;
 import com.dataentry.repository.DepartmentRepository;
 import com.dataentry.repository.SubcategoryRepository;
+import com.dataentry.repository.TeamRepository;
 import com.dataentry.repository.TicketRepository;
 import com.dataentry.repository.UserRepository;
 import com.dataentry.service.TranslationService;
@@ -25,7 +26,9 @@ public class DataSeeder implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DataSeeder.class);
     private static final String DEFAULT_SUBCATEGORY = "General";
+    private static final String DEFAULT_TEAM_SLUG = "general";
 
+    private final TeamRepository teamRepository;
     private final UserRepository userRepository;
     private final DepartmentRepository departmentRepository;
     private final SubcategoryRepository subcategoryRepository;
@@ -44,7 +47,14 @@ public class DataSeeder implements CommandLineRunner {
     @Value("${app.seed.admin-password:admin123}")
     private String adminPassword;
 
-    public DataSeeder(UserRepository userRepository,
+    @Value("${app.seed.superadmin-username:superadmin}")
+    private String superAdminUsername;
+
+    @Value("${app.seed.superadmin-password:superadmin123}")
+    private String superAdminPassword;
+
+    public DataSeeder(TeamRepository teamRepository,
+                      UserRepository userRepository,
                       DepartmentRepository departmentRepository,
                       SubcategoryRepository subcategoryRepository,
                       CustomFieldRepository customFieldRepository,
@@ -52,6 +62,7 @@ public class DataSeeder implements CommandLineRunner {
                       PasswordEncoder passwordEncoder,
                       JdbcTemplate jdbc,
                       TranslationService translator) {
+        this.teamRepository = teamRepository;
         this.userRepository = userRepository;
         this.departmentRepository = departmentRepository;
         this.subcategoryRepository = subcategoryRepository;
@@ -68,21 +79,26 @@ public class DataSeeder implements CommandLineRunner {
         if (!seedEnabled) return;
 
         migrateSchema();
-        seedUsers();
-        seedDepartments();
-        seedSubcategoriesPerDepartment();
-        seedCustomFields();
+        Team defaultTeam = seedDefaultTeam();
+        backfillTeamIds(defaultTeam);
+        seedUsers(defaultTeam);
+        seedSuperAdmin();
+        seedDepartments(defaultTeam);
+        seedSubcategoriesPerDepartment(defaultTeam);
+        seedCustomFields(defaultTeam);
         backfillLegacyRows();
         backfillTranslations();
     }
 
     /**
      * Startup schema patches for cases Hibernate's {@code ddl-auto=update} can't handle on
-     * SQLite. Currently just one entry: legacy databases created before departments became
-     * optional at project-create time have {@code projects.department_id NOT NULL}, and
-     * SQLite has no {@code ALTER COLUMN DROP NOT NULL} — the only way to relax it is to
-     * rebuild the table. Idempotent: if the column is already nullable this method is a
-     * no-op.
+     * SQLite. Two migrations live here:
+     * <ol>
+     *   <li>Relax {@code projects.department_id} to NULLABLE (legacy pre-Departments-on-Projects).</li>
+     *   <li>Rebuild {@code departments} to drop the {@code UNIQUE(name)} constraint, so two
+     *       teams can each own a "Marketing" department. Uniqueness is now enforced per team
+     *       at the service layer.</li>
+     * </ol>
      */
     private void migrateSchema() {
         // Clean up any orphaned rows that earlier half-completed deletes left behind. Two
@@ -107,53 +123,232 @@ public class DataSeeder implements CommandLineRunner {
             Integer notNull = jdbc.queryForObject(
                     "select \"notnull\" from pragma_table_info('projects') where name = 'department_id'",
                     Integer.class);
-            if (notNull == null || notNull == 0) return;
-
-            log.info("Migrating projects.department_id to NULLABLE (legacy schema).");
-            // Skip the explicit BEGIN/COMMIT — Spring's @Transactional already owns the
-            // connection, so issuing BEGIN in here would blow up with "cannot start a
-            // transaction within a transaction". Each DDL executes inside the outer tx and
-            // rolls back atomically if any statement throws.
-            jdbc.execute("PRAGMA foreign_keys=OFF");
-            try {
-                jdbc.execute("""
-                        CREATE TABLE projects_new (
-                          id INTEGER PRIMARY KEY AUTOINCREMENT,
-                          name VARCHAR(200) NOT NULL,
-                          name_en VARCHAR(200),
-                          name_ar VARCHAR(200),
-                          subtitle VARCHAR(250),
-                          subtitle_en VARCHAR(250),
-                          subtitle_ar VARCHAR(250),
-                          department_id INTEGER,
-                          start_date DATE,
-                          end_date DATE,
-                          progress INTEGER NOT NULL DEFAULT 0,
-                          status VARCHAR(20) NOT NULL DEFAULT 'ON_TRACK',
-                          created_at TIMESTAMP NOT NULL
-                        )
-                        """);
-                jdbc.execute("""
-                        INSERT INTO projects_new
-                          (id, name, name_en, name_ar, subtitle, subtitle_en, subtitle_ar,
-                           department_id, start_date, end_date, progress, status, created_at)
-                        SELECT
-                          id, name, name_en, name_ar, subtitle, subtitle_en, subtitle_ar,
-                          department_id, start_date, end_date, progress, status, created_at
-                        FROM projects
-                        """);
-                jdbc.execute("DROP TABLE projects");
-                jdbc.execute("ALTER TABLE projects_new RENAME TO projects");
-            } finally {
-                jdbc.execute("PRAGMA foreign_keys=ON");
+            if (notNull != null && notNull != 0) {
+                log.info("Migrating projects.department_id to NULLABLE (legacy schema).");
+                jdbc.execute("PRAGMA foreign_keys=OFF");
+                try {
+                    jdbc.execute("""
+                            CREATE TABLE projects_new (
+                              id INTEGER PRIMARY KEY AUTOINCREMENT,
+                              name VARCHAR(200) NOT NULL,
+                              name_en VARCHAR(200),
+                              name_ar VARCHAR(200),
+                              subtitle VARCHAR(250),
+                              subtitle_en VARCHAR(250),
+                              subtitle_ar VARCHAR(250),
+                              department_id INTEGER,
+                              team_id INTEGER,
+                              start_date DATE,
+                              end_date DATE,
+                              progress INTEGER NOT NULL DEFAULT 0,
+                              status VARCHAR(20) NOT NULL DEFAULT 'ON_TRACK',
+                              created_at TIMESTAMP NOT NULL
+                            )
+                            """);
+                    // Copy either with or without team_id depending on whether the column already exists.
+                    if (columnExists("projects", "team_id")) {
+                        jdbc.execute("""
+                                INSERT INTO projects_new
+                                  (id, name, name_en, name_ar, subtitle, subtitle_en, subtitle_ar,
+                                   department_id, team_id, start_date, end_date, progress, status, created_at)
+                                SELECT id, name, name_en, name_ar, subtitle, subtitle_en, subtitle_ar,
+                                       department_id, team_id, start_date, end_date, progress, status, created_at
+                                FROM projects
+                                """);
+                    } else {
+                        jdbc.execute("""
+                                INSERT INTO projects_new
+                                  (id, name, name_en, name_ar, subtitle, subtitle_en, subtitle_ar,
+                                   department_id, team_id, start_date, end_date, progress, status, created_at)
+                                SELECT id, name, name_en, name_ar, subtitle, subtitle_en, subtitle_ar,
+                                       department_id, NULL, start_date, end_date, progress, status, created_at
+                                FROM projects
+                                """);
+                    }
+                    jdbc.execute("DROP TABLE projects");
+                    jdbc.execute("ALTER TABLE projects_new RENAME TO projects");
+                } finally {
+                    jdbc.execute("PRAGMA foreign_keys=ON");
+                }
+                log.info("projects.department_id is now nullable.");
             }
-            log.info("projects.department_id is now nullable.");
         } catch (Exception e) {
             log.warn("Skipping projects.department_id migration: {}", e.getMessage());
         }
+
+        // Users: legacy CHECK(role IN ('ADMIN','USER')) blocks the new SUPER_ADMIN value.
+        // Rebuild the table without any CHECK on role so all three enum values work — Hibernate's
+        // @Enumerated(EnumType.STRING) still validates at write time, so this doesn't loosen
+        // application-level type safety.
+        try {
+            boolean hasLegacyRoleCheck = jdbc.queryForList(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='users' " +
+                            "AND sql LIKE '%role in (%ADMIN%USER%)%'"
+            ).size() > 0;
+
+            if (hasLegacyRoleCheck) {
+                log.info("Migrating users table — dropping legacy CHECK(role IN ('ADMIN','USER')).");
+                jdbc.execute("PRAGMA foreign_keys=OFF");
+                try {
+                    jdbc.execute("""
+                            CREATE TABLE users_new (
+                              id INTEGER PRIMARY KEY AUTOINCREMENT,
+                              username VARCHAR(100) NOT NULL UNIQUE,
+                              password_hash VARCHAR(255) NOT NULL,
+                              role VARCHAR(20) NOT NULL,
+                              display_name VARCHAR(150),
+                              display_name_en VARCHAR(150),
+                              display_name_ar VARCHAR(150),
+                              email VARCHAR(200),
+                              phone VARCHAR(40),
+                              active BOOLEAN NOT NULL DEFAULT 1,
+                              created_at TIMESTAMP NOT NULL,
+                              avatar_updated_at TIMESTAMP,
+                              team_id INTEGER
+                            )
+                            """);
+                    if (columnExists("users", "team_id")) {
+                        jdbc.execute("""
+                                INSERT INTO users_new
+                                  (id, username, password_hash, role, display_name, display_name_en,
+                                   display_name_ar, email, phone, active, created_at, avatar_updated_at, team_id)
+                                SELECT id, username, password_hash, role, display_name, display_name_en,
+                                       display_name_ar, email, phone, active, created_at, avatar_updated_at, team_id
+                                FROM users
+                                """);
+                    } else {
+                        jdbc.execute("""
+                                INSERT INTO users_new
+                                  (id, username, password_hash, role, display_name, display_name_en,
+                                   display_name_ar, email, phone, active, created_at, avatar_updated_at, team_id)
+                                SELECT id, username, password_hash, role, display_name, display_name_en,
+                                       display_name_ar, email, phone, active, created_at, avatar_updated_at, NULL
+                                FROM users
+                                """);
+                    }
+                    jdbc.execute("DROP TABLE users");
+                    jdbc.execute("ALTER TABLE users_new RENAME TO users");
+                } finally {
+                    jdbc.execute("PRAGMA foreign_keys=ON");
+                }
+                log.info("users.role CHECK constraint removed; SUPER_ADMIN can now be seeded.");
+            }
+        } catch (Exception e) {
+            log.warn("Skipping users role-check migration: {}", e.getMessage());
+        }
+
+        // Departments unique(name) → per-team uniqueness. Detect by looking for either the
+        // named unique index or the sqlite_autoindex generated from the column-level UNIQUE.
+        try {
+            boolean hasLegacyUnique = jdbc.queryForList(
+                    "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='departments' AND sql LIKE '%UNIQUE%name%'"
+            ).size() > 0
+                    || jdbc.queryForList(
+                            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='departments' AND name LIKE 'sqlite_autoindex_departments_%'"
+            ).size() > 0;
+
+            if (hasLegacyUnique) {
+                log.info("Migrating departments to drop global UNIQUE(name) — becomes per-team uniqueness.");
+                jdbc.execute("PRAGMA foreign_keys=OFF");
+                try {
+                    jdbc.execute("""
+                            CREATE TABLE departments_new (
+                              id INTEGER PRIMARY KEY AUTOINCREMENT,
+                              name VARCHAR(150) NOT NULL,
+                              name_en VARCHAR(150),
+                              name_ar VARCHAR(150),
+                              active BOOLEAN NOT NULL DEFAULT 1,
+                              created_at TIMESTAMP NOT NULL,
+                              project_id INTEGER,
+                              team_id INTEGER
+                            )
+                            """);
+                    if (columnExists("departments", "team_id")) {
+                        jdbc.execute("""
+                                INSERT INTO departments_new
+                                  (id, name, name_en, name_ar, active, created_at, project_id, team_id)
+                                SELECT id, name, name_en, name_ar, active, created_at, project_id, team_id
+                                FROM departments
+                                """);
+                    } else {
+                        jdbc.execute("""
+                                INSERT INTO departments_new
+                                  (id, name, name_en, name_ar, active, created_at, project_id, team_id)
+                                SELECT id, name, name_en, name_ar, active, created_at, project_id, NULL
+                                FROM departments
+                                """);
+                    }
+                    jdbc.execute("DROP TABLE departments");
+                    jdbc.execute("ALTER TABLE departments_new RENAME TO departments");
+                    jdbc.execute("CREATE UNIQUE INDEX uk_department_team_name ON departments(team_id, name)");
+                } finally {
+                    jdbc.execute("PRAGMA foreign_keys=ON");
+                }
+                log.info("departments UNIQUE(name) removed; per-team uniqueness enforced by index.");
+            }
+        } catch (Exception e) {
+            log.warn("Skipping departments unique-migration: {}", e.getMessage());
+        }
     }
 
-    private void seedUsers() {
+    private boolean columnExists(String table, String column) {
+        try {
+            return jdbc.queryForList(
+                    "SELECT name FROM pragma_table_info(?) WHERE name = ?",
+                    table, column
+            ).size() > 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Ensures a "General" team exists so every legacy row and every new admin/user has a
+     * home. Recovering from a wiped-teams table simply re-creates it on the next boot.
+     */
+    private Team seedDefaultTeam() {
+        return teamRepository.findBySlug(DEFAULT_TEAM_SLUG).orElseGet(() -> {
+            TranslationService.Bilingual bi = translator.toBoth("General");
+            Team saved = teamRepository.save(Team.builder()
+                    .slug(DEFAULT_TEAM_SLUG)
+                    .name("General")
+                    .nameEn(bi.en())
+                    .nameAr(bi.ar())
+                    .description("Default team seeded on first startup.")
+                    .color("#6366f1")
+                    .active(true)
+                    .build());
+            log.info("Seeded default team '{}'", DEFAULT_TEAM_SLUG);
+            return saved;
+        });
+    }
+
+    /**
+     * Any row that was created before multi-tenancy has {@code team_id IS NULL}. Point every
+     * such row at the default team so the Hibernate filter can find it under the general
+     * admin's session. Idempotent — subsequent runs are no-ops.
+     */
+    private void backfillTeamIds(Team defaultTeam) {
+        Long teamId = defaultTeam.getId();
+        List<String> tables = List.of(
+                "users", "projects", "departments", "subcategories",
+                "tickets", "custom_fields", "audit_logs"
+        );
+        for (String table : tables) {
+            try {
+                if (!columnExists(table, "team_id")) continue;
+                int updated = jdbc.update(
+                        "UPDATE " + table + " SET team_id = ? WHERE team_id IS NULL", teamId);
+                if (updated > 0) {
+                    log.info("Backfilled team_id on {} rows in {}", updated, table);
+                }
+            } catch (Exception e) {
+                log.warn("team_id backfill on {} skipped: {}", table, e.getMessage());
+            }
+        }
+    }
+
+    private void seedUsers(Team defaultTeam) {
         if ("admin123".equals(adminPassword)) {
             log.error("⚠ SECURITY: admin password is the built-in default 'admin123'. "
                     + "Rotate APP_SEED_ADMIN_PASSWORD before exposing this instance.");
@@ -165,10 +360,10 @@ public class DataSeeder implements CommandLineRunner {
                     .displayName("System Administrator")
                     .email("admin@dataentry.local")
                     .role(Role.ADMIN)
+                    .team(defaultTeam)
                     .active(true)
                     .build()));
-            // Do NOT log the password — logs may end up in shared observability tooling.
-            log.info("Seeded default admin user: {}", adminUsername);
+            log.info("Seeded default admin user: {} (team={})", adminUsername, defaultTeam.getSlug());
         }
 
         if (userRepository.findByUsername("agent1").isEmpty()) {
@@ -178,9 +373,40 @@ public class DataSeeder implements CommandLineRunner {
                     .displayName("Sample Data Entry Agent")
                     .email("agent1@dataentry.local")
                     .role(Role.USER)
+                    .team(defaultTeam)
                     .active(true)
                     .build()));
-            log.info("Seeded sample user: agent1 / agent123");
+            log.info("Seeded sample user: agent1 / agent123 (team={})", defaultTeam.getSlug());
+        }
+    }
+
+    /**
+     * SUPER_ADMIN is intentionally not attached to any team. It's the only role that can
+     * cross tenant boundaries, so an accidental team assignment would let the tenant filter
+     * hide half the system from them. Rotate the credentials on first boot.
+     */
+    private void seedSuperAdmin() {
+        String username = superAdminUsername == null ? "" : superAdminUsername.trim();
+        if (username.isEmpty()) {
+            log.warn("APP_SEED_SUPERADMIN_USERNAME is unset — skipping super-admin seed. "
+                    + "Set it in your .env to auto-create one, or promote a user manually.");
+            return;
+        }
+        if ("superadmin123".equals(superAdminPassword)) {
+            log.error("⚠ SECURITY: super-admin password is the built-in default 'superadmin123'. "
+                    + "Rotate APP_SEED_SUPERADMIN_PASSWORD before exposing this instance.");
+        }
+        if (userRepository.findByUsername(username).isEmpty()) {
+            userRepository.save(withTranslatedDisplayName(User.builder()
+                    .username(username)
+                    .passwordHash(passwordEncoder.encode(superAdminPassword))
+                    .displayName("Super Administrator")
+                    .email("superadmin@dataentry.local")
+                    .role(Role.SUPER_ADMIN)
+                    .team(null)
+                    .active(true)
+                    .build()));
+            log.info("Seeded super admin: {}", username);
         }
     }
 
@@ -191,32 +417,34 @@ public class DataSeeder implements CommandLineRunner {
         return u;
     }
 
-    private void seedDepartments() {
+    private void seedDepartments(Team defaultTeam) {
         if (departmentRepository.count() == 0) {
             List.of("Marketing", "Sales", "Content Review", "Compliance", "Research")
                     .forEach(name -> {
                         TranslationService.Bilingual bi = translator.toBoth(name);
                         departmentRepository.save(Department.builder()
-                                .name(name).nameEn(bi.en()).nameAr(bi.ar()).active(true).build());
+                                .name(name).nameEn(bi.en()).nameAr(bi.ar())
+                                .team(defaultTeam)
+                                .active(true).build());
                     });
             log.info("Seeded default departments.");
         }
     }
 
-    private void seedSubcategoriesPerDepartment() {
+    private void seedSubcategoriesPerDepartment(Team defaultTeam) {
         Map<String, List<String>> extras = new HashMap<>();
         extras.put("Marketing", List.of("Blog", "Social"));
         extras.put("Content Review", List.of("Editorial", "Legal"));
 
         for (Department d : departmentRepository.findAll()) {
-            ensureSubcategory(d, DEFAULT_SUBCATEGORY);
+            ensureSubcategory(d, DEFAULT_SUBCATEGORY, defaultTeam);
             for (String extra : extras.getOrDefault(d.getName(), List.of())) {
-                ensureSubcategory(d, extra);
+                ensureSubcategory(d, extra, defaultTeam);
             }
         }
     }
 
-    private Subcategory ensureSubcategory(Department d, String name) {
+    private Subcategory ensureSubcategory(Department d, String name, Team fallbackTeam) {
         return subcategoryRepository.findAllByDepartmentIdOrderByNameAsc(d.getId()).stream()
                 .filter(s -> s.getName().equalsIgnoreCase(name))
                 .findFirst()
@@ -224,6 +452,7 @@ public class DataSeeder implements CommandLineRunner {
                     TranslationService.Bilingual bi = translator.toBoth(name);
                     Subcategory saved = subcategoryRepository.save(Subcategory.builder()
                             .department(d)
+                            .team(d.getTeam() != null ? d.getTeam() : fallbackTeam)
                             .name(name)
                             .nameEn(bi.en())
                             .nameAr(bi.ar())
@@ -234,7 +463,7 @@ public class DataSeeder implements CommandLineRunner {
                 });
     }
 
-    private void seedCustomFields() {
+    private void seedCustomFields(Team defaultTeam) {
         if (customFieldRepository.count() > 0) return;
 
         Department marketing = departmentRepository.findAll().stream()
@@ -243,10 +472,11 @@ public class DataSeeder implements CommandLineRunner {
                 .orElseGet(() -> departmentRepository.findAll().stream().findFirst().orElse(null));
         if (marketing == null) return;
 
-        Subcategory general = ensureSubcategory(marketing, DEFAULT_SUBCATEGORY);
+        Subcategory general = ensureSubcategory(marketing, DEFAULT_SUBCATEGORY, defaultTeam);
 
         customFieldRepository.save(withTranslatedField(CustomField.builder()
                 .subcategory(general)
+                .team(defaultTeam)
                 .fieldKey("priority")
                 .label("Priority")
                 .type(FieldType.SELECT)
@@ -258,6 +488,7 @@ public class DataSeeder implements CommandLineRunner {
                 .build()));
         customFieldRepository.save(withTranslatedField(CustomField.builder()
                 .subcategory(general)
+                .team(defaultTeam)
                 .fieldKey("reference_id")
                 .label("Reference ID")
                 .type(FieldType.TEXT)
@@ -304,7 +535,7 @@ public class DataSeeder implements CommandLineRunner {
         if (fieldsNullCount != null && fieldsNullCount > 0) {
             Department fallback = departmentRepository.findAll().stream().findFirst().orElse(null);
             if (fallback != null) {
-                Subcategory general = ensureSubcategory(fallback, DEFAULT_SUBCATEGORY);
+                Subcategory general = ensureSubcategory(fallback, DEFAULT_SUBCATEGORY, fallback.getTeam());
                 jdbc.update("update custom_fields set subcategory_id = ? where subcategory_id is null",
                         general.getId());
             }
@@ -312,7 +543,7 @@ public class DataSeeder implements CommandLineRunner {
 
         if (ticketsNullCount != null && ticketsNullCount > 0) {
             for (Department d : departmentRepository.findAll()) {
-                Subcategory general = ensureSubcategory(d, DEFAULT_SUBCATEGORY);
+                Subcategory general = ensureSubcategory(d, DEFAULT_SUBCATEGORY, d.getTeam());
                 jdbc.update(
                         "update tickets set subcategory_id = ? where subcategory_id is null and department_id = ?",
                         general.getId(), d.getId());

@@ -7,6 +7,13 @@ interface Props {
   roles?: Role[];
 }
 
+/** Home route for each role after login / after an unauthorised redirect. */
+function homeFor(role: Role): string {
+  if (role === 'SUPER_ADMIN') return '/super';
+  if (role === 'ADMIN') return '/admin';
+  return '/submit';
+}
+
 export function ProtectedRoute({ children, roles }: Props) {
   const { user, loading } = useAuth();
   const location = useLocation();
@@ -24,7 +31,7 @@ export function ProtectedRoute({ children, roles }: Props) {
   }
 
   if (roles && !roles.includes(user.role)) {
-    return <Navigate to={user.role === 'ADMIN' ? '/admin' : '/submit'} replace />;
+    return <Navigate to={homeFor(user.role)} replace />;
   }
 
   return <>{children}</>;

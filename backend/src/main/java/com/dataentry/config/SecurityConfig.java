@@ -46,6 +46,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/error").permitAll()
+                        .requestMatchers("/api/super/**").hasRole("SUPER_ADMIN")
+                        // Team admin pages. SUPER_ADMIN is intentionally excluded — to act on a
+                        // team the super admin must "enter" it (which issues an impersonation
+                        // JWT with role=ADMIN + target team id), so every admin action is scoped.
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/user/**").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/**").authenticated()
@@ -80,7 +84,7 @@ public class SecurityConfig {
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of(
                 "Authorization", "Content-Type", "Accept", "Accept-Language",
-                "X-Requested-With", "Origin"
+                "X-Requested-With", "Origin", "X-Impersonate-Team-Id"
         ));
         config.setExposedHeaders(List.of("Content-Disposition"));
         config.setAllowCredentials(true);

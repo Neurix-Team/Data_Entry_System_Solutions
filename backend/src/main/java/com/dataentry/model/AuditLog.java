@@ -2,6 +2,7 @@ package com.dataentry.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.Filter;
 
 import java.time.Instant;
 
@@ -13,18 +14,26 @@ import java.time.Instant;
 @Table(name = "audit_logs", indexes = {
         @Index(name = "idx_audit_created_at", columnList = "createdAt"),
         @Index(name = "idx_audit_actor", columnList = "actorId"),
-        @Index(name = "idx_audit_entity", columnList = "entityType,entityId")
+        @Index(name = "idx_audit_entity", columnList = "entityType,entityId"),
+        @Index(name = "idx_audit_team", columnList = "team_id")
 })
+@Filter(name = "teamFilter", condition = "team_id = :teamId")
+@EntityListeners(TenantEntityListener.class)
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class AuditLog {
+public class AuditLog implements TeamOwned {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    /** Owning team. Nullable for actions performed by SUPER_ADMIN outside a specific team. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "team_id")
+    private Team team;
 
     @Column(name = "actor_id")
     private Long actorId;

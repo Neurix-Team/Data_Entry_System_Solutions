@@ -12,6 +12,9 @@ import { avatarUrl } from '../../api/profile';
 import { useAuth } from '../../context/AuthContext';
 import { useT } from '../../i18n';
 
+/** Role a team admin may assign — SUPER_ADMIN can only be minted from the super-admin surface. */
+type ManageableRole = 'ADMIN' | 'USER';
+
 interface FormState {
   id?: number;
   username: string;
@@ -19,7 +22,7 @@ interface FormState {
   email: string;
   phone: string;
   password: string;
-  role: Role;
+  role: ManageableRole;
   active: boolean;
 }
 
@@ -70,7 +73,9 @@ export function AdminUsersPage() {
     setForm({
       id: u.id, username: u.username,
       displayName: u.displayName ?? '', email: u.email ?? '', phone: u.phone ?? '',
-      password: '', role: u.role, active: u.active,
+      // Team admin never edits SUPER_ADMIN accounts (those live outside any team), so the
+      // narrowing here is safe. Fall back to USER if the row happens to be one.
+      password: '', role: u.role === 'ADMIN' ? 'ADMIN' : 'USER', active: u.active,
     });
     setFormError(null); setPanelOpen(true);
   }
@@ -401,7 +406,7 @@ export function AdminUsersPage() {
               <select
                 className="select"
                 value={form.role}
-                onChange={(e) => setForm({ ...form, role: e.target.value as Role })}
+                onChange={(e) => setForm({ ...form, role: e.target.value as ManageableRole })}
               >
                 <option value="USER">{t('admin.users.roleUser')}</option>
                 <option value="ADMIN">{t('admin.users.roleAdmin')}</option>

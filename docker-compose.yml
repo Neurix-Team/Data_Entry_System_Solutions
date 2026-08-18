@@ -17,6 +17,10 @@ services:
       # Rotate these before first prod boot.  admin/admin123 is dev-only.
       APP_SEED_ADMIN_USERNAME: "${APP_SEED_ADMIN_USERNAME:-admin}"
       APP_SEED_ADMIN_PASSWORD: "${APP_SEED_ADMIN_PASSWORD:-admin123}"
+      # SUPER_ADMIN owns every team and can impersonate any team's admin.  Rotate before
+      # exposing this instance — superadmin/superadmin123 is dev-only.
+      APP_SEED_SUPERADMIN_USERNAME: "${APP_SEED_SUPERADMIN_USERNAME:- }"
+      APP_SEED_SUPERADMIN_PASSWORD: "${APP_SEED_SUPERADMIN_PASSWORD:-superadmin123}"
       # Set to false only for local http:// dev.  Real deployments (https) leave true.
       APP_AUTH_COOKIE_SECURE: "${APP_AUTH_COOKIE_SECURE:-true}"
       # Rolling 24h upload cap per user (bytes). 500 MB default.

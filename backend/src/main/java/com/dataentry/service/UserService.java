@@ -35,6 +35,7 @@ public class UserService {
         this.audit = audit;
     }
 
+    @Transactional(readOnly = true)
     public List<UserDtos.UserResponse> list() {
         return userRepository.findAll().stream()
                 .sorted(Comparator.comparing(User::getCreatedAt).reversed())

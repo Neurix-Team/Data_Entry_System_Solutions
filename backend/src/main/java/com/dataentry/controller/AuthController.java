@@ -3,6 +3,7 @@ package com.dataentry.controller;
 import com.dataentry.dto.AuthDtos;
 import com.dataentry.model.User;
 import com.dataentry.security.JwtAuthFilter;
+import com.dataentry.security.TenantContext;
 import com.dataentry.service.AuthService;
 import com.dataentry.service.LoginRateLimiter;
 import jakarta.servlet.http.HttpServletRequest;
@@ -64,10 +65,7 @@ public class AuthController {
 
     @GetMapping("/me")
     public ResponseEntity<AuthDtos.UserDto> me(@AuthenticationPrincipal User user) {
-        return ResponseEntity.ok(new AuthDtos.UserDto(
-                user.getId(), user.getUsername(), user.getDisplayName(), user.getRole().name(),
-                user.getAvatarUpdatedAt()
-        ));
+        return ResponseEntity.ok(AuthService.toDto(user, TenantContext.isImpersonating()));
     }
 
     private ResponseCookie buildAuthCookie(String value, Duration maxAge) {

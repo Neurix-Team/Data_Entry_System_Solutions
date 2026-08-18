@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { IMPERSONATE_HEADER, impersonation } from './impersonation';
 
 export const API_BASE = import.meta.env.VITE_API_BASE ?? '/api';
 
@@ -37,6 +38,18 @@ api.interceptors.request.use((config) => {
   // right side of bilingual (name_en / name_ar) fields.  Written by i18n/index.tsx.
   const lang = localStorage.getItem(LANG_KEY);
   config.headers['Accept-Language'] = lang === 'ar' ? 'ar' : 'en';
+
+  // When a SUPER_ADMIN has "entered" a team, add the impersonation header so the backend
+  // scopes admin/user endpoints to that team. Never send it on /api/super/* — the super
+  // surface is intentionally cross-team and the header would confuse the backend into
+  // thinking it should scope those too.
+  const url = config.url || '';
+  if (!url.startsWith('/super') && !url.startsWith('super')) {
+    const imp = impersonation.current();
+    if (imp) {
+      config.headers[IMPERSONATE_HEADER] = String(imp.team.id);
+    }
+  }
   return config;
 });
 

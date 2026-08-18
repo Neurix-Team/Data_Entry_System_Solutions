@@ -67,6 +67,16 @@ app:
     enabled: true
     admin-username: admin
     admin-password: admin123
+    # SUPER_ADMIN is the cross-team operator — sees and manages every team, can "enter" any
+    # team as an impersonated admin. Only one is auto-seeded; extras are created from the
+    # super-admin UI. Rotate these before first prod boot; the seeder logs a loud warning if
+    # they're still the built-in defaults.
+    superadmin-username: ${APP_SEED_SUPERADMIN_USERNAME:superadmin}
+    superadmin-password: ${APP_SEED_SUPERADMIN_PASSWORD:superadmin123}
+  impersonation:
+    # Lifetime of the JWT issued when a super admin "enters" a team. Kept short so an
+    # accidentally leaked cookie doesn't grant long-lived team access.
+    ttl-ms: ${APP_IMPERSONATION_TTL_MS:1800000}  # 30 minutes
   pdf:
     # Bumped from 200k to 2M so a full-length article (e.g. long reports, book chapters,
     # merged research files) fits without truncation.
