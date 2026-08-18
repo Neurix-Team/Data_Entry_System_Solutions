@@ -19,6 +19,10 @@ import java.util.Comparator;
 import java.util.List;
 
 @Service
+// Class-level readOnly so read methods sit inside a Spring tx and the TenantFilterAspect
+// enables the tenant filter before Hibernate runs the JPQL — otherwise the TeamOwned
+// @PostLoad guard would 404 on the first department from another team.
+@Transactional(readOnly = true)
 public class DepartmentService {
 
     private final DepartmentRepository repository;

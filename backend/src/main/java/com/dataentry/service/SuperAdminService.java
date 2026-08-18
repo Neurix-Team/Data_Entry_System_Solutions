@@ -9,6 +9,7 @@ import com.dataentry.repository.UserRepository;
 import com.dataentry.security.TenantContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +18,8 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -221,6 +224,123 @@ public class SuperAdminService {
         return new SuperAdminDtos.SuperAdminRow(
                 saved.getId(), saved.getUsername(), saved.getDisplayName(), saved.getEmail(),
                 saved.isActive(), saved.getCreatedAt());
+    }
+
+    // ---------- per-project analytics ----------
+
+    /**
+     * One flat row per project across every team, joined with the team's admins and the
+     * project's own member list plus ticket counts. Built from raw JDBC in three passes so
+     * the whole thing fits in three queries regardless of how many projects/users exist —
+     * a naive per-project loop would N+1 across teams.membership.
+     */
+    public List<SuperAdminDtos.ProjectBreakdown> projectsBreakdown() {
+        // Pass 1: base project rows joined to team.
+        List<SuperAdminDtos.ProjectBreakdown> rows = new ArrayList<>();
+        Map<Long, SuperAdminDtos.ProjectBreakdown> byProjectId = new HashMap<>();
+        Map<Long, List<SuperAdminDtos.PersonRef>> membersByProject = new HashMap<>();
+        Map<Long, List<SuperAdminDtos.PersonRef>> adminsByTeam = new HashMap<>();
+        Map<Long, Long> ticketsByProject = new HashMap<>();
+        Map<Long, Long> weekTicketsByProject = new HashMap<>();
+
+        LocalDate today = LocalDate.now(clock);
+        Instant weekStart = today.minusDays(6).atStartOfDay(clock.getZone()).toInstant();
+
+        // Team admins — every ADMIN in every team (also captures admins who were seeded later
+        // by other admins, per the user's spec: "even if the admin created another admin").
+        try {
+            jdbc.query(
+                    "SELECT team_id, id, username, COALESCE(display_name, username) " +
+                            "FROM users WHERE role = 'ADMIN' AND team_id IS NOT NULL",
+                    (RowCallbackHandler) rs -> {
+                        Long teamId = rs.getLong(1);
+                        adminsByTeam
+                                .computeIfAbsent(teamId, k -> new ArrayList<>())
+                                .add(new SuperAdminDtos.PersonRef(rs.getLong(2), rs.getString(3), rs.getString(4)));
+                    });
+        } catch (Exception ignored) {}
+
+        // Project members via the join table.
+        try {
+            jdbc.query(
+                    "SELECT pm.project_id, u.id, u.username, COALESCE(u.display_name, u.username) " +
+                            "FROM project_members pm JOIN users u ON u.id = pm.user_id",
+                    (RowCallbackHandler) rs -> {
+                        Long projectId = rs.getLong(1);
+                        membersByProject
+                                .computeIfAbsent(projectId, k -> new ArrayList<>())
+                                .add(new SuperAdminDtos.PersonRef(rs.getLong(2), rs.getString(3), rs.getString(4)));
+                    });
+        } catch (Exception ignored) {}
+
+        // Ticket counts per project, both all-time and week-to-date. Explicit RowCallbackHandler
+        // cast — otherwise javac cannot pick between the ResultSetExtractor and
+        // RowCallbackHandler overloads of jdbc.query(String, ...).
+        try {
+            jdbc.query(
+                    "SELECT project_id, COUNT(*) FROM tickets WHERE project_id IS NOT NULL GROUP BY project_id",
+                    (RowCallbackHandler) rs -> ticketsByProject.put(rs.getLong(1), rs.getLong(2)));
+            jdbc.query(
+                    "SELECT project_id, COUNT(*) FROM tickets WHERE project_id IS NOT NULL AND submitted_at >= ? GROUP BY project_id",
+                    ps -> ps.setString(1, weekStart.toString()),
+                    (RowCallbackHandler) rs -> weekTicketsByProject.put(rs.getLong(1), rs.getLong(2))
+            );
+        } catch (Exception ignored) {}
+
+        // Projects + their team info. Explicit RowCallbackHandler cast disambiguates from
+        // ResultSetExtractor; getLong+wasNull avoids the JDBC-driver ambiguity around
+        // Object-typed BIGINT columns on SQLite.
+        try {
+            jdbc.query(
+                    "SELECT p.id, p.name, p.name_en, p.name_ar, p.status, " +
+                            "       t.id AS tid, t.name AS tname, t.color AS tcolor " +
+                            "FROM projects p LEFT JOIN teams t ON t.id = p.team_id " +
+                            "ORDER BY p.created_at DESC",
+                    (RowCallbackHandler) rs -> {
+                        long rawTid = rs.getLong("tid");
+                        Long teamId = rs.wasNull() ? null : rawTid;
+                        SuperAdminDtos.ProjectBreakdown row = new SuperAdminDtos.ProjectBreakdown(
+                                rs.getLong("id"),
+                                rs.getString("name"),
+                                rs.getString("name_en"),
+                                rs.getString("name_ar"),
+                                teamId,
+                                rs.getString("tname"),
+                                rs.getString("tcolor"),
+                                teamId != null
+                                        ? adminsByTeam.getOrDefault(teamId, List.of())
+                                        : List.of(),
+                                List.of(), // filled in below
+                                0L, 0L,
+                                rs.getString("status")
+                        );
+                        rows.add(row);
+                        byProjectId.put(row.projectId(), row);
+                    });
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(SuperAdminService.class)
+                    .warn("projects-breakdown main query failed: {}", e.getMessage());
+        }
+
+        // Rebuild rows with member lists + ticket counts merged in.
+        List<SuperAdminDtos.ProjectBreakdown> out = new ArrayList<>(rows.size());
+        for (SuperAdminDtos.ProjectBreakdown r : rows) {
+            // Wrap in a mutable copy — the default from Map.getOrDefault(..., List.of()) is
+            // immutable and would throw UnsupportedOperationException on the sort below.
+            List<SuperAdminDtos.PersonRef> members = new ArrayList<>(
+                    membersByProject.getOrDefault(r.projectId(), List.of()));
+            members.sort(Comparator.comparing(SuperAdminDtos.PersonRef::username, String.CASE_INSENSITIVE_ORDER));
+            out.add(new SuperAdminDtos.ProjectBreakdown(
+                    r.projectId(), r.projectName(), r.projectNameEn(), r.projectNameAr(),
+                    r.teamId(), r.teamName(), r.teamColor(),
+                    r.teamAdmins(),
+                    members,
+                    ticketsByProject.getOrDefault(r.projectId(), 0L),
+                    weekTicketsByProject.getOrDefault(r.projectId(), 0L),
+                    r.status()
+            ));
+        }
+        return out;
     }
 
     // ---------- team admin management (from super surface, no impersonation) ----------

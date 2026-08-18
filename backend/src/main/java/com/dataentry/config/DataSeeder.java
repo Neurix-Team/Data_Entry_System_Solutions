@@ -359,6 +359,58 @@ public class DataSeeder implements CommandLineRunner {
         } catch (Exception e) {
             log.warn("SUPER_ADMIN team_id repair skipped: {}", e.getMessage());
         }
+
+        // Repair: child rows whose team_id drifted away from their parent's team. The
+        // "seed subcategory into every department" bug in an earlier build stamped the
+        // default team's id on subcategories whose department actually belonged to another
+        // team, which the @PostLoad guard now correctly rejects as a cross-team mismatch —
+        // resulting in 404s on legitimate list pages. Realign to the parent's team_id.
+        try {
+            int subFix = jdbc.update(
+                    "UPDATE subcategories SET team_id = (SELECT team_id FROM departments d WHERE d.id = subcategories.department_id) " +
+                            "WHERE team_id IS NOT NULL " +
+                            "AND team_id != (SELECT team_id FROM departments d WHERE d.id = subcategories.department_id)");
+            if (subFix > 0) log.info("Repaired {} subcategory row(s) whose team_id had drifted from the parent department.", subFix);
+
+            int cfFix = jdbc.update(
+                    "UPDATE custom_fields SET team_id = (SELECT team_id FROM subcategories s WHERE s.id = custom_fields.subcategory_id) " +
+                            "WHERE subcategory_id IS NOT NULL AND team_id IS NOT NULL " +
+                            "AND team_id != (SELECT team_id FROM subcategories s WHERE s.id = custom_fields.subcategory_id)");
+            if (cfFix > 0) log.info("Repaired {} custom_field row(s) whose team_id had drifted.", cfFix);
+
+            int tFix = jdbc.update(
+                    "UPDATE tickets SET team_id = (SELECT team_id FROM departments d WHERE d.id = tickets.department_id) " +
+                            "WHERE team_id IS NOT NULL " +
+                            "AND team_id != (SELECT team_id FROM departments d WHERE d.id = tickets.department_id)");
+            if (tFix > 0) log.info("Repaired {} ticket row(s) whose team_id had drifted from department.", tFix);
+
+            // Cross-team FK references: null out foreign keys that would let a project/subcategory
+            // point at a row owned by a different team. The Hibernate @PostLoad guard fires when
+            // such an association is lazy-loaded and turns benign list pages into 404s. Nulling
+            // the FK preserves the parent row and just detaches the offending reference.
+            int projFk = jdbc.update(
+                    "UPDATE projects SET department_id = NULL " +
+                            "WHERE department_id IS NOT NULL " +
+                            "AND team_id IS NOT NULL " +
+                            "AND team_id != (SELECT team_id FROM departments d WHERE d.id = projects.department_id)");
+            if (projFk > 0) log.info("Nulled {} projects.department_id cross-team FK(s).", projFk);
+
+            int subFk = jdbc.update(
+                    "UPDATE tickets SET subcategory_id = NULL " +
+                            "WHERE subcategory_id IS NOT NULL " +
+                            "AND team_id IS NOT NULL " +
+                            "AND team_id != (SELECT team_id FROM subcategories s WHERE s.id = tickets.subcategory_id)");
+            if (subFk > 0) log.info("Nulled {} tickets.subcategory_id cross-team FK(s).", subFk);
+
+            int projRefFk = jdbc.update(
+                    "UPDATE tickets SET project_id = NULL " +
+                            "WHERE project_id IS NOT NULL " +
+                            "AND team_id IS NOT NULL " +
+                            "AND team_id != (SELECT team_id FROM projects p WHERE p.id = tickets.project_id)");
+            if (projRefFk > 0) log.info("Nulled {} tickets.project_id cross-team FK(s).", projRefFk);
+        } catch (Exception e) {
+            log.warn("Child-team drift repair skipped: {}", e.getMessage());
+        }
     }
 
     private void seedUsers(Team defaultTeam) {
@@ -449,7 +501,14 @@ public class DataSeeder implements CommandLineRunner {
         extras.put("Marketing", List.of("Blog", "Social"));
         extras.put("Content Review", List.of("Editorial", "Legal"));
 
+        // Only seed default subcategories on departments the DEFAULT TEAM owns. Iterating
+        // every department was the source of a subtle data-corruption bug: admins in other
+        // teams create their own departments, then on next boot the seeder (running with
+        // no tenant context) auto-added a "General" subcategory to each of those, stamping
+        // the WRONG team_id in the process — the row's team_id ended up as the default
+        // team's id even though the parent department lived in a different team.
         for (Department d : departmentRepository.findAll()) {
+            if (d.getTeam() == null || !defaultTeam.getId().equals(d.getTeam().getId())) continue;
             ensureSubcategory(d, DEFAULT_SUBCATEGORY, defaultTeam);
             for (String extra : extras.getOrDefault(d.getName(), List.of())) {
                 ensureSubcategory(d, extra, defaultTeam);

@@ -85,6 +85,27 @@ export interface CreateTeamAdminRequest {
   email?: string;
 }
 
+export interface PersonRef {
+  id: number;
+  username: string;
+  displayName?: string | null;
+}
+
+export interface ProjectBreakdown {
+  projectId: number;
+  projectName: string;
+  projectNameEn?: string | null;
+  projectNameAr?: string | null;
+  teamId: number | null;
+  teamName: string | null;
+  teamColor?: string | null;
+  teamAdmins: PersonRef[];
+  projectMembers: PersonRef[];
+  ticketCount: number;
+  ticketsThisWeek: number;
+  status: string;
+}
+
 export const superApi = {
   overview: () => api.get<OverviewStats>('/super/overview').then((r) => r.data),
   teams: () => api.get<TeamSummary[]>('/super/teams').then((r) => r.data),
@@ -103,4 +124,7 @@ export const superApi = {
     api.get<TeamAdminRow[]>(`/super/teams/${teamId}/members`).then((r) => r.data),
   createTeamAdmin: (teamId: number, req: CreateTeamAdminRequest) =>
     api.post<TeamAdminRow>(`/super/teams/${teamId}/admins`, req).then((r) => r.data),
+
+  projectsBreakdown: () =>
+    api.get<ProjectBreakdown[]>('/super/projects-breakdown').then((r) => r.data),
 };

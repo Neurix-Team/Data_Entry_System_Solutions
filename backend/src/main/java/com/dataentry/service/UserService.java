@@ -15,6 +15,10 @@ import java.util.List;
 import java.util.Objects;
 
 @Service
+// Class-level readOnly so every method (including list()) runs inside a Spring tx and the
+// TenantFilterAspect enables the tenant filter — otherwise cross-team users would leak into
+// the response OR (worse) the TeamOwned @PostLoad guard would 404 on the first foreign row.
+@Transactional(readOnly = true)
 public class UserService {
 
     private final UserRepository userRepository;
@@ -35,7 +39,6 @@ public class UserService {
         this.audit = audit;
     }
 
-    @Transactional(readOnly = true)
     public List<UserDtos.UserResponse> list() {
         return userRepository.findAll().stream()
                 .sorted(Comparator.comparing(User::getCreatedAt).reversed())

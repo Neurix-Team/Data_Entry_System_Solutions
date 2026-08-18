@@ -113,6 +113,35 @@ public class SuperAdminDtos {
             Instant createdAt
     ) {}
 
+    // ---------- per-project analytics ----------
+
+    public record PersonRef(
+            Long id,
+            String username,
+            String displayName
+    ) {}
+
+    /**
+     * Everything the "who works on this project" analytics view needs, joined server-side so
+     * the UI renders one flat table without follow-up round-trips per row.
+     */
+    public record ProjectBreakdown(
+            Long projectId,
+            String projectName,
+            String projectNameEn,
+            String projectNameAr,
+            Long teamId,
+            String teamName,
+            String teamColor,
+            /** Every ADMIN in the owning team — includes admins seeded by other admins later on. */
+            List<PersonRef> teamAdmins,
+            /** Users explicitly attached to the project as members. */
+            List<PersonRef> projectMembers,
+            long ticketCount,
+            long ticketsThisWeek,
+            String status
+    ) {}
+
     // ---------- impersonation ----------
 
     /**

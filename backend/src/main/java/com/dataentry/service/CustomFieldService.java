@@ -15,6 +15,10 @@ import java.util.List;
 import java.util.Objects;
 
 @Service
+// Class-level readOnly so read methods sit inside a Spring tx and the TenantFilterAspect
+// enables the tenant filter before Hibernate runs the JPQL — otherwise the TeamOwned
+// @PostLoad guard would 404 on the first field from another team.
+@Transactional(readOnly = true)
 public class CustomFieldService {
 
     private final CustomFieldRepository repository;

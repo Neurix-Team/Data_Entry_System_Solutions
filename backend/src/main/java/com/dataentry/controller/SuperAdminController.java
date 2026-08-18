@@ -90,6 +90,16 @@ public class SuperAdminController {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.createTeamAdmin(id, req));
     }
 
+    /**
+     * Per-project analytics across every team: project name, owning team, all admins of
+     * that team (even ones added later), the project's member list, and ticket counts.
+     * Renders in the /super/projects page.
+     */
+    @GetMapping("/projects-breakdown")
+    public List<SuperAdminDtos.ProjectBreakdown> projectsBreakdown() {
+        return service.projectsBreakdown();
+    }
+
     @GetMapping("/admins")
     public List<SuperAdminDtos.SuperAdminRow> listSuperAdmins() {
         return service.listSuperAdmins();

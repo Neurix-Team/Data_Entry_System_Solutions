@@ -26,13 +26,12 @@ assert "bad password → 401" "401" "$(curl -s -o /dev/null -w '%{http_code}' -X
 
 # ---------- 2. Super creates a fresh team ----------
 section "Super creates fresh team"
-LEGAL_ID=$(curl -s -X POST $API/super/teams -H "Content-Type: application/json" -H "Authorization: Bearer $S_JWT" -d '{"slug":"legal","name":"Legal Team","description":"Contract review","color":"#f59e0b"}' | JQ ".id")
-if [ "$LEGAL_ID" = "undefined" ] || [ -z "$LEGAL_ID" ]; then
-  # already exists from a previous run — fetch id
-  LEGAL_ID=$(curl -s $API/super/teams -H "Authorization: Bearer $S_JWT" | JQ ".find(t=>t.slug==='legal').id")
-fi
+# Unique slug per run so re-executing this suite always exercises a truly fresh team and
+# doesn't inherit leftovers from an earlier session.
+SLUG="legal$$"
+LEGAL_ID=$(curl -s -X POST $API/super/teams -H "Content-Type: application/json" -H "Authorization: Bearer $S_JWT" -d "{\"slug\":\"$SLUG\",\"name\":\"Legal Team\",\"description\":\"Contract review\",\"color\":\"#f59e0b\"}" | JQ ".id")
 assert "team created (id=$LEGAL_ID)" "true" "$([ -n "$LEGAL_ID" ] && [ "$LEGAL_ID" != "undefined" ] && echo true)"
-assert "duplicate slug → 409" "409" "$(curl -s -o /dev/null -w '%{http_code}' -X POST $API/super/teams -H 'Content-Type: application/json' -H "Authorization: Bearer $S_JWT" -d '{"slug":"legal","name":"Dup","color":"#000000"}')"
+assert "duplicate slug → 409" "409" "$(curl -s -o /dev/null -w '%{http_code}' -X POST $API/super/teams -H 'Content-Type: application/json' -H "Authorization: Bearer $S_JWT" -d "{\"slug\":\"$SLUG\",\"name\":\"Dup\",\"color\":\"#000000\"}")"
 assert "bad slug → 400" "400" "$(curl -s -o /dev/null -w '%{http_code}' -X POST $API/super/teams -H 'Content-Type: application/json' -H "Authorization: Bearer $S_JWT" -d '{"slug":"UPPER!!","name":"X","color":"#000000"}')"
 
 # ---------- 3. Super seeds an admin inside the new team via impersonation ----------

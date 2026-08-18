@@ -17,6 +17,11 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 
 @Service
+// Class-level readOnly so every method runs inside a Spring tx and the TenantFilterAspect
+// enables the tenant filter before any query — without it the filter is skipped and the
+// TeamOwned @PostLoad guard rejects the first cross-team row it sees, turning legitimate
+// list requests into confusing 404s.
+@Transactional(readOnly = true)
 public class SubcategoryService {
 
     private final SubcategoryRepository repository;

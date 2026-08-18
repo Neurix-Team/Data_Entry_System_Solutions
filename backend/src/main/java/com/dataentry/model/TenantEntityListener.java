@@ -43,7 +43,13 @@ public class TenantEntityListener {
         Team owner = owned.getTeam();
         // Reading getId() on a Hibernate lazy proxy does NOT trigger DB load — the FK is
         // kept on the proxy itself, so this check is essentially free.
-        if (owner == null || !expected.equals(owner.getId())) {
+        //
+        // Only fail when a *known* other team owns the row. Rows with a null team (legacy
+        // seed data, system-owned lookup tables, or entities in mid-flight before the
+        // @PrePersist stamper runs) are considered unowned and allowed through — otherwise
+        // the guard fires on legit lazy-loads of cross-team-but-owner-null associations and
+        // breaks perfectly legitimate list pages.
+        if (owner != null && owner.getId() != null && !expected.equals(owner.getId())) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Not found");
         }
     }

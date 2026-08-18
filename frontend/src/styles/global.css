@@ -1,3 +1,10 @@
+/* Tailwind utility layers — additive to the existing design system below.
+   Preflight is disabled in tailwind.config.js so utilities coexist with the
+   legacy CSS reset/typography rules (only utility classes are emitted here). */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* ============================================================
    Design tokens — Neurix design system (electric blue / cyan / deep navy)
    Palette sampled from the Neurix logo: royal blue primary, cyan accent,
@@ -3577,3 +3584,159 @@ html[dir='rtl'] .udash-recent-item:hover { transform: translateX(-4px); }
   h1 { font-size: 1.1rem; }
   .btn { padding: 0.5rem 0.85rem; font-size: 0.85rem; }
 }
+
+/* ============================================================
+   Super-admin surface additions — scoped tweaks that only apply
+   inside .super-page wrappers so the rest of the app is untouched.
+   ============================================================ */
+
+/* Orange "SUPER ADMIN" mini-badge that appears under the wordmark
+   in the sidebar so the operator knows they're in the cross-team shell. */
+.sidebar-brand .super-tag {
+  display: inline-block;
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #f97316;
+}
+html[dir='rtl'] .sidebar-brand .super-tag {
+  letter-spacing: 0.02em;
+  font-size: 11px;
+}
+/* Two-line brand block so the badge sits directly under the wordmark. */
+.sidebar-brand .brand-lines {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+/* Slightly more generous table typography in super pages so the density
+   reads as "professional dashboard" rather than "database dump". */
+.super-page .data { font-size: 0.92rem; }
+.super-page .data th {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  background: linear-gradient(180deg, var(--bg-sunken), var(--bg-muted));
+  padding: 0.85rem 1.15rem;
+}
+.super-page .data td { padding: 0.9rem 1.15rem; }
+.super-page .data tr:nth-child(even) td { background: rgba(15, 95, 209, 0.015); }
+.super-page .data tr:hover td { background: var(--brand-soft); }
+
+/* Toolbar sitting above a super-page table — search + filter live here. */
+.super-toolbar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 20px 0 12px;
+}
+.super-toolbar .input { min-height: 40px; padding-block: 0.55rem; }
+.super-toolbar .filter-pills { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.super-toolbar .filter-pill {
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.super-toolbar .filter-pill:hover { background: var(--bg-hover); color: var(--text-primary); }
+.super-toolbar .filter-pill.active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+.super-toolbar .result-count {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+  margin-inline-start: auto;
+}
+
+/* Modal form polish — a light description strip and prettier submit row. */
+.super-modal-form { display: grid; gap: 14px; }
+.super-modal-hint {
+  background: var(--brand-soft);
+  border: 1px solid var(--brand-border);
+  color: var(--brand-soft-text);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.super-modal-hint svg { flex-shrink: 0; margin-top: 2px; }
+.super-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+/* Reduce the awkward whitespace under the last .field inside a super modal. */
+.super-modal-form .field { margin-bottom: 0; }
+
+/* ============================================================
+   Colorful stat cards for super pages — each tint reuses a Neurix
+   dept accent so the grid feels vibrant without leaving the palette.
+   Applied on top of .stat-card, so structure/spacing stay identical.
+   ============================================================ */
+.super-stat {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-surface);
+  isolation: isolate;
+}
+/* Soft tinted wash behind the whole card so the icon isn't the only colour. */
+.super-stat::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--tint-soft, var(--brand-soft)) 0%, transparent 65%);
+  opacity: 0.85;
+  z-index: -1;
+}
+/* Vertical accent strip on the leading edge — the "identity color" for each card. */
+.super-stat::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0; inset-inline-start: 0;
+  width: 4px;
+  background: var(--tint, var(--brand));
+  border-start-start-radius: var(--radius-lg);
+  border-end-start-radius: var(--radius-lg);
+}
+.super-stat .stat-card-icon {
+  background: var(--tint, var(--brand));
+  color: #fff;
+  box-shadow: 0 6px 18px -8px var(--tint, var(--brand));
+}
+.super-stat .stat-card-value {
+  color: var(--text-primary);
+}
+.super-stat .stat-card-label {
+  color: var(--text-secondary);
+}
+.super-stat:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px -14px var(--tint, var(--brand));
+}
+
+/* Tint variants — pick one per KPI card. Each one sets both the accent
+   colour and the soft wash used for the ::before gradient. */
+.super-stat.tint-brand   { --tint: var(--brand);        --tint-soft: var(--brand-soft); }
+.super-stat.tint-cyan    { --tint: var(--accent-cyan);  --tint-soft: var(--accent-cyan-soft); }
+.super-stat.tint-violet  { --tint: var(--dept-color-3); --tint-soft: var(--dept-mini-3); }
+.super-stat.tint-green   { --tint: var(--success);      --tint-soft: var(--success-soft); }
+.super-stat.tint-coral   { --tint: var(--danger);       --tint-soft: var(--danger-soft); }
+.super-stat.tint-amber   { --tint: var(--warning);      --tint-soft: var(--warning-soft); }
+.super-stat.tint-navy    { --tint: var(--accent-deep);  --tint-soft: var(--bg-muted); }
