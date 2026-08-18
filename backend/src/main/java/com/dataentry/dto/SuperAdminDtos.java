@@ -89,6 +89,30 @@ public class SuperAdminDtos {
             @Size(max = 200) String email
     ) {}
 
+    // ---------- team admin creation from super surface ----------
+
+    /**
+     * Request to seed an admin directly into a target team, without needing the super admin
+     * to impersonate first. Used by the "Create team admin" button on the super Teams page —
+     * a one-shot form that assigns the new admin to the correct team as it's created.
+     */
+    public record CreateTeamAdminRequest(
+            @NotBlank @Size(max = 100) String username,
+            @NotBlank @Size(min = 8, max = 200) String password,
+            @Size(max = 150) String displayName,
+            @Size(max = 200) String email
+    ) {}
+
+    public record TeamAdminRow(
+            Long id,
+            String username,
+            String displayName,
+            String email,
+            String role,
+            boolean active,
+            Instant createdAt
+    ) {}
+
     // ---------- impersonation ----------
 
     /**

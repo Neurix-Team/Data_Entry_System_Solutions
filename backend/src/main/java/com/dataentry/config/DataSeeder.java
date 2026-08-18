@@ -337,14 +337,27 @@ public class DataSeeder implements CommandLineRunner {
         for (String table : tables) {
             try {
                 if (!columnExists(table, "team_id")) continue;
-                int updated = jdbc.update(
-                        "UPDATE " + table + " SET team_id = ? WHERE team_id IS NULL", teamId);
+                // SUPER_ADMIN accounts MUST keep team_id = NULL — they are cross-team by
+                // design, so accidentally attaching them to a team would (a) leak their
+                // presence in that team's admin/users list and (b) let a team admin
+                // deactivate them via the normal user-management UI.
+                String sql = "users".equals(table)
+                        ? "UPDATE users SET team_id = ? WHERE team_id IS NULL AND role != 'SUPER_ADMIN'"
+                        : "UPDATE " + table + " SET team_id = ? WHERE team_id IS NULL";
+                int updated = jdbc.update(sql, teamId);
                 if (updated > 0) {
                     log.info("Backfilled team_id on {} rows in {}", updated, table);
                 }
             } catch (Exception e) {
                 log.warn("team_id backfill on {} skipped: {}", table, e.getMessage());
             }
+        }
+        // Repair: if a super admin has been mis-stamped by an older seeder run, revert it.
+        try {
+            int fixed = jdbc.update("UPDATE users SET team_id = NULL WHERE role = 'SUPER_ADMIN' AND team_id IS NOT NULL");
+            if (fixed > 0) log.info("Repaired {} SUPER_ADMIN row(s) that had been stamped with a team_id.", fixed);
+        } catch (Exception e) {
+            log.warn("SUPER_ADMIN team_id repair skipped: {}", e.getMessage());
         }
     }
 

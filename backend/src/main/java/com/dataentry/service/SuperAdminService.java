@@ -223,6 +223,58 @@ public class SuperAdminService {
                 saved.isActive(), saved.getCreatedAt());
     }
 
+    // ---------- team admin management (from super surface, no impersonation) ----------
+
+    /**
+     * Seed an ADMIN account directly inside a target team. Equivalent to what a super admin
+     * would do by impersonating the team and hitting {@code POST /api/admin/users}, but as a
+     * single call so the "onboard a team" flow reads as one action on the super surface.
+     */
+    @Transactional
+    public SuperAdminDtos.TeamAdminRow createTeamAdmin(Long teamId, SuperAdminDtos.CreateTeamAdminRequest req) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found"));
+        if (!team.isActive()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Team is deactivated. Re-activate before creating members inside it.");
+        }
+        if (userRepository.existsByUsername(req.username())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already exists.");
+        }
+        String display = (req.displayName() == null || req.displayName().isBlank())
+                ? req.username() : req.displayName();
+        TranslationService.Bilingual bi = translator.toBoth(display);
+        User saved = userRepository.save(User.builder()
+                .username(req.username())
+                .passwordHash(passwordEncoder.encode(req.password()))
+                .displayName(display)
+                .displayNameEn(bi.en())
+                .displayNameAr(bi.ar())
+                .email(req.email())
+                .role(Role.ADMIN)
+                // Explicit team on write — the TenantEntityListener would otherwise skip
+                // because we're operating as SUPER_ADMIN (context.isSuperAdmin() = true).
+                .team(team)
+                .active(true)
+                .build());
+        return new SuperAdminDtos.TeamAdminRow(
+                saved.getId(), saved.getUsername(), saved.getDisplayName(), saved.getEmail(),
+                saved.getRole().name(), saved.isActive(), saved.getCreatedAt());
+    }
+
+    /** List all members of a specific team — useful on the Teams page for a quick roster peek. */
+    public List<SuperAdminDtos.TeamAdminRow> listTeamMembers(Long teamId) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found"));
+        return userRepository.findAll().stream()
+                .filter(u -> u.getTeam() != null && teamId.equals(u.getTeam().getId()))
+                .map(u -> new SuperAdminDtos.TeamAdminRow(
+                        u.getId(), u.getUsername(), u.getDisplayName(), u.getEmail(),
+                        u.getRole().name(), u.isActive(), u.getCreatedAt()))
+                .sorted((a, b) -> b.createdAt().compareTo(a.createdAt()))
+                .toList();
+    }
+
     // ---------- impersonation ----------
 
     /**

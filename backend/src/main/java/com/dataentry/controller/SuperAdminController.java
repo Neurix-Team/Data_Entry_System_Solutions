@@ -73,6 +73,23 @@ public class SuperAdminController {
         return service.enterTeam(id);
     }
 
+    @GetMapping("/teams/{id}/members")
+    public List<SuperAdminDtos.TeamAdminRow> teamMembers(@PathVariable Long id) {
+        return service.listTeamMembers(id);
+    }
+
+    /**
+     * One-shot: create an ADMIN account inside {@code teamId} without needing the caller
+     * to switch into impersonation first. Powers the "Create team admin" button on the
+     * super Teams page.
+     */
+    @PostMapping("/teams/{id}/admins")
+    public ResponseEntity<SuperAdminDtos.TeamAdminRow> createTeamAdmin(
+            @PathVariable Long id,
+            @Valid @RequestBody SuperAdminDtos.CreateTeamAdminRequest req) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.createTeamAdmin(id, req));
+    }
+
     @GetMapping("/admins")
     public List<SuperAdminDtos.SuperAdminRow> listSuperAdmins() {
         return service.listSuperAdmins();

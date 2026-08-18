@@ -68,6 +68,23 @@ export interface EnterTeamResponse {
   header: string;
 }
 
+export interface TeamAdminRow {
+  id: number;
+  username: string;
+  displayName?: string | null;
+  email?: string | null;
+  role: 'ADMIN' | 'USER';
+  active: boolean;
+  createdAt: string;
+}
+
+export interface CreateTeamAdminRequest {
+  username: string;
+  password: string;
+  displayName?: string;
+  email?: string;
+}
+
 export const superApi = {
   overview: () => api.get<OverviewStats>('/super/overview').then((r) => r.data),
   teams: () => api.get<TeamSummary[]>('/super/teams').then((r) => r.data),
@@ -81,4 +98,9 @@ export const superApi = {
   admins: () => api.get<SuperAdminRow[]>('/super/admins').then((r) => r.data),
   createAdmin: (req: CreateSuperAdminRequest) =>
     api.post<SuperAdminRow>('/super/admins', req).then((r) => r.data),
+
+  teamMembers: (teamId: number) =>
+    api.get<TeamAdminRow[]>(`/super/teams/${teamId}/members`).then((r) => r.data),
+  createTeamAdmin: (teamId: number, req: CreateTeamAdminRequest) =>
+    api.post<TeamAdminRow>(`/super/teams/${teamId}/admins`, req).then((r) => r.data),
 };

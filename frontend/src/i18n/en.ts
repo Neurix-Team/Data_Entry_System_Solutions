@@ -119,6 +119,11 @@ export const en = {
     passwordHint: 'Minimum 8 characters.',
     noTeams: 'No teams yet. Create one to start onboarding admins.',
     noAdmins: 'Only the seeded super admin exists so far.',
+    addAdmin: 'Add admin',
+    addAdminHint: 'Create an admin who will manage this team',
+    addAdminExplain: 'The new admin will manage users, projects, departments and tickets inside this team only.',
+    members: 'Members',
+    noMembers: 'No members yet — add an admin to start.',
   },
 
   admin: {
