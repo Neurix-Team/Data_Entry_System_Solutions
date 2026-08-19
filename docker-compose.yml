@@ -19,7 +19,7 @@ services:
       APP_SEED_ADMIN_PASSWORD: "${APP_SEED_ADMIN_PASSWORD:-admin123}"
       # SUPER_ADMIN owns every team and can impersonate any team's admin.  Rotate before
       # exposing this instance — superadmin/superadmin123 is dev-only.
-      APP_SEED_SUPERADMIN_USERNAME: "${APP_SEED_SUPERADMIN_USERNAME:- }"
+      APP_SEED_SUPERADMIN_USERNAME: "${APP_SEED_SUPERADMIN_USERNAME:-superadmin}"
       APP_SEED_SUPERADMIN_PASSWORD: "${APP_SEED_SUPERADMIN_PASSWORD:-superadmin123}"
       # Set to false only for local http:// dev.  Real deployments (https) leave true.
       APP_AUTH_COOKIE_SECURE: "${APP_AUTH_COOKIE_SECURE:-true}"
