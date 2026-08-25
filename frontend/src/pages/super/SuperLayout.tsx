@@ -6,6 +6,7 @@ import { Avatar } from '../../components/Avatar';
 import {
   IconChart, IconClose, IconDashboard, IconFolder,
   IconLogout, IconMembers, IconTasks, IconBuilding,
+  IconDatabase, IconKey,
 } from '../../components/Icons';
 import { PreferencesToggle } from '../../components/PreferencesToggle';
 import { ProfileModal } from '../../components/ProfileModal';
@@ -91,6 +92,14 @@ export function SuperLayout() {
         <NavLink to="/super/projects" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
           <span className="side-icon"><IconChart /></span>
           {t('super.projectsNav') || 'Project analytics'}
+        </NavLink>
+        <NavLink to="/super/data" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
+          <span className="side-icon"><IconDatabase /></span>
+          {t('super.data.nav') || 'Data explorer'}
+        </NavLink>
+        <NavLink to="/super/api-tokens" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
+          <span className="side-icon"><IconKey /></span>
+          {t('super.tokens.nav') || 'API tokens'}
         </NavLink>
         <NavLink to="/super/admins" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
           <span className="side-icon"><IconMembers /></span>

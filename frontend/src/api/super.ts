@@ -106,6 +106,99 @@ export interface ProjectBreakdown {
   status: string;
 }
 
+// ---------- Data explorer ----------
+
+export interface ExplorerDocument {
+  id: number;
+  name: string;
+  originalFilename: string;
+  contentType: string | null;
+  sizeBytes: number;
+  uploadedAt: string;
+  downloadUrl?: string | null;
+}
+
+export interface ExplorerFieldValue {
+  fieldId: number | null;
+  fieldName: string | null;
+  value: string | null;
+}
+
+export interface ExplorerRow {
+  id: number;
+  teamId: number | null;
+  teamName: string | null;
+  projectId: number | null;
+  projectName: string | null;
+  departmentId: number | null;
+  departmentName: string | null;
+  subcategoryId: number | null;
+  subcategoryName: string | null;
+  submittedByUserId: number | null;
+  submittedByUsername: string | null;
+  submittedByDisplayName: string | null;
+  title: string | null;
+  content: string | null;
+  websiteName: string | null;
+  websiteLink: string | null;
+  status: string | null;
+  submittedAt: string;
+  documents: ExplorerDocument[];
+  customFields: ExplorerFieldValue[];
+}
+
+export interface ExplorerPage {
+  items: ExplorerRow[];
+  nextCursor: number | null;
+  hasMore: boolean;
+  total: number;
+}
+
+export interface ExplorerNamed { id: number; name: string; }
+export interface ExplorerFacets {
+  teams: ExplorerNamed[];
+  projects: ExplorerNamed[];
+  users: ExplorerNamed[];
+}
+
+export interface ExplorerQuery {
+  teamId?: number;
+  projectId?: number;
+  userId?: number;
+  from?: string;
+  to?: string;
+  search?: string;
+  cursor?: number;
+  size?: number;
+}
+
+// ---------- API tokens ----------
+
+export interface ApiTokenRow {
+  id: number;
+  name: string;
+  prefix: string;
+  createdByUserId: number | null;
+  createdByUsername: string | null;
+  createdAt: string;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  lastUsedAt: string | null;
+  active: boolean;
+}
+
+export interface CreateApiTokenRequest {
+  name: string;
+  /** Days until the token expires. 0 or null → never expires. */
+  expiresInDays?: number | null;
+}
+
+export interface CreateApiTokenResponse {
+  token: ApiTokenRow;
+  /** Full plaintext token — shown once, never returned again. */
+  plaintext: string;
+}
+
 export const superApi = {
   overview: () => api.get<OverviewStats>('/super/overview').then((r) => r.data),
   teams: () => api.get<TeamSummary[]>('/super/teams').then((r) => r.data),
@@ -127,4 +220,22 @@ export const superApi = {
 
   projectsBreakdown: () =>
     api.get<ProjectBreakdown[]>('/super/projects-breakdown').then((r) => r.data),
+
+  // Data explorer
+  explorerFacets: () =>
+    api.get<ExplorerFacets>('/super/data/facets').then((r) => r.data),
+  explorerTickets: (q: ExplorerQuery) =>
+    api.get<ExplorerPage>('/super/data/tickets', { params: q }).then((r) => r.data),
+  explorerTicket: (id: number) =>
+    api.get<ExplorerRow>(`/super/data/tickets/${id}`).then((r) => r.data),
+
+  // API tokens
+  apiTokens: () =>
+    api.get<ApiTokenRow[]>('/super/api-tokens').then((r) => r.data),
+  createApiToken: (req: CreateApiTokenRequest) =>
+    api.post<CreateApiTokenResponse>('/super/api-tokens', req).then((r) => r.data),
+  revokeApiToken: (id: number) =>
+    api.post<ApiTokenRow>(`/super/api-tokens/${id}/revoke`).then((r) => r.data),
+  deleteApiToken: (id: number) =>
+    api.delete<void>(`/super/api-tokens/${id}`).then(() => undefined),
 };

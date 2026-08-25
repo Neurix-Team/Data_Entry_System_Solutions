@@ -194,8 +194,7 @@ public class SuperAdminService {
     // ---------- super-admin management ----------
 
     public List<SuperAdminDtos.SuperAdminRow> listSuperAdmins() {
-        return userRepository.findAll().stream()
-                .filter(u -> u.getRole() == Role.SUPER_ADMIN)
+        return userRepository.findAllByRole(Role.SUPER_ADMIN).stream()
                 .map(u -> new SuperAdminDtos.SuperAdminRow(
                         u.getId(), u.getUsername(), u.getDisplayName(), u.getEmail(),
                         u.isActive(), u.getCreatedAt()))
@@ -384,14 +383,13 @@ public class SuperAdminService {
 
     /** List all members of a specific team — useful on the Teams page for a quick roster peek. */
     public List<SuperAdminDtos.TeamAdminRow> listTeamMembers(Long teamId) {
-        Team team = teamRepository.findById(teamId)
+        // findById to validate existence + get a clean 404 rather than an empty list for a bad id.
+        teamRepository.findById(teamId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found"));
-        return userRepository.findAll().stream()
-                .filter(u -> u.getTeam() != null && teamId.equals(u.getTeam().getId()))
+        return userRepository.findAllByTeamIdOrderByCreatedAtDesc(teamId).stream()
                 .map(u -> new SuperAdminDtos.TeamAdminRow(
                         u.getId(), u.getUsername(), u.getDisplayName(), u.getEmail(),
                         u.getRole().name(), u.isActive(), u.getCreatedAt()))
-                .sorted((a, b) -> b.createdAt().compareTo(a.createdAt()))
                 .toList();
     }
 

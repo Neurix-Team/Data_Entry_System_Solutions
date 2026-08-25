@@ -1,5 +1,6 @@
 package com.dataentry.config;
 
+import com.dataentry.security.ApiTokenAuthFilter;
 import com.dataentry.security.JwtAuthFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -23,12 +24,14 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final ApiTokenAuthFilter apiTokenAuthFilter;
 
     @Value("${app.cors.allowed-origins}")
     private String allowedOrigins;
 
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter, ApiTokenAuthFilter apiTokenAuthFilter) {
         this.jwtAuthFilter = jwtAuthFilter;
+        this.apiTokenAuthFilter = apiTokenAuthFilter;
     }
 
     @Bean
@@ -46,6 +49,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/error").permitAll()
+                        // External data-export API. Auth is a personal-access token
+                        // (see ApiTokenAuthFilter); tokens have ROLE_API and can only read.
+                        .requestMatchers("/api/v1/**").hasRole("API")
                         .requestMatchers("/api/super/**").hasRole("SUPER_ADMIN")
                         // Team admin pages. SUPER_ADMIN is intentionally excluded — to act on a
                         // team the super admin must "enter" it (which issues an impersonation
@@ -57,6 +63,9 @@ public class SecurityConfig {
                         // a newly added controller from being silently public.
                         .anyRequest().denyAll()
                 )
+                // API-token filter runs before the JWT filter so /api/v1/** requests are
+                // authenticated by their Bearer token even if a stray cookie is present.
+                .addFilterBefore(apiTokenAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

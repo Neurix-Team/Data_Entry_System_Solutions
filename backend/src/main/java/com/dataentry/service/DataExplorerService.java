@@ -1,0 +1,240 @@
+package com.dataentry.service;
+
+import com.dataentry.dto.DataExplorerDtos;
+import com.dataentry.model.Ticket;
+import com.dataentry.model.TicketDocument;
+import com.dataentry.model.TicketFieldValue;
+import com.dataentry.repository.TicketRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.TypedQuery;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowCallbackHandler;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Unified cross-team ticket view used by both the super-admin data explorer page and the
+ * external /api/v1/export/tickets endpoint. Runs with the tenant filter disabled — every
+ * consumer of this service is either SUPER_ADMIN or an API token, both of which are meant
+ * to see every team.
+ *
+ * <p>Query strategy: one JPQL for the ticket rows, then a single batched-in-clause fetch
+ * for documents and field values. That keeps the round-trip count constant regardless of
+ * page size (no N+1 across attachments).
+ */
+@Service
+@Transactional(readOnly = true)
+public class DataExplorerService {
+
+    /** Cap page size so a curious caller can't ask for a million rows in one go. */
+    private static final int MAX_PAGE_SIZE = 500;
+    private static final int DEFAULT_PAGE_SIZE = 50;
+
+    private final TicketRepository ticketRepository;
+    private final EntityManager em;
+    private final JdbcTemplate jdbc;
+
+    public DataExplorerService(TicketRepository ticketRepository,
+                               EntityManager em,
+                               JdbcTemplate jdbc) {
+        this.ticketRepository = ticketRepository;
+        this.em = em;
+        this.jdbc = jdbc;
+    }
+
+    /**
+     * Paginated cross-team ticket search. {@code cursor} is the id of the last row seen
+     * (rows are ordered by id DESC so the cursor gives "everything older than X").
+     */
+    public DataExplorerDtos.Page search(Filters filters, Long cursor, Integer size, String downloadUrlPrefix) {
+        int pageSize = clampSize(size);
+
+        StringBuilder jpql = new StringBuilder(
+                "select t from Ticket t " +
+                        "left join fetch t.submittedBy " +
+                        "left join fetch t.team " +
+                        "left join fetch t.project " +
+                        "left join fetch t.department " +
+                        "left join fetch t.subcategory " +
+                        "where 1=1 ");
+        Map<String, Object> params = new HashMap<>();
+
+        if (filters.teamId() != null) { jpql.append("and t.team.id = :teamId "); params.put("teamId", filters.teamId()); }
+        if (filters.projectId() != null) { jpql.append("and t.project.id = :projectId "); params.put("projectId", filters.projectId()); }
+        if (filters.userId() != null) { jpql.append("and t.submittedBy.id = :userId "); params.put("userId", filters.userId()); }
+        if (filters.from() != null) { jpql.append("and t.submittedAt >= :from "); params.put("from", filters.from()); }
+        if (filters.to() != null) { jpql.append("and t.submittedAt < :to "); params.put("to", filters.to()); }
+        if (filters.search() != null && !filters.search().isBlank()) {
+            jpql.append("and (lower(t.title) like :q or lower(t.content) like :q or lower(t.websiteName) like :q) ");
+            params.put("q", "%" + filters.search().toLowerCase() + "%");
+        }
+        if (cursor != null) { jpql.append("and t.id < :cursor "); params.put("cursor", cursor); }
+
+        jpql.append("order by t.id desc");
+
+        TypedQuery<Ticket> q = em.createQuery(jpql.toString(), Ticket.class);
+        params.forEach(q::setParameter);
+        // Fetch one extra to detect "has more" without a second COUNT round trip.
+        q.setMaxResults(pageSize + 1);
+        List<Ticket> rows = q.getResultList();
+
+        boolean hasMore = rows.size() > pageSize;
+        if (hasMore) rows = rows.subList(0, pageSize);
+
+        // Batched fetches for docs + field values keyed by ticket id.
+        List<Long> ticketIds = rows.stream().map(Ticket::getId).toList();
+        Map<Long, List<TicketDocument>> docsByTicket = loadDocuments(ticketIds);
+        Map<Long, List<TicketFieldValue>> fieldsByTicket = loadFieldValues(ticketIds);
+
+        List<DataExplorerDtos.Row> items = new ArrayList<>(rows.size());
+        for (Ticket t : rows) {
+            items.add(toRow(t,
+                    docsByTicket.getOrDefault(t.getId(), List.of()),
+                    fieldsByTicket.getOrDefault(t.getId(), List.of()),
+                    downloadUrlPrefix));
+        }
+
+        Long nextCursor = (hasMore && !items.isEmpty()) ? items.get(items.size() - 1).id() : null;
+        long total = countMatching(filters);
+
+        return new DataExplorerDtos.Page(items, nextCursor, hasMore, total);
+    }
+
+    /** Facet lists for the explorer sidebar. Kept as separate queries so an empty result
+     *  page still shows every possible filter option. */
+    public DataExplorerDtos.Facets facets() {
+        List<DataExplorerDtos.Named> teams = new ArrayList<>();
+        List<DataExplorerDtos.Named> projects = new ArrayList<>();
+        List<DataExplorerDtos.Named> users = new ArrayList<>();
+
+        jdbc.query("SELECT id, name FROM teams WHERE active = 1 ORDER BY name",
+                (RowCallbackHandler) rs -> teams.add(new DataExplorerDtos.Named(rs.getLong(1), rs.getString(2))));
+        jdbc.query("SELECT id, name FROM projects ORDER BY name",
+                (RowCallbackHandler) rs -> projects.add(new DataExplorerDtos.Named(rs.getLong(1), rs.getString(2))));
+        jdbc.query("SELECT id, COALESCE(display_name, username) FROM users " +
+                        "WHERE active = 1 AND role != 'SUPER_ADMIN' ORDER BY 2",
+                (RowCallbackHandler) rs -> users.add(new DataExplorerDtos.Named(rs.getLong(1), rs.getString(2))));
+
+        return new DataExplorerDtos.Facets(teams, projects, users);
+    }
+
+    /** Fetch a single ticket by id — used by the row-expand action in the UI. */
+    public DataExplorerDtos.Row byId(Long id, String downloadUrlPrefix) {
+        Ticket t = ticketRepository.findWithDetailsById(id)
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.NOT_FOUND, "Ticket not found"));
+        Map<Long, List<TicketDocument>> docs = loadDocuments(List.of(id));
+        Map<Long, List<TicketFieldValue>> fields = loadFieldValues(List.of(id));
+        return toRow(t, docs.getOrDefault(id, List.of()),
+                fields.getOrDefault(id, List.of()), downloadUrlPrefix);
+    }
+
+    private long countMatching(Filters filters) {
+        StringBuilder jpql = new StringBuilder("select count(t) from Ticket t where 1=1 ");
+        Map<String, Object> params = new HashMap<>();
+        if (filters.teamId() != null) { jpql.append("and t.team.id = :teamId "); params.put("teamId", filters.teamId()); }
+        if (filters.projectId() != null) { jpql.append("and t.project.id = :projectId "); params.put("projectId", filters.projectId()); }
+        if (filters.userId() != null) { jpql.append("and t.submittedBy.id = :userId "); params.put("userId", filters.userId()); }
+        if (filters.from() != null) { jpql.append("and t.submittedAt >= :from "); params.put("from", filters.from()); }
+        if (filters.to() != null) { jpql.append("and t.submittedAt < :to "); params.put("to", filters.to()); }
+        if (filters.search() != null && !filters.search().isBlank()) {
+            jpql.append("and (lower(t.title) like :q or lower(t.content) like :q or lower(t.websiteName) like :q) ");
+            params.put("q", "%" + filters.search().toLowerCase() + "%");
+        }
+        TypedQuery<Long> q = em.createQuery(jpql.toString(), Long.class);
+        params.forEach(q::setParameter);
+        Long v = q.getSingleResult();
+        return v == null ? 0 : v;
+    }
+
+    private Map<Long, List<TicketDocument>> loadDocuments(List<Long> ticketIds) {
+        Map<Long, List<TicketDocument>> out = new HashMap<>();
+        if (ticketIds.isEmpty()) return out;
+        List<TicketDocument> docs = em.createQuery(
+                        "select d from TicketDocument d where d.ticket.id in :ids order by d.uploadedAt asc, d.id asc",
+                        TicketDocument.class)
+                .setParameter("ids", ticketIds)
+                .getResultList();
+        for (TicketDocument d : docs) {
+            out.computeIfAbsent(d.getTicket().getId(), k -> new ArrayList<>()).add(d);
+        }
+        return out;
+    }
+
+    private Map<Long, List<TicketFieldValue>> loadFieldValues(List<Long> ticketIds) {
+        Map<Long, List<TicketFieldValue>> out = new HashMap<>();
+        if (ticketIds.isEmpty()) return out;
+        List<TicketFieldValue> vals = em.createQuery(
+                        "select v from TicketFieldValue v " +
+                                "join fetch v.field " +
+                                "where v.ticket.id in :ids",
+                        TicketFieldValue.class)
+                .setParameter("ids", ticketIds)
+                .getResultList();
+        for (TicketFieldValue v : vals) {
+            out.computeIfAbsent(v.getTicket().getId(), k -> new ArrayList<>()).add(v);
+        }
+        return out;
+    }
+
+    private DataExplorerDtos.Row toRow(Ticket t,
+                                       List<TicketDocument> docs,
+                                       List<TicketFieldValue> fields,
+                                       String downloadUrlPrefix) {
+        List<DataExplorerDtos.DocumentSummary> docSummaries = docs.stream()
+                .map(d -> new DataExplorerDtos.DocumentSummary(
+                        d.getId(), d.getName(), d.getOriginalFilename(),
+                        d.getContentType(), d.getSizeBytes(), d.getUploadedAt(),
+                        downloadUrlPrefix == null ? null : downloadUrlPrefix + d.getId() + "/download"
+                ))
+                .toList();
+        List<DataExplorerDtos.FieldValue> fieldValues = fields.stream()
+                .map(v -> new DataExplorerDtos.FieldValue(
+                        v.getField() != null ? v.getField().getId() : null,
+                        v.getField() != null ? v.getField().getLabel() : null,
+                        v.getValue()))
+                .toList();
+        return new DataExplorerDtos.Row(
+                t.getId(),
+                t.getTeam() != null ? t.getTeam().getId() : null,
+                t.getTeam() != null ? t.getTeam().getName() : null,
+                t.getProject() != null ? t.getProject().getId() : null,
+                t.getProject() != null ? t.getProject().getName() : null,
+                t.getDepartment() != null ? t.getDepartment().getId() : null,
+                t.getDepartment() != null ? t.getDepartment().getName() : null,
+                t.getSubcategory() != null ? t.getSubcategory().getId() : null,
+                t.getSubcategory() != null ? t.getSubcategory().getName() : null,
+                t.getSubmittedBy() != null ? t.getSubmittedBy().getId() : null,
+                t.getSubmittedBy() != null ? t.getSubmittedBy().getUsername() : null,
+                t.getSubmittedBy() != null ? t.getSubmittedBy().getDisplayName() : null,
+                t.getTitle(),
+                t.getContent(),
+                t.getWebsiteName(),
+                t.getWebsiteLink(),
+                t.getStatus() != null ? t.getStatus().name() : null,
+                t.getSubmittedAt(),
+                docSummaries,
+                fieldValues
+        );
+    }
+
+    private int clampSize(Integer size) {
+        if (size == null || size <= 0) return DEFAULT_PAGE_SIZE;
+        return Math.min(size, MAX_PAGE_SIZE);
+    }
+
+    public record Filters(
+            Long teamId,
+            Long projectId,
+            Long userId,
+            Instant from,
+            Instant to,
+            String search
+    ) {}
+}

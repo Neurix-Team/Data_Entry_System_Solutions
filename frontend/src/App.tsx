@@ -19,6 +19,8 @@ import { SuperOverviewPage } from './pages/super/SuperOverviewPage';
 import { SuperTeamsPage } from './pages/super/SuperTeamsPage';
 import { SuperAdminsPage } from './pages/super/SuperAdminsPage';
 import { SuperProjectsPage } from './pages/super/SuperProjectsPage';
+import { SuperDataPage } from './pages/super/SuperDataPage';
+import { SuperApiTokensPage } from './pages/super/SuperApiTokensPage';
 
 function RootRedirect() {
   const { user, loading } = useAuth();
@@ -44,6 +46,8 @@ export default function App() {
         <Route path="/super" element={<SuperOverviewPage />} />
         <Route path="/super/teams" element={<SuperTeamsPage />} />
         <Route path="/super/projects" element={<SuperProjectsPage />} />
+        <Route path="/super/data" element={<SuperDataPage />} />
+        <Route path="/super/api-tokens" element={<SuperApiTokensPage />} />
         <Route path="/super/admins" element={<SuperAdminsPage />} />
       </Route>
 

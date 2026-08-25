@@ -50,10 +50,16 @@ public class TenantFilterAspect {
     @Around("@within(org.springframework.transaction.annotation.Transactional) "
             + "|| @annotation(org.springframework.transaction.annotation.Transactional)")
     public Object applyTenantFilter(ProceedingJoinPoint pjp) throws Throwable {
-        log.info("aspect fired for {} (teamId={}, super={})",
-                pjp.getSignature().toShortString(),
-                TenantContext.getTeamId(),
-                TenantContext.isSuperAdmin());
+        // The aspect fires on ~50+ @Transactional methods across the codebase. A single
+        // request can hit it 3-5 times as controllers → services → nested tx methods
+        // cascade. Guarding at trace level avoids the String.format + log I/O on the
+        // hot path; enable com.dataentry.security=TRACE only when diagnosing tenant issues.
+        if (log.isTraceEnabled()) {
+            log.trace("aspect fired for {} (teamId={}, super={})",
+                    pjp.getSignature().toShortString(),
+                    TenantContext.getTeamId(),
+                    TenantContext.isSuperAdmin());
+        }
         if (TenantContext.isSuperAdmin()) {
             return pjp.proceed();
         }

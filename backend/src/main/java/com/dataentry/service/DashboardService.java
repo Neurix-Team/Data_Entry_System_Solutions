@@ -29,6 +29,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -229,9 +230,17 @@ public class DashboardService {
         Instant weekStart = today.minusDays(6).atStartOfDay(zone()).toInstant();
         Map<Long, Long> weekByUser = userCountMap(ticketRepository.countByUserSince(weekStart));
 
-        // Fetch users once to resolve localized display names — cheaper than an N+1.
-        Map<Long, User> usersById = userRepository.findAll().stream()
-                .collect(Collectors.toMap(User::getId, u -> u));
+        // Fetch only the users that showed up on the leaderboard — previously loaded the
+        // entire users table on every dashboard refresh which got expensive as the org grew.
+        List<Long> boardUserIds = board.stream()
+                .map(DashboardDtos.LeaderboardRowRaw::userId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<Long, User> usersById = boardUserIds.isEmpty()
+                ? Map.of()
+                : userRepository.findAllById(boardUserIds).stream()
+                        .collect(Collectors.toMap(User::getId, u -> u));
         List<DashboardDtos.AgentLeaderboardRow> rows = board.stream()
                 .map(row -> {
                     double avg = windowDays > 0 ? (double) row.total() / windowDays : 0;

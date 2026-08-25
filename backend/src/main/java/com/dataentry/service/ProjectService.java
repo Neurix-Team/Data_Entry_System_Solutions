@@ -17,8 +17,10 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -57,14 +59,30 @@ public class ProjectService {
 
     @Transactional(readOnly = true)
     public List<ProjectDtos.ProjectResponse> list() {
-        return repository.findAllByOrderByCreatedAtDesc().stream().map(this::toDto).toList();
+        return toDtos(repository.findAllByOrderByCreatedAtDesc());
     }
 
     /** Only the projects a specific user is a member of. Returns [] for null userId. */
     @Transactional(readOnly = true)
     public List<ProjectDtos.ProjectResponse> listForMember(Long userId) {
         if (userId == null) return List.of();
-        return repository.findAllByMemberId(userId).stream().map(this::toDto).toList();
+        return toDtos(repository.findAllByMemberId(userId));
+    }
+
+    /** Batched serialisation for list endpoints — one query for every project's
+     *  departments regardless of list size, instead of one per row. */
+    private List<ProjectDtos.ProjectResponse> toDtos(List<Project> projects) {
+        if (projects.isEmpty()) return List.of();
+        List<Long> ids = projects.stream().map(Project::getId).toList();
+        Map<Long, List<Department>> deptsByProject = new HashMap<>();
+        for (Department d : departmentRepository.findAllByProjectIdIn(ids)) {
+            if (d.getProject() != null) {
+                deptsByProject.computeIfAbsent(d.getProject().getId(), k -> new ArrayList<>()).add(d);
+            }
+        }
+        return projects.stream()
+                .map(p -> toDto(p, deptsByProject.getOrDefault(p.getId(), List.of())))
+                .toList();
     }
 
     @Transactional
@@ -119,9 +137,8 @@ public class ProjectService {
         List<Long> targetIds = effectiveDepartmentIds(req);
         if (!targetIds.isEmpty()) {
             List<Department> targets = loadDepartments(targetIds);
-            List<Department> current = departmentRepository.findAll().stream()
-                    .filter(d -> d.getProject() != null && Objects.equals(d.getProject().getId(), id))
-                    .toList();
+            // Was findAll().stream().filter — now a targeted indexed lookup.
+            List<Department> current = departmentRepository.findAllByProjectId(id);
             Set<Long> targetIdSet = new HashSet<>(targetIds);
             for (Department d : current) {
                 if (!targetIdSet.contains(d.getId())) {
@@ -226,7 +243,12 @@ public class ProjectService {
         return new HashSet<>(found);
     }
 
+    /** Single-project entrypoint used by create/update/get. Runs one department query. */
     private ProjectDtos.ProjectResponse toDto(Project p) {
+        return toDto(p, departmentRepository.findAllByProjectId(p.getId()));
+    }
+
+    private ProjectDtos.ProjectResponse toDto(Project p, List<Department> projectDepartments) {
         Integer daysLeft = null;
         if (p.getEndDate() != null && p.getStatus() != ProjectStatus.COMPLETED) {
             daysLeft = (int) ChronoUnit.DAYS.between(LocalDate.now(clock), p.getEndDate());
@@ -240,17 +262,13 @@ public class ProjectService {
                         u.getDisplayNameAr()))
                 .toList();
 
-        // Departments-in-project: query the child table since Project.departments is transient.
-        List<ProjectDtos.ProjectDepartment> depts = new ArrayList<>();
-        for (Department d : departmentRepository.findAll()) {
-            if (d.getProject() != null && Objects.equals(d.getProject().getId(), p.getId())) {
-                depts.add(new ProjectDtos.ProjectDepartment(
+        List<ProjectDtos.ProjectDepartment> depts = projectDepartments.stream()
+                .map(d -> new ProjectDtos.ProjectDepartment(
                         d.getId(),
                         localizer.pick(d.getNameEn(), d.getNameAr(), d.getName()),
                         d.getNameEn(),
-                        d.getNameAr()));
-            }
-        }
+                        d.getNameAr()))
+                .toList();
 
         Department legacy = p.getDepartment();
         return new ProjectDtos.ProjectResponse(
