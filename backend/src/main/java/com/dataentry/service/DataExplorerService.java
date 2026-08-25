@@ -1,11 +1,11 @@
 package com.dataentry.service;
 
 import com.dataentry.dto.DataExplorerDtos;
-import com.dataentry.model.Ticket;
 import com.dataentry.model.TicketDocument;
 import com.dataentry.model.TicketFieldValue;
-import com.dataentry.repository.TicketRepository;
+import com.dataentry.model.TicketStatus;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.Tuple;
 import jakarta.persistence.TypedQuery;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowCallbackHandler;
@@ -36,14 +36,11 @@ public class DataExplorerService {
     private static final int MAX_PAGE_SIZE = 500;
     private static final int DEFAULT_PAGE_SIZE = 50;
 
-    private final TicketRepository ticketRepository;
     private final EntityManager em;
     private final JdbcTemplate jdbc;
 
-    public DataExplorerService(TicketRepository ticketRepository,
-                               EntityManager em,
+    public DataExplorerService(EntityManager em,
                                JdbcTemplate jdbc) {
-        this.ticketRepository = ticketRepository;
         this.em = em;
         this.jdbc = jdbc;
     }
@@ -55,14 +52,7 @@ public class DataExplorerService {
     public DataExplorerDtos.Page search(Filters filters, Long cursor, Integer size, String downloadUrlPrefix) {
         int pageSize = clampSize(size);
 
-        StringBuilder jpql = new StringBuilder(
-                "select t from Ticket t " +
-                        "left join fetch t.submittedBy " +
-                        "left join fetch t.team " +
-                        "left join fetch t.project " +
-                        "left join fetch t.department " +
-                        "left join fetch t.subcategory " +
-                        "where 1=1 ");
+        StringBuilder jpql = baseRowQuery("where 1=1 ");
         Map<String, Object> params = new HashMap<>();
 
         if (filters.teamId() != null) { jpql.append("and t.team.id = :teamId "); params.put("teamId", filters.teamId()); }
@@ -78,25 +68,25 @@ public class DataExplorerService {
 
         jpql.append("order by t.id desc");
 
-        TypedQuery<Ticket> q = em.createQuery(jpql.toString(), Ticket.class);
+        TypedQuery<Tuple> q = em.createQuery(jpql.toString(), Tuple.class);
         params.forEach(q::setParameter);
         // Fetch one extra to detect "has more" without a second COUNT round trip.
         q.setMaxResults(pageSize + 1);
-        List<Ticket> rows = q.getResultList();
+        List<BaseRow> rows = q.getResultList().stream().map(this::toBaseRow).toList();
 
         boolean hasMore = rows.size() > pageSize;
         if (hasMore) rows = rows.subList(0, pageSize);
 
         // Batched fetches for docs + field values keyed by ticket id.
-        List<Long> ticketIds = rows.stream().map(Ticket::getId).toList();
+        List<Long> ticketIds = rows.stream().map(BaseRow::id).toList();
         Map<Long, List<TicketDocument>> docsByTicket = loadDocuments(ticketIds);
         Map<Long, List<TicketFieldValue>> fieldsByTicket = loadFieldValues(ticketIds);
 
         List<DataExplorerDtos.Row> items = new ArrayList<>(rows.size());
-        for (Ticket t : rows) {
-            items.add(toRow(t,
-                    docsByTicket.getOrDefault(t.getId(), List.of()),
-                    fieldsByTicket.getOrDefault(t.getId(), List.of()),
+        for (BaseRow row : rows) {
+            items.add(toRow(row,
+                    docsByTicket.getOrDefault(row.id(), List.of()),
+                    fieldsByTicket.getOrDefault(row.id(), List.of()),
                     downloadUrlPrefix));
         }
 
@@ -126,13 +116,73 @@ public class DataExplorerService {
 
     /** Fetch a single ticket by id — used by the row-expand action in the UI. */
     public DataExplorerDtos.Row byId(Long id, String downloadUrlPrefix) {
-        Ticket t = ticketRepository.findWithDetailsById(id)
-                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
-                        org.springframework.http.HttpStatus.NOT_FOUND, "Ticket not found"));
+        TypedQuery<Tuple> query = em.createQuery(
+                baseRowQuery("where t.id = :id").toString(), Tuple.class);
+        query.setParameter("id", id);
+        query.setMaxResults(1);
+        List<Tuple> matches = query.getResultList();
+        if (matches.isEmpty()) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.NOT_FOUND, "Ticket not found");
+        }
+        BaseRow row = toBaseRow(matches.get(0));
         Map<Long, List<TicketDocument>> docs = loadDocuments(List.of(id));
         Map<Long, List<TicketFieldValue>> fields = loadFieldValues(List.of(id));
-        return toRow(t, docs.getOrDefault(id, List.of()),
+        return toRow(row, docs.getOrDefault(id, List.of()),
                 fields.getOrDefault(id, List.of()), downloadUrlPrefix);
+    }
+
+    /**
+     * Select scalar values instead of materialising the complete Ticket object graph.
+     *
+     * <p>Some upgraded installations contain legacy tickets whose required user or
+     * department row was removed before foreign-key enforcement was enabled. Fetching a
+     * full entity graph makes Hibernate either drop that ticket from a by-id lookup or
+     * throw while initialising the missing association, which used to turn the entire
+     * explorer page into a 500. Explicit LEFT JOIN scalar projection keeps the historical
+     * ticket visible and reports the missing related metadata as null.</p>
+     */
+    private StringBuilder baseRowQuery(String whereClause) {
+        return new StringBuilder(
+                "select t.id as id, " +
+                        "team.id as teamId, team.name as teamName, " +
+                        "project.id as projectId, project.name as projectName, " +
+                        "department.id as departmentId, department.name as departmentName, " +
+                        "subcategory.id as subcategoryId, subcategory.name as subcategoryName, " +
+                        "submitter.id as submitterId, submitter.username as submitterUsername, " +
+                        "submitter.displayName as submitterDisplayName, " +
+                        "t.title as title, t.content as content, " +
+                        "t.websiteName as websiteName, t.websiteLink as websiteLink, " +
+                        "t.status as status, t.submittedAt as submittedAt " +
+                        "from Ticket t " +
+                        "left join t.submittedBy submitter " +
+                        "left join t.team team " +
+                        "left join t.project project " +
+                        "left join t.department department " +
+                        "left join t.subcategory subcategory " +
+                        whereClause);
+    }
+
+    private BaseRow toBaseRow(Tuple row) {
+        return new BaseRow(
+                row.get("id", Long.class),
+                row.get("teamId", Long.class),
+                row.get("teamName", String.class),
+                row.get("projectId", Long.class),
+                row.get("projectName", String.class),
+                row.get("departmentId", Long.class),
+                row.get("departmentName", String.class),
+                row.get("subcategoryId", Long.class),
+                row.get("subcategoryName", String.class),
+                row.get("submitterId", Long.class),
+                row.get("submitterUsername", String.class),
+                row.get("submitterDisplayName", String.class),
+                row.get("title", String.class),
+                row.get("content", String.class),
+                row.get("websiteName", String.class),
+                row.get("websiteLink", String.class),
+                row.get("status", TicketStatus.class),
+                row.get("submittedAt", Instant.class));
     }
 
     private long countMatching(Filters filters) {
@@ -183,7 +233,7 @@ public class DataExplorerService {
         return out;
     }
 
-    private DataExplorerDtos.Row toRow(Ticket t,
+    private DataExplorerDtos.Row toRow(BaseRow row,
                                        List<TicketDocument> docs,
                                        List<TicketFieldValue> fields,
                                        String downloadUrlPrefix) {
@@ -201,24 +251,24 @@ public class DataExplorerService {
                         v.getValue()))
                 .toList();
         return new DataExplorerDtos.Row(
-                t.getId(),
-                t.getTeam() != null ? t.getTeam().getId() : null,
-                t.getTeam() != null ? t.getTeam().getName() : null,
-                t.getProject() != null ? t.getProject().getId() : null,
-                t.getProject() != null ? t.getProject().getName() : null,
-                t.getDepartment() != null ? t.getDepartment().getId() : null,
-                t.getDepartment() != null ? t.getDepartment().getName() : null,
-                t.getSubcategory() != null ? t.getSubcategory().getId() : null,
-                t.getSubcategory() != null ? t.getSubcategory().getName() : null,
-                t.getSubmittedBy() != null ? t.getSubmittedBy().getId() : null,
-                t.getSubmittedBy() != null ? t.getSubmittedBy().getUsername() : null,
-                t.getSubmittedBy() != null ? t.getSubmittedBy().getDisplayName() : null,
-                t.getTitle(),
-                t.getContent(),
-                t.getWebsiteName(),
-                t.getWebsiteLink(),
-                t.getStatus() != null ? t.getStatus().name() : null,
-                t.getSubmittedAt(),
+                row.id(),
+                row.teamId(),
+                row.teamName(),
+                row.projectId(),
+                row.projectName(),
+                row.departmentId(),
+                row.departmentName(),
+                row.subcategoryId(),
+                row.subcategoryName(),
+                row.submitterId(),
+                row.submitterUsername(),
+                row.submitterDisplayName(),
+                row.title(),
+                row.content(),
+                row.websiteName(),
+                row.websiteLink(),
+                row.status() != null ? row.status().name() : null,
+                row.submittedAt(),
                 docSummaries,
                 fieldValues
         );
@@ -236,5 +286,26 @@ public class DataExplorerService {
             Instant from,
             Instant to,
             String search
+    ) {}
+
+    private record BaseRow(
+            Long id,
+            Long teamId,
+            String teamName,
+            Long projectId,
+            String projectName,
+            Long departmentId,
+            String departmentName,
+            Long subcategoryId,
+            String subcategoryName,
+            Long submitterId,
+            String submitterUsername,
+            String submitterDisplayName,
+            String title,
+            String content,
+            String websiteName,
+            String websiteLink,
+            TicketStatus status,
+            Instant submittedAt
     ) {}
 }
