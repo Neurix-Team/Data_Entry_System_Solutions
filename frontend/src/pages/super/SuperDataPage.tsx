@@ -214,6 +214,7 @@ export function SuperDataPage() {
                 <th style={{ textAlign: 'start' }}>{t('super.data.title2') || 'Title'}</th>
                 <th style={{ textAlign: 'start' }}>{t('super.data.team') || 'Team'}</th>
                 <th style={{ textAlign: 'start' }}>{t('super.data.project') || 'Project'}</th>
+                <th style={{ textAlign: 'start' }}>{t('super.data.department') || 'Department'}</th>
                 <th style={{ textAlign: 'start' }}>{t('super.data.submitter') || 'Submitted by'}</th>
                 <th style={{ textAlign: 'center' }}>{t('super.data.files') || 'Files'}</th>
                 <th style={{ textAlign: 'start' }}>{t('super.data.when') || 'When'}</th>
@@ -234,6 +235,7 @@ export function SuperDataPage() {
                       </td>
                       <td>{row.teamName || <span className="muted">—</span>}</td>
                       <td>{row.projectName || <span className="muted">—</span>}</td>
+                      <td>{row.departmentName || <span className="muted">—</span>}</td>
                       <td>{row.submittedByDisplayName || row.submittedByUsername || <span className="muted">—</span>}</td>
                       <td style={{ textAlign: 'center' }}>
                         {row.documents.length > 0
@@ -244,7 +246,7 @@ export function SuperDataPage() {
                     </tr>
                     {isOpen && (
                       <tr>
-                        <td colSpan={7} style={{ background: 'var(--bg-subtle, #f9fafb)', padding: 16 }}>
+                        <td colSpan={8} style={{ background: 'var(--bg-subtle, #f9fafb)', padding: 16 }}>
                           <TicketDetails row={row} t={t} />
                         </td>
                       </tr>

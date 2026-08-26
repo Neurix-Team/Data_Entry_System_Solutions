@@ -61,6 +61,7 @@ export const en = {
     departments: 'Departments',
     subcategories: 'Subcategories',
     projects: 'Projects',
+    projectFolders: 'Project Folders',
     fields: 'Form Fields',
     reports: 'Reports',
     submit: 'New Entry',

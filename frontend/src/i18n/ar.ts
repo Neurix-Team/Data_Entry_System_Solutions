@@ -63,6 +63,7 @@ export const ar: Dict = {
     departments: 'الأقسام',
     subcategories: 'التصنيفات الفرعية',
     projects: 'المشاريع',
+    projectFolders: 'مجلدات المشاريع',
     fields: 'حقول النموذج',
     reports: 'التقارير',
     submit: 'إدخال جديد',

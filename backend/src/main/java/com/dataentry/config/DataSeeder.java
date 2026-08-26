@@ -408,6 +408,53 @@ public class DataSeeder implements CommandLineRunner {
                             "AND team_id IS NOT NULL " +
                             "AND team_id != (SELECT team_id FROM projects p WHERE p.id = tickets.project_id)");
             if (projRefFk > 0) log.info("Nulled {} tickets.project_id cross-team FK(s).", projRefFk);
+
+            // departments.project_id: a department in team X pointing at a project in team Y
+            // would cause DepartmentService.toDto to lazy-load that project on the wrong-team
+            // request, tripping the @PostLoad guard and blowing up the whole /api/admin/departments
+            // response with a "Not found" 404. Nulling the FK detaches the reference so the
+            // department still shows up in its own team, just without the mismatched project link.
+            int deptProjFk = jdbc.update(
+                    "UPDATE departments SET project_id = NULL " +
+                            "WHERE project_id IS NOT NULL " +
+                            "AND team_id IS NOT NULL " +
+                            "AND team_id != (SELECT team_id FROM projects p WHERE p.id = departments.project_id)");
+            if (deptProjFk > 0) log.info("Nulled {} departments.project_id cross-team FK(s).", deptProjFk);
+
+            // subcategories.department_id: same story — a subcategory in team X pointing at a
+            // department in team Y trips the guard when the subcategory list serialises.
+            int subDeptFk = jdbc.update(
+                    "UPDATE subcategories SET department_id = NULL " +
+                            "WHERE department_id IS NOT NULL " +
+                            "AND team_id IS NOT NULL " +
+                            "AND team_id != (SELECT team_id FROM departments d WHERE d.id = subcategories.department_id)");
+            if (subDeptFk > 0) log.info("Nulled {} subcategories.department_id cross-team FK(s).", subDeptFk);
+
+            // custom_fields.subcategory_id: fields inherit tenancy from their subcategory. A
+            // cross-team FK here would trip the guard when the fields list serialises for
+            // /admin/fields or when a ticket loads its custom values.
+            int fieldSubFk = jdbc.update(
+                    "UPDATE custom_fields SET subcategory_id = NULL " +
+                            "WHERE subcategory_id IS NOT NULL " +
+                            "AND team_id IS NOT NULL " +
+                            "AND team_id != (SELECT team_id FROM subcategories s WHERE s.id = custom_fields.subcategory_id)");
+            if (fieldSubFk > 0) log.info("Nulled {} custom_fields.subcategory_id cross-team FK(s).", fieldSubFk);
+
+            // project_members: the many-to-many join between projects and users can hold
+            // cross-team rows from legacy data. The Hibernate teamFilter is not applied to
+            // @ManyToMany lazy loads, so any eager fetch or getMembers() call on the wrong-team
+            // side would trip the PostLoad guard on User and return "Not found". Delete the
+            // mismatched rows so the association only ever contains same-team members.
+            int memFix = jdbc.update(
+                    "DELETE FROM project_members " +
+                            "WHERE EXISTS (" +
+                            "  SELECT 1 FROM projects p, users u " +
+                            "   WHERE p.id = project_members.project_id " +
+                            "     AND u.id = project_members.user_id " +
+                            "     AND p.team_id IS NOT NULL AND u.team_id IS NOT NULL " +
+                            "     AND p.team_id != u.team_id" +
+                            ")");
+            if (memFix > 0) log.info("Deleted {} project_members cross-team row(s).", memFix);
         } catch (Exception e) {
             log.warn("Child-team drift repair skipped: {}", e.getMessage());
         }

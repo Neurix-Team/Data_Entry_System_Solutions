@@ -12,8 +12,13 @@ import type {
   ExtractedPdf,
   LeaderboardResponse,
   MyDashboard,
+  NotificationFeed,
+  NotificationItem,
   Project,
+  ProjectFolderDetail,
+  ProjectFolderSummary,
   ProjectStatus,
+  QuickUploadResult,
   ReportData,
   Subcategory,
   SubcategoryStats,
@@ -151,6 +156,40 @@ export const ticketsApi = {
     `${API_BASE}/tickets/${ticketId}/documents/${docId}`,
   removeDocument: (ticketId: number, docId: number) =>
     api.delete(`/tickets/${ticketId}/documents/${docId}`).then(() => undefined),
+
+  /** Admin-only approve — thin wrapper around the status endpoint that always sets COMPLETED. */
+  approve: (id: number) =>
+    api.post<Ticket>(`/admin/tickets/${id}/approve`).then(r => r.data),
+};
+
+// Project Folders — projects rendered as folders that group every ticket branched from them.
+export const projectFoldersApi = {
+  list: () => api.get<ProjectFolderSummary[]>('/project-folders').then(r => r.data),
+  detail: (projectId: number) =>
+    api.get<ProjectFolderDetail>(`/project-folders/${projectId}`).then(r => r.data),
+  /**
+   * Multi-file quick-upload. Files and titles travel positionally as parallel multipart
+   * parts — the backend zips them by index. Blank/missing titles fall back to a
+   * filename-derived title server-side, so the client can also just skip the titles
+   * field entirely for a "no rename needed" case.
+   */
+  quickUpload: (projectId: number, entries: Array<{ file: File; title: string }>, signal?: AbortSignal) => {
+    const form = new FormData();
+    for (const e of entries) form.append('files', e.file, e.file.name);
+    for (const e of entries) form.append('titles', e.title);
+    return api.post<QuickUploadResult>(`/project-folders/${projectId}/quick-upload`, form, {
+      signal,
+    }).then(r => r.data);
+  },
+};
+
+// Notifications — in-app feed powering the bell widget on the topbar.
+export const notificationsApi = {
+  list: () => api.get<NotificationFeed>('/notifications').then(r => r.data),
+  markRead: (id: number) =>
+    api.post<NotificationItem>(`/notifications/${id}/read`).then(r => r.data),
+  markAllRead: () =>
+    api.post<{ updated: number }>('/notifications/read-all').then(r => r.data),
 };
 
 // Dashboard

@@ -1,7 +1,6 @@
 package com.dataentry.controller;
 
 import com.dataentry.dto.TicketDtos;
-import com.dataentry.model.Role;
 import com.dataentry.model.User;
 import com.dataentry.service.TicketDocumentService;
 import org.springframework.core.io.Resource;
@@ -32,7 +31,7 @@ public class TicketDocumentController {
             @RequestPart("file") MultipartFile file,
             @RequestPart(value = "name", required = false) String name,
             @AuthenticationPrincipal User current) {
-        return service.upload(ticketId, name, file, current, current.getRole() == Role.ADMIN);
+        return service.upload(ticketId, name, file, current, current.isAdminLike());
     }
 
     @GetMapping("/{docId}")
@@ -41,7 +40,7 @@ public class TicketDocumentController {
             @PathVariable Long docId,
             @AuthenticationPrincipal User current) {
         TicketDocumentService.DownloadHandle h = service.download(
-                ticketId, docId, current, current.getRole() == Role.ADMIN);
+                ticketId, docId, current, current.isAdminLike());
 
         MediaType type;
         try {
@@ -73,7 +72,7 @@ public class TicketDocumentController {
             @PathVariable Long ticketId,
             @PathVariable Long docId,
             @AuthenticationPrincipal User current) {
-        service.delete(ticketId, docId, current, current.getRole() == Role.ADMIN);
+        service.delete(ticketId, docId, current, current.isAdminLike());
         return ResponseEntity.noContent().build();
     }
 }

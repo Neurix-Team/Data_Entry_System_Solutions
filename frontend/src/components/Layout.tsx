@@ -4,9 +4,10 @@ import { useAuth } from '../context/AuthContext';
 import { useT } from '../i18n';
 import { Avatar } from './Avatar';
 import {
-  IconBell, IconBuilding, IconChart, IconClose, IconDashboard, IconFolder,
+  IconBuilding, IconChart, IconClose, IconDashboard, IconFolder,
   IconLogout, IconMembers, IconSearch, IconSettings, IconTasks,
 } from './Icons';
+import { NotificationBell } from './NotificationBell';
 import { PreferencesToggle } from './PreferencesToggle';
 import { ProfileModal } from './ProfileModal';
 import { avatarUrl } from '../api/profile';
@@ -91,6 +92,10 @@ export function Layout() {
               <span className="side-icon"><IconFolder /></span>
               {t('nav.projects')}
             </NavLink>
+            <NavLink to="/admin/project-folders" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
+              <span className="side-icon"><IconFolder /></span>
+              {t('nav.projectFolders')}
+            </NavLink>
             <NavLink to="/admin/departments" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
               <span className="side-icon"><IconBuilding /></span>
               {t('nav.departments')}
@@ -132,6 +137,10 @@ export function Layout() {
               <span className="side-icon"><IconFolder /></span>
               {t('nav.myTasks')}
             </NavLink>
+            <NavLink to="/project-folders" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
+              <span className="side-icon"><IconFolder /></span>
+              {t('nav.projectFolders')}
+            </NavLink>
             <div className="sidebar-footer-links">
               <button type="button" className="side-link side-link-btn" onClick={logout}>
                 <span className="side-icon"><IconLogout /></span>
@@ -162,10 +171,7 @@ export function Layout() {
 
           <div className="topbar-right">
             <PreferencesToggle />
-            <button className="notification-btn" aria-label="Notifications">
-              <IconBell size={20} />
-              <span className="notification-dot" />
-            </button>
+            <NotificationBell />
             <div className="topbar-divider" />
             <button
               type="button"

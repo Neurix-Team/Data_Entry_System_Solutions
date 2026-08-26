@@ -70,7 +70,14 @@ public class ProjectService {
     }
 
     /** Batched serialisation for list endpoints — one query for every project's
-     *  departments regardless of list size, instead of one per row. */
+     *  departments (and members) regardless of list size, instead of one per row.
+     *
+     *  <p>Members are preloaded via a team-scoped query rather than the raw
+     *  {@code project.members} collection: legacy data can contain cross-team users on that
+     *  association, and the Hibernate {@code teamFilter} isn't automatically applied to
+     *  {@code @ManyToMany} lazy loads, so touching {@code p.getMembers()} used to blow up
+     *  the whole list with a 404 from the {@link com.dataentry.model.TenantEntityListener}
+     *  {@code PostLoad} guard. */
     private List<ProjectDtos.ProjectResponse> toDtos(List<Project> projects) {
         if (projects.isEmpty()) return List.of();
         List<Long> ids = projects.stream().map(Project::getId).toList();
@@ -80,9 +87,35 @@ public class ProjectService {
                 deptsByProject.computeIfAbsent(d.getProject().getId(), k -> new ArrayList<>()).add(d);
             }
         }
+        Map<Long, List<User>> membersByProject = preloadMembers(projects, ids);
         return projects.stream()
-                .map(p -> toDto(p, deptsByProject.getOrDefault(p.getId(), List.of())))
+                .map(p -> toDto(p,
+                        deptsByProject.getOrDefault(p.getId(), List.of()),
+                        membersByProject.getOrDefault(p.getId(), List.of())))
                 .toList();
+    }
+
+    /** Preload the team-scoped members for every project in the batch. Groups by the
+     *  project's own team id so a rogue project attributed to another team still gets
+     *  its own team's members (rather than the caller's). */
+    private Map<Long, List<User>> preloadMembers(List<Project> projects, List<Long> ids) {
+        Map<Long, List<Long>> projectsByTeam = new HashMap<>();
+        for (Project p : projects) {
+            Long teamId = p.getTeam() == null ? null : p.getTeam().getId();
+            if (teamId == null) continue;
+            projectsByTeam.computeIfAbsent(teamId, k -> new ArrayList<>()).add(p.getId());
+        }
+        Map<Long, List<User>> out = new HashMap<>();
+        for (Map.Entry<Long, List<Long>> e : projectsByTeam.entrySet()) {
+            Long teamId = e.getKey();
+            List<Long> projectIds = e.getValue();
+            for (Object[] row : userRepository.findMembersOfProjectsInTeam(projectIds, teamId)) {
+                Long pid = (Long) row[0];
+                User u = (User) row[1];
+                out.computeIfAbsent(pid, k -> new ArrayList<>()).add(u);
+            }
+        }
+        return out;
     }
 
     @Transactional
@@ -243,17 +276,24 @@ public class ProjectService {
         return new HashSet<>(found);
     }
 
-    /** Single-project entrypoint used by create/update/get. Runs one department query. */
+    /** Single-project entrypoint used by create/update/get. Runs one department query
+     *  and one team-scoped members query so the create/update response matches list(). */
     private ProjectDtos.ProjectResponse toDto(Project p) {
-        return toDto(p, departmentRepository.findAllByProjectId(p.getId()));
+        Long teamId = p.getTeam() == null ? null : p.getTeam().getId();
+        List<User> members = teamId == null
+                ? List.of()
+                : userRepository.findMembersOfProjectInTeam(p.getId(), teamId);
+        return toDto(p, departmentRepository.findAllByProjectId(p.getId()), members);
     }
 
-    private ProjectDtos.ProjectResponse toDto(Project p, List<Department> projectDepartments) {
+    private ProjectDtos.ProjectResponse toDto(Project p,
+                                              List<Department> projectDepartments,
+                                              List<User> projectMembers) {
         Integer daysLeft = null;
         if (p.getEndDate() != null && p.getStatus() != ProjectStatus.COMPLETED) {
             daysLeft = (int) ChronoUnit.DAYS.between(LocalDate.now(clock), p.getEndDate());
         }
-        List<ProjectDtos.ProjectMember> members = p.getMembers().stream()
+        List<ProjectDtos.ProjectMember> members = projectMembers.stream()
                 .map(u -> new ProjectDtos.ProjectMember(
                         u.getId(),
                         u.getUsername(),

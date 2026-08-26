@@ -78,4 +78,15 @@ public class User implements TeamOwned {
      */
     @Column(name = "avatar_updated_at")
     private Instant avatarUpdatedAt;
+
+    /**
+     * True when the user carries admin-level privileges — either a team ADMIN or a
+     * SUPER_ADMIN. The old ADMIN-only check spread across ticket + document controllers
+     * blocked SUPER_ADMINs (whose DB role stays SUPER_ADMIN even while impersonating)
+     * from viewing or uploading against tickets they don't personally own, which showed
+     * up as a bare "403 Forbidden" on the Project Folders page.
+     */
+    public boolean isAdminLike() {
+        return role == Role.ADMIN || role == Role.SUPER_ADMIN;
+    }
 }

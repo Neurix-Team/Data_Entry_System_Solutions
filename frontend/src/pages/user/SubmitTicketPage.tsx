@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { extractError } from '../../api/client';
 import { useToast } from '../../components/toast/ToastContext';
 import {
@@ -81,8 +81,11 @@ export function SubmitTicketPage() {
     addResource, removeResource, updateResource,
     addDocument, removeDocument, updateDocument,
     appendExtractedImages, removeExtractedImage, updateExtractedImage,
+    addArticlesFromFiles,
     reset: resetArticles,
   } = useArticles();
+
+  const bulkFilesInputRef = useRef<HTMLInputElement | null>(null);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -454,14 +457,44 @@ export function SubmitTicketPage() {
             <div className="form-section-heading" style={{ margin: 0 }}>
               {t('user.submit.articles')} ({articles.length})
             </div>
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              onClick={addArticle}
-              disabled={submitting}
-            >
-              <IconPlus size={14} /> {t('user.submit.addArticle')}
-            </button>
+            <div className="row gap-2">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => bulkFilesInputRef.current?.click()}
+                disabled={submitting}
+                title={lang === 'ar'
+                  ? 'اختر أكثر من ملف مرة واحدة — كل ملف هيبقى تذكرة والعنوان هيتعبى من اسم الملف'
+                  : 'Pick many files at once — each becomes its own ticket with the title auto-filled from the filename'}
+              >
+                <IconPlus size={14} />{' '}
+                {lang === 'ar' ? 'رفع أكثر من ملف' : 'Upload multiple files'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={addArticle}
+                disabled={submitting}
+              >
+                <IconPlus size={14} /> {t('user.submit.addArticle')}
+              </button>
+            </div>
+            <input
+              ref={bulkFilesInputRef}
+              type="file"
+              multiple
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                  addArticlesFromFiles(Array.from(e.target.files));
+                  // Attachments mode is the one that actually shows the file rows — flip to it
+                  // so the freshly-added articles are visible instead of being hidden under the
+                  // "content" tab where the file inputs don't render.
+                  setArticleMode('attachments');
+                }
+                e.target.value = '';
+              }}
+            />
           </div>
 
           {/* Two big picker cards — one per view. On first load neither is selected

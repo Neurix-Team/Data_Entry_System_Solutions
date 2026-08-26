@@ -386,6 +386,62 @@ export interface ExtractedImage {
   height: number;
 }
 
+// --- project folders ---
+
+/** One card in the /project-folders grid. Counts are scoped to the caller (USER sees
+ *  only their own tickets; ADMIN sees the project total). */
+export interface ProjectFolderSummary {
+  projectId: number;
+  projectName: string;
+  projectNameEn?: string | null;
+  projectNameAr?: string | null;
+  subtitle?: string | null;
+  subtitleEn?: string | null;
+  subtitleAr?: string | null;
+  total: number;
+  pending: number;
+  approved: number;
+  status: ProjectStatus;
+}
+
+export interface ProjectFolderDetail {
+  projectId: number;
+  projectName: string;
+  projectNameEn?: string | null;
+  projectNameAr?: string | null;
+  tickets: Ticket[];
+}
+
+export interface QuickUploadFailure {
+  filename: string;
+  reason: string;
+}
+
+export interface QuickUploadResult {
+  created: number;
+  failed: number;
+  tickets: Ticket[];
+  failures: QuickUploadFailure[];
+}
+
+// --- notifications ---
+
+export interface NotificationItem {
+  id: number;
+  type: string;
+  message: string;
+  refType: string | null;
+  refId: number | null;
+  projectId: number | null;
+  createdAt: string;
+  readAt: string | null;
+}
+
+export interface NotificationFeed {
+  items: NotificationItem[];
+  unread: number;
+}
+
 export interface ExtractedPdf {
   filename: string;
   text: string;

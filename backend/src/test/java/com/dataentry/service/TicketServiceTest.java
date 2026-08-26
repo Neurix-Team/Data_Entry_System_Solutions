@@ -4,6 +4,7 @@ import com.dataentry.dto.TicketDtos;
 import com.dataentry.model.CustomField;
 import com.dataentry.model.Department;
 import com.dataentry.model.FieldType;
+import com.dataentry.model.Project;
 import com.dataentry.model.Role;
 import com.dataentry.model.Subcategory;
 import com.dataentry.model.Ticket;
@@ -69,13 +70,18 @@ class TicketServiceTest {
         ObjectProvider<TicketService> selfProvider = org.mockito.Mockito.mock(ObjectProvider.class);
         @SuppressWarnings("unchecked")
         ObjectProvider<TicketDocumentService> docProvider = org.mockito.Mockito.mock(ObjectProvider.class);
+        @SuppressWarnings("unchecked")
+        ObjectProvider<NotificationService> notifyProvider = org.mockito.Mockito.mock(ObjectProvider.class);
 
         ticketService = new TicketService(
                 ticketRepository, departmentRepository, subcategoryRepository,
                 projectRepository, customFieldRepository,
                 preparer, translator, localizer, audit,
-                docProvider, selfProvider);
-        org.mockito.Mockito.when(selfProvider.getObject()).thenReturn(ticketService);
+                docProvider, notifyProvider, selfProvider);
+        // lenient — tests that go through createAttachmentTicket / deleteByIdUnchecked never
+        // touch the self-invocation path, and Mockito's strict mode would otherwise fail
+        // them for an "unused" stub even though the create/createMany tests do exercise it.
+        org.mockito.Mockito.lenient().when(selfProvider.getObject()).thenReturn(ticketService);
     }
 
     @Test
@@ -83,8 +89,10 @@ class TicketServiceTest {
         Department inactive = Department.builder().id(20L).name("Archive").active(false).build();
         when(departmentRepository.findById(20L)).thenReturn(Optional.of(inactive));
 
+        // subcategoryId = null so the flow doesn't short-circuit on the subcategory lookup
+        // (which now runs before department resolution in createTx).
         TicketDtos.CreateTicketRequest req = new TicketDtos.CreateTicketRequest(
-                20L, 100L, null, "T", "C", null, null, null, null, Map.of());
+                20L, null, null, "T", "C", null, null, null, null, Map.of());
 
         assertThatThrownBy(() -> ticketService.create(agent, req))
                 .isInstanceOf(ResponseStatusException.class)
@@ -182,5 +190,39 @@ class TicketServiceTest {
     private void stubDeptAndSub() {
         when(departmentRepository.findById(10L)).thenReturn(Optional.of(dept));
         when(subcategoryRepository.findById(100L)).thenReturn(Optional.of(sub));
+    }
+
+    /**
+     * Regression: a fresh project with no departments used to reject uploads with a
+     * "add a department first" 400. It now auto-creates a default one so a user's very
+     * first upload lands without waiting on an admin.
+     */
+    @Test
+    void createAttachmentTicket_autoCreatesDefaultDepartment_whenProjectHasNone() {
+        Project project = Project.builder().id(50L).name("Fresh Project").build();
+        when(projectRepository.findById(50L)).thenReturn(Optional.of(project));
+        when(departmentRepository.findAllByActiveTrueAndProjectIdOrderByNameAsc(50L))
+                .thenReturn(List.of());
+        when(departmentRepository.findAllByProjectId(50L)).thenReturn(List.of());
+        when(departmentRepository.existsByNameIgnoreCase("Fresh Project")).thenReturn(false);
+        when(departmentRepository.save(any(Department.class))).thenAnswer(inv -> {
+            Department d = inv.getArgument(0);
+            d.setId(999L);
+            return d;
+        });
+        when(ticketRepository.save(any(Ticket.class))).thenAnswer(inv -> {
+            Ticket t = inv.getArgument(0);
+            t.setId(777L);
+            return t;
+        });
+
+        Ticket saved = ticketService.createAttachmentTicket(agent, 50L, "report.pdf");
+
+        assertThat(saved.getId()).isEqualTo(777L);
+        assertThat(saved.getDepartment().getName()).isEqualTo("Fresh Project");
+        assertThat(saved.getDepartment().isActive()).isTrue();
+        // The legacy pointer must be patched so a follow-up upload skips the empty-project branch.
+        assertThat(project.getDepartment()).isNotNull();
+        assertThat(project.getDepartment().getName()).isEqualTo("Fresh Project");
     }
 }

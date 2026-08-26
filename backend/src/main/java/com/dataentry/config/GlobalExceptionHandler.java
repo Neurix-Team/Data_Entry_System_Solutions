@@ -34,6 +34,14 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<Map<String, Object>> handleStatus(ResponseStatusException ex) {
+        // Debug-level stack trace on 4xx/5xx from ResponseStatusException so we can trace
+        // opaque "Not found" errors thrown deep in the persistence layer (e.g. the tenant
+        // guard's PostLoad hook) back to the actual origin. Enable
+        // com.dataentry.config.GlobalExceptionHandler=DEBUG to see them.
+        if (log.isDebugEnabled()) {
+            log.debug("ResponseStatusException handled: {} \"{}\"",
+                    ex.getStatusCode(), ex.getReason(), ex);
+        }
         return build(HttpStatus.valueOf(ex.getStatusCode().value()), ex.getReason(), null);
     }
 

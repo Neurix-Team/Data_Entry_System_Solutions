@@ -37,6 +37,9 @@ public class TicketService {
     private final Localizer localizer;
     private final AuditService audit;
     private final org.springframework.beans.factory.ObjectProvider<TicketDocumentService> documentServiceProvider;
+    // ObjectProvider avoids a hard startup dep on NotificationService and lets the notification
+    // write be skipped silently in tests / bootstrap paths where the bean isn't wired.
+    private final org.springframework.beans.factory.ObjectProvider<NotificationService> notificationServiceProvider;
 
     private final org.springframework.beans.factory.ObjectProvider<TicketService> selfProvider;
 
@@ -55,6 +58,7 @@ public class TicketService {
                          Localizer localizer,
                          AuditService audit,
                          org.springframework.beans.factory.ObjectProvider<TicketDocumentService> documentServiceProvider,
+                         org.springframework.beans.factory.ObjectProvider<NotificationService> notificationServiceProvider,
                          org.springframework.beans.factory.ObjectProvider<TicketService> selfProvider) {
         this.ticketRepository = ticketRepository;
         this.departmentRepository = departmentRepository;
@@ -66,6 +70,7 @@ public class TicketService {
         this.localizer = localizer;
         this.audit = audit;
         this.documentServiceProvider = documentServiceProvider;
+        this.notificationServiceProvider = notificationServiceProvider;
         this.selfProvider = selfProvider;
     }
 
@@ -95,6 +100,98 @@ public class TicketService {
         Ticket saved = ticketRepository.save(ticket);
         promoteExtractedImages(saved, req.extractedImages(), currentUser);
         return toDto(saved);
+    }
+
+    /**
+     * Create a single "attachments-only" ticket in the given project. Used by the folder
+     * page's multi-file quick-upload endpoint. Runs in its own transaction so per-file
+     * failures in a batch don't taint the caller's outer transaction with rollback-only.
+     */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public Ticket createAttachmentTicket(User currentUser, Long projectId, String title) {
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Project not found"));
+        Department dept = resolveDepartmentForQuickUpload(project);
+        String cleanTitle = title == null ? "" : title.trim();
+        Ticket t = Ticket.builder()
+                .submittedBy(currentUser)
+                .department(dept)
+                .project(project)
+                .title(cleanTitle)
+                .content("")
+                .websiteName("")
+                .websiteLink("")
+                .status(TicketStatus.REVIEW)
+                .build();
+        t.setTitleEn(cleanTitle);
+        t.setTitleAr(cleanTitle);
+        t.setContentEn("");
+        t.setContentAr("");
+        t.setWebsiteNameEn("");
+        t.setWebsiteNameAr("");
+        return ticketRepository.save(t);
+    }
+
+    /** Delete a ticket by id without permission check — used only by the quick-upload
+     *  rollback path when its own {@code createAttachmentTicket} succeeded but the follow-up
+     *  file attachment failed. REQUIRES_NEW so it survives a rollback-only outer tx. */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public void deleteByIdUnchecked(Long ticketId) {
+        if (ticketRepository.existsById(ticketId)) {
+            ticketRepository.deleteById(ticketId);
+        }
+    }
+
+    /** Pick any usable department for the project, preferring the legacy pointer, then
+     *  an active one, then anything at all. When the project truly has none, auto-create
+     *  a default "General" one on the fly so a user's quick-upload never dead-ends waiting
+     *  on an admin — previously this returned 400 with an "add a department first" message
+     *  which turned a brand-new project into an unusable folder. */
+    private Department resolveDepartmentForQuickUpload(Project project) {
+        Department legacy = project.getDepartment();
+        if (legacy != null) return legacy;
+        List<Department> active = departmentRepository
+                .findAllByActiveTrueAndProjectIdOrderByNameAsc(project.getId());
+        if (!active.isEmpty()) return active.get(0);
+        List<Department> any = departmentRepository.findAllByProjectId(project.getId());
+        if (!any.isEmpty()) return any.get(0);
+        return createDefaultDepartmentFor(project);
+    }
+
+    /**
+     * Auto-create a default department for a project that has none. Named after the project
+     * so it reads naturally in the folder UI ("Marketing Campaign") rather than a generic
+     * "General" that would be indistinguishable from other projects' defaults. The name is
+     * suffixed with the project id if a same-named department already exists in the team
+     * (the departments table has a per-team UNIQUE(name) index post-migration).
+     *
+     * <p>Runs inside the caller's REQUIRES_NEW transaction so the department is committed
+     * together with the ticket that follows. Also patches the legacy {@link Project#department}
+     * pointer so subsequent lookups skip the empty-project branch and go straight through.
+     */
+    private Department createDefaultDepartmentFor(Project project) {
+        String base = project.getName() == null || project.getName().trim().isEmpty()
+                ? "General"
+                : project.getName().trim();
+        String name = base;
+        if (departmentRepository.existsByNameIgnoreCase(name)) {
+            name = base + " (#" + project.getId() + ")";
+        }
+        TranslationService.Bilingual bi = translator.toBoth(name);
+        Department d = Department.builder()
+                .name(name)
+                .nameEn(bi.en())
+                .nameAr(bi.ar())
+                .active(true)
+                .project(project)
+                .build();
+        Department saved = departmentRepository.save(d);
+        // Keep the legacy pointer aligned so a follow-up upload takes the fast path.
+        project.setDepartment(saved);
+        projectRepository.save(project);
+        audit.record(AuditService.Action.CREATE, AuditService.EntityType.DEPARTMENT,
+                saved.getId(), "auto-created for project " + project.getId());
+        return saved;
     }
 
     public TicketDtos.BulkCreateResponse createMany(User currentUser, TicketDtos.BulkCreateRequest req) {
@@ -232,12 +329,13 @@ public class TicketService {
             return subDept;
         }
         if (project != null) {
+            // Same fallback as the quick-upload path — auto-create a default department
+            // when a project has none, so a fresh project accepts submissions immediately.
             return departmentRepository
                     .findAllByActiveTrueAndProjectIdOrderByNameAsc(project.getId())
                     .stream()
                     .findFirst()
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                            "This project has no active departments — add one before submitting."));
+                    .orElseGet(() -> createDefaultDepartmentFor(project));
         }
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                 "Pick a project, department, or subcategory before submitting.");
@@ -353,6 +451,32 @@ public class TicketService {
         Ticket saved = ticketRepository.save(t);
         audit.record(AuditService.Action.STATUS_CHANGE, AuditService.EntityType.TICKET,
                 saved.getId(), previous + " -> " + saved.getStatus().name());
+
+        // Emit an in-app notification to the submitter when their ticket is approved
+        // (status flipped to COMPLETED and was previously something else). Best-effort:
+        // notification failures are swallowed by the service so an audit-worthy approval
+        // never rolls back because of a notification hiccup.
+        if (saved.getStatus() == TicketStatus.COMPLETED
+                && !TicketStatus.COMPLETED.name().equals(previous)) {
+            NotificationService notify = notificationServiceProvider == null
+                    ? null : notificationServiceProvider.getIfAvailable();
+            if (notify != null) {
+                User submitter = saved.getSubmittedBy();
+                String titlePreview = saved.getTitle() == null || saved.getTitle().isBlank()
+                        ? "#" + saved.getId()
+                        : saved.getTitle();
+                Long projectId = saved.getProject() == null ? null : saved.getProject().getId();
+                notify.emit(
+                        submitter,
+                        "TICKET_APPROVED",
+                        "Your ticket \"" + titlePreview + "\" was approved and saved.",
+                        "TICKET",
+                        saved.getId(),
+                        projectId
+                );
+            }
+        }
+
         return toDto(saved);
     }
 
@@ -413,7 +537,10 @@ public class TicketService {
         );
     }
 
-    private TicketDtos.TicketResponse toDto(Ticket t) {
+    /** Package-private so sibling services in {@code com.dataentry.service} (e.g. the
+     *  Project Folders view) can render tickets without duplicating the serialisation
+     *  logic. Not made public: only in-process callers should see it. */
+    TicketDtos.TicketResponse toDto(Ticket t) {
         User u = t.getSubmittedBy();
         Department dept = t.getDepartment();
         Subcategory sub = t.getSubcategory();

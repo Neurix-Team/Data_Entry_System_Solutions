@@ -14,6 +14,8 @@ import { AdminUserActivityPage } from './pages/admin/AdminUserActivityPage';
 import { SubmitTicketPage } from './pages/user/SubmitTicketPage';
 import { MyTicketsPage } from './pages/user/MyTicketsPage';
 import { UserDashboardPage } from './pages/user/UserDashboardPage';
+import { ProjectFoldersPage } from './pages/project-folders/ProjectFoldersPage';
+import { ProjectFolderDetailPage } from './pages/project-folders/ProjectFolderDetailPage';
 import { SuperLayout } from './pages/super/SuperLayout';
 import { SuperOverviewPage } from './pages/super/SuperOverviewPage';
 import { SuperTeamsPage } from './pages/super/SuperTeamsPage';
@@ -69,11 +71,15 @@ export default function App() {
         <Route path="/admin/projects" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><AdminProjectsPage /></ProtectedRoute>} />
         <Route path="/admin/reports" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><AdminReportsPage /></ProtectedRoute>} />
         <Route path="/admin/users/:id/activity" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><AdminUserActivityPage /></ProtectedRoute>} />
+        <Route path="/admin/project-folders" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><ProjectFoldersPage /></ProtectedRoute>} />
+        <Route path="/admin/project-folders/:projectId" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><ProjectFolderDetailPage /></ProtectedRoute>} />
 
         {/* User (admins can access too) */}
         <Route path="/dashboard" element={<UserDashboardPage />} />
         <Route path="/submit" element={<SubmitTicketPage />} />
         <Route path="/my-tickets" element={<MyTicketsPage />} />
+        <Route path="/project-folders" element={<ProjectFoldersPage />} />
+        <Route path="/project-folders/:projectId" element={<ProjectFolderDetailPage />} />
       </Route>
 
       <Route path="/" element={<RootRedirect />} />

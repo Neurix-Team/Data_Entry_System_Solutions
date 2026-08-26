@@ -36,6 +36,29 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
 
     List<Ticket> findAllByProjectId(Long projectId);
 
+    // ----- Project Folders view (grouped-by-project ticket lists) -----
+    //
+    // The entity graph deliberately fetches only ONE collection (customValues). Ticket has
+    // three ToMany collections (customValues, resources, documents) — asking Hibernate to
+    // fetch more than one in a single query throws MultipleBagFetchException, which was
+    // showing up as an opaque "Unexpected server error" on the folder page. The remaining
+    // resources/documents collections lazy-load per row inside the @Transactional service
+    // method; the extra queries are bounded by the folder size and preferable to the crash.
+
+    @EntityGraph(attributePaths = {"customValues", "customValues.field", "department", "subcategory", "project", "submittedBy"})
+    List<Ticket> findAllByProjectIdOrderBySubmittedAtDesc(Long projectId);
+
+    @EntityGraph(attributePaths = {"customValues", "customValues.field", "department", "subcategory", "project", "submittedBy"})
+    List<Ticket> findAllByProjectIdAndSubmittedByIdOrderBySubmittedAtDesc(Long projectId, Long userId);
+
+    long countByProjectId(Long projectId);
+
+    long countByProjectIdAndStatus(Long projectId, TicketStatus status);
+
+    long countByProjectIdAndSubmittedById(Long projectId, Long userId);
+
+    long countByProjectIdAndSubmittedByIdAndStatus(Long projectId, Long userId, TicketStatus status);
+
     // ----- derived-name aggregations (used by AdminStats) -----
 
     long countByStatus(TicketStatus status);

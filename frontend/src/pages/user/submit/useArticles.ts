@@ -127,6 +127,42 @@ export function useArticles() {
     []
   );
 
+  /**
+     * Bulk-add multiple files as new articles in one go. Each file becomes its own
+     * article with the title auto-extracted from the filename (extension stripped and
+     * separators normalised) and a pre-populated document row carrying the file itself.
+     * Powers the "Upload multiple files" button on the submit form — the user picks N
+     * files, gets N titled article rows they can still edit before submitting.
+     */
+  const addArticlesFromFiles = useCallback((files: File[]) => {
+    if (files.length === 0) return;
+    const rows: ArticleRow[] = files.map((file) => {
+      const id = nextArticleId.current++;
+      const rid = nextResourceId.current++;
+      const did = nextDocumentId.current++;
+      const rawName = file.name.replace(/\.[^./\\]+$/, '');
+      const title = rawName.replace(/[_\-.]+/g, ' ').replace(/\s+/g, ' ').trim() || file.name;
+      return {
+        id,
+        title,
+        content: '',
+        resources: [{ id: rid, name: '', link: '' }],
+        documents: [{ id: did, name: title, file }],
+        extractedImages: [],
+      };
+    });
+    setArticles((prev) => {
+      // If the only existing row is the default blank one, replace it; otherwise append.
+      const isBlank = prev.length === 1
+        && prev[0].title === ''
+        && prev[0].content === ''
+        && prev[0].documents.every((d) => d.file == null)
+        && prev[0].resources.every((r) => r.link === '' && r.name === '')
+        && prev[0].extractedImages.length === 0;
+      return isBlank ? rows : [...prev, ...rows];
+    });
+  }, []);
+
   const reset = useCallback(() => {
     nextArticleId.current = 1;
     nextResourceId.current = 2;
@@ -141,6 +177,7 @@ export function useArticles() {
     addResource, removeResource, updateResource,
     addDocument, removeDocument, updateDocument,
     appendExtractedImages, removeExtractedImage, updateExtractedImage,
+    addArticlesFromFiles,
     reset,
   };
 }

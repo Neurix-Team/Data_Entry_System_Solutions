@@ -2,7 +2,6 @@ package com.dataentry.controller;
 
 import com.dataentry.dto.DashboardDtos;
 import com.dataentry.dto.TicketDtos;
-import com.dataentry.model.Role;
 import com.dataentry.model.User;
 import com.dataentry.service.DashboardService;
 import com.dataentry.service.TicketService;
@@ -65,7 +64,7 @@ public class TicketController {
     public TicketDtos.TicketResponse getOne(
             @PathVariable Long id,
             @AuthenticationPrincipal User current) {
-        return service.getOne(id, current, current.getRole() == Role.ADMIN);
+        return service.getOne(id, current, current.isAdminLike());
     }
 
     @PatchMapping("/admin/tickets/{id}/status")
@@ -73,6 +72,14 @@ public class TicketController {
             @PathVariable Long id,
             @Valid @RequestBody TicketDtos.UpdateStatusRequest req) {
         return service.updateStatus(id, req.status());
+    }
+
+    /** Approve a ticket — sets its status to COMPLETED. Thin alias over updateStatus so
+     *  the Project Folders UI can call one dedicated verb instead of building a status
+     *  payload; auditing and authz land in the same place either way. */
+    @PostMapping("/admin/tickets/{id}/approve")
+    public TicketDtos.TicketResponse approve(@PathVariable Long id) {
+        return service.updateStatus(id, "COMPLETED");
     }
 
     @DeleteMapping("/admin/tickets/{id}")
