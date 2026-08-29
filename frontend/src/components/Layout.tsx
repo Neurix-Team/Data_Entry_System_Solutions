@@ -72,7 +72,7 @@ export function Layout() {
           <NavLink
             to="/super"
             className="side-link"
-            style={{ color: '#f97316', fontWeight: 700 }}
+            style={{ color: 'var(--warning)', fontWeight: 700 }}
           >
             <span className="side-icon">←</span>
             {t('super.backToSuper') || 'Super Admin'}

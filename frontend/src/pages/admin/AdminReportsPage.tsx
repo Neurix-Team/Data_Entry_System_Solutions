@@ -136,7 +136,7 @@ export function AdminReportsPage() {
                 <span className="muted small">{d.count}</span>
               </div>
               <div className="progress-bar">
-                <div className="progress-bar-fill" data-tone={tones[i % 3]} style={{ width: `${pct}%` }} />
+                <div className="progress-bar-fill" data-tone={tones[i % 3]} style={{ ["--fill" as string]: pct / 100 }} />
               </div>
             </div>
           );

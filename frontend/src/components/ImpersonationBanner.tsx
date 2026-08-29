@@ -44,7 +44,7 @@ export function ImpersonationBanner() {
         alignItems: 'center',
         gap: 12,
         padding: '10px 16px',
-        background: 'linear-gradient(90deg, #f97316 0%, #dc2626 100%)',
+        background: 'linear-gradient(90deg, var(--warning) 0%, var(--danger) 100%)',
         color: '#fff',
         fontWeight: 500,
         fontSize: 14,

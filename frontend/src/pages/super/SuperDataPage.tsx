@@ -246,7 +246,7 @@ export function SuperDataPage() {
                     </tr>
                     {isOpen && (
                       <tr>
-                        <td colSpan={8} style={{ background: 'var(--bg-subtle, #f9fafb)', padding: 16 }}>
+                        <td colSpan={8} style={{ background: 'var(--bg-sunken)', padding: 16 }}>
                           <TicketDetails row={row} t={t} />
                         </td>
                       </tr>
@@ -282,7 +282,7 @@ function TicketDetails({ row, t }: { row: ExplorerRow; t: (k: string) => string 
         <SectionTitle label={t('super.data.content') || 'Content'} />
         <div style={{
           whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.55,
-          padding: 12, background: 'white', border: '1px solid var(--border-subtle, #e5e7eb)',
+          padding: 12, background: 'var(--bg-surface)', border: '1px solid var(--border)',
           borderRadius: 6, maxHeight: 320, overflow: 'auto',
         }}>
           {row.content || <span className="muted">—</span>}
@@ -293,8 +293,8 @@ function TicketDetails({ row, t }: { row: ExplorerRow; t: (k: string) => string 
             <SectionTitle label={t('super.data.fields') || 'Custom fields'} style={{ marginTop: 16 }} />
             <div style={{
               display: 'grid', gap: 6, gridTemplateColumns: 'auto 1fr',
-              fontSize: 13, padding: 12, background: 'white',
-              border: '1px solid var(--border-subtle, #e5e7eb)', borderRadius: 6,
+              fontSize: 13, padding: 12, background: 'var(--bg-surface)',
+              border: '1px solid var(--border)', borderRadius: 6,
             }}>
               {row.customFields.map((f, i) => (
                 <Fragment key={i}>
@@ -311,8 +311,8 @@ function TicketDetails({ row, t }: { row: ExplorerRow; t: (k: string) => string 
       <div>
         <SectionTitle label={t('super.data.metadata') || 'Metadata'} />
         <dl style={{
-          margin: 0, padding: 12, background: 'white',
-          border: '1px solid var(--border-subtle, #e5e7eb)', borderRadius: 6, fontSize: 13,
+          margin: 0, padding: 12, background: 'var(--bg-surface)',
+          border: '1px solid var(--border)', borderRadius: 6, fontSize: 13,
           display: 'grid', gap: 6, gridTemplateColumns: 'auto 1fr',
         }}>
           <dt style={{ color: 'var(--text-secondary)' }}>{t('super.data.department') || 'Department'}</dt>

@@ -191,7 +191,7 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
           }
         }}
         style={{
-          border: `2px dashed ${dragActive ? 'var(--accent, #2563eb)' : 'var(--border)'}`,
+          border: `2px dashed ${dragActive ? 'var(--brand)' : 'var(--border)'}`,
           borderRadius: 'var(--radius)',
           padding: '1.5rem',
           textAlign: 'center',

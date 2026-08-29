@@ -121,7 +121,7 @@ export function NotificationBell() {
               fontSize: 10,
               fontWeight: 700,
               color: 'white',
-              background: 'var(--danger, #dc2626)',
+              background: 'var(--danger)',
               borderRadius: 8,
             }}
           >{unread > 99 ? '99+' : unread}</span>
@@ -191,7 +191,7 @@ export function NotificationBell() {
                           aria-hidden="true"
                           style={{
                             width: 8, height: 8, borderRadius: '50%',
-                            background: 'var(--accent, #2563eb)', marginTop: 6, flexShrink: 0,
+                            background: 'var(--brand)', marginTop: 6, flexShrink: 0,
                           }}
                         />
                       )}

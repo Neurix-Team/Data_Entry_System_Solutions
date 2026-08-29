@@ -24,7 +24,7 @@ export function BreakdownList({ items }: Props) {
               <span className="udash-breakdown-value">{item.count}</span>
             </div>
             <div className="udash-breakdown-track">
-              <div className="udash-breakdown-fill" style={{ width: `${pct}%` }} />
+              <div className="udash-breakdown-fill" style={{ ["--fill" as string]: pct / 100 }} />
             </div>
           </div>
         );

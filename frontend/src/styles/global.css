@@ -82,6 +82,15 @@
   --border: #dde3ef;
   --border-strong: #c3cadb;
 
+  /* Compatibility aliases. The super-admin pages were written against these names and
+     used `var(--bg-subtle, #f9fafb)`-style fallbacks; because the names were never
+     defined, the hard-coded light-mode fallback always won and those screens stayed
+     white in dark mode. Defined as aliases (not literals) so they resolve through the
+     active theme's value at use time — one definition covers light and dark. */
+  --bg-subtle: var(--bg-sunken);
+  --border-subtle: var(--border);
+  --accent: var(--brand);
+
   /* Department card top-border color palette — cool-forward, brand-consistent */
   --dept-color-1: #0f5fd1;   /* electric blue */
   --dept-color-2: #22c3d9;   /* cyan          */
@@ -152,6 +161,30 @@
 
   --sidebar-w: 240px;
   --topbar-h: 68px;
+
+  /* Motion — three durations, two easings. Everything in the app picks from this set;
+     a value outside it is a bug, not a preference. The app previously carried fourteen
+     distinct durations between 90ms and 900ms, which is what made otherwise-careful
+     animation read as accidental.
+       fast  → a tint the eye barely tracks (hover, focus, active)
+       base  → an element changing shape or place (cards, toggles, panels)
+       slow  → something arriving or drawing itself (charts, dialogs, entrances) */
+  --dur-fast: 140ms;
+  --dur-base: 240ms;
+  --dur-slow: 420ms;
+  /* Default. Leaves immediately, settles long — the curve most UI motion wants. */
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  /* Exponential ease-out: decelerates harder and settles without overshooting. For
+     entrances, where the extra deceleration reads as weight. Named for the curve —
+     nothing in this app overshoots: it is a tool people sit in for a shift, and a
+     control that springs under the cursor gets tiring by the fiftieth row. */
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Stagger step for entrance sequences. Multiply it, don't invent new delays — an even
+     step is what makes a sequence read as one motion instead of several. */
+  --stagger: 90ms;
+  /* Tighter step for dense sequences inside a single card or control, where the
+     hero-scale step would read as sluggish. */
+  --stagger-tight: 60ms;
 }
 
 :root[data-theme='dark'] {
@@ -208,6 +241,14 @@
   --danger-soft-text: #f5aab6;
   --danger-soft-border: #5a2434;
 
+  /* Warning had no dark values at all, so every warning surface in the app kept its
+     light-mode cream (#fdf1d9) and sat on the navy background as a glowing panel.
+     Built to the same recipe as success/danger above: deep desaturated ground, lifted
+     hue, light text — 10:1 against its own surface. */
+  --warning: #f5b53f;
+  --warning-soft: #37280d;
+  --warning-soft-text: #f0cd8e;
+
   --border: #1e2942;
   --border-strong: #2d3b5c;
 
@@ -252,7 +293,7 @@ body {
   background: var(--bg-app);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease;
 }
 html[dir='rtl'] body { font-family: var(--font-body-ar); }
 
@@ -269,8 +310,15 @@ input, select, textarea, button { font-family: inherit; }
 
 /* ============================================================
    Buttons — pill shape by default
+   Motion: SaaS-appropriate subtle press/hover feedback (200-250ms).
+   All transforms run on the compositor thread (transform + opacity
+   only); shine/ring pseudo-elements are transform-based; layout
+   props are never animated. Reduced-motion cancels all transforms.
    ============================================================ */
 .btn {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -280,28 +328,80 @@ input, select, textarea, button { font-family: inherit; }
   border: 1px solid transparent;
   font-weight: 600;
   font-size: var(--fs-sm);
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease,
-    box-shadow 0.15s ease, transform 0.05s ease;
   min-height: 42px;
   line-height: 1;
   white-space: nowrap;
+  will-change: transform;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+/* Diagonal shine — only visible on solid CTA variants that opt in
+   (.btn-primary / .btn-brand / .btn-danger). Uses transform only. */
+.btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.22) 50%,
+    transparent 70%
+  );
+  transform: translateX(-120%);
+  transition: transform var(--dur-slow) var(--ease-out);
+  opacity: 0;
 }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
-.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:active:not(:disabled) { transform: translateY(0) scale(0.97); }
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--bg-surface), 0 0 0 5px var(--accent-cyan);
+}
 
+/* --- Primary (deep navy CTA) ------------------------------------ */
 .btn-primary { background: var(--accent-deep); color: var(--accent-deep-text); }
-.btn-primary:hover:not(:disabled) { background: var(--accent-deep-hover); }
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-deep-hover);
+  transform: translateY(-1.5px);
+  box-shadow:
+    0 10px 22px -10px rgba(13, 26, 51, 0.55),
+    0 4px 10px -4px rgba(15, 95, 209, 0.35);
+}
+.btn-primary::before { opacity: 1; }
+.btn-primary:hover:not(:disabled)::before { transform: translateX(120%); }
 
+/* --- Brand (electric-blue CTA) ---------------------------------- */
 .btn-brand { background: var(--brand); color: var(--text-primary); }
-.btn-brand:hover:not(:disabled) { background: var(--brand-hover); }
+.btn-brand:hover:not(:disabled) {
+  background: var(--brand-hover);
+  transform: translateY(-1.5px);
+  box-shadow:
+    0 12px 24px -12px rgba(15, 95, 209, 0.65),
+    0 4px 10px -4px rgba(34, 195, 217, 0.35);
+}
+.btn-brand::before { opacity: 1; }
+.btn-brand:hover:not(:disabled)::before { transform: translateX(120%); }
 
+/* --- Secondary (surface + border) ------------------------------- */
 .btn-secondary {
   background: var(--bg-surface);
   color: var(--text-primary);
   border-color: var(--border-strong);
 }
-.btn-secondary:hover:not(:disabled) { background: var(--bg-hover); }
+.btn-secondary:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--brand-border);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px -8px rgba(15, 95, 209, 0.25);
+}
 
+/* --- Ghost (utility, no lift, tint only) ------------------------ */
 .btn-ghost {
   background: transparent;
   color: var(--text-secondary);
@@ -309,11 +409,57 @@ input, select, textarea, button { font-family: inherit; }
 }
 .btn-ghost:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
 
+/* --- Danger ---------------------------------------------------- */
 .btn-danger { background: var(--danger); color: var(--text-inverse); }
-.btn-danger:hover:not(:disabled) { background: var(--danger-hover); }
+.btn-danger:hover:not(:disabled) {
+  background: var(--danger-hover);
+  transform: translateY(-1.5px);
+  box-shadow:
+    0 10px 22px -10px rgba(224, 69, 98, 0.55),
+    0 4px 10px -4px rgba(224, 69, 98, 0.35);
+}
+.btn-danger::before { opacity: 1; }
+.btn-danger:hover:not(:disabled)::before { transform: translateX(120%); }
 
+/* --- Sizes ----------------------------------------------------- */
 .btn-sm { padding: 0.4rem 0.85rem; min-height: 34px; font-size: var(--fs-xs); }
 .btn-icon { padding: 0.4rem 0.6rem; }
+.btn-icon:hover:not(:disabled) { transform: scale(1.06); }
+.btn-icon:active:not(:disabled) { transform: scale(0.94); }
+
+/* --- Loading state --------------------------------------------- */
+.btn.is-loading {
+  pointer-events: none;
+  color: transparent !important;
+}
+.btn.is-loading::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  color: var(--accent-deep-text);
+  animation: neurixSpin 0.7s linear infinite;
+}
+.btn-secondary.is-loading::after,
+.btn-ghost.is-loading::after { color: var(--text-primary); }
+
+/* --- Reduced motion: cancel transforms + shine ------------------ */
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .btn::before { transition: none; animation: none; }
+  /* The loading spinner keeps its animation-name here — the global reduced-motion
+     floor at the end of this file slows it instead of stopping it. Killing the name
+     with `animation: none` would leave a frozen ring that reads as a hung request. */
+  .btn.is-loading::after { transition: none; }
+  .btn:hover:not(:disabled),
+  .btn-icon:hover:not(:disabled),
+  .btn:active:not(:disabled),
+  .btn-icon:active:not(:disabled) { transform: none; }
+  .btn::before { display: none; }
+}
 
 /* ============================================================
    Form primitives
@@ -342,7 +488,7 @@ html[dir='rtl'] .field-label { text-transform: none; letter-spacing: 0; font-siz
   border-radius: var(--radius);
   font-size: var(--fs-sm);
   color: var(--text-primary);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease, background var(--dur-fast) ease;
   min-height: 44px;
 }
 .textarea { min-height: 140px; resize: vertical; line-height: 1.55; }
@@ -382,14 +528,14 @@ html[dir='rtl'] .input, html[dir='rtl'] .textarea, html[dir='rtl'] .select { tex
   position: absolute; inset: 0;
   background-color: var(--border-strong);
   border-radius: var(--radius-pill);
-  transition: background 0.15s ease;
+  transition: background var(--dur-fast) ease;
   cursor: pointer;
 }
 .switch .slider::before {
   content: '';
   position: absolute; height: 18px; width: 18px; left: 3px; top: 3px;
   background: white; border-radius: 50%;
-  transition: transform 0.2s ease;
+  transition: transform var(--dur-fast) ease;
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 .switch input:checked + .slider { background-color: var(--brand); }
@@ -433,9 +579,9 @@ html[dir='rtl'] .switch input:checked + .slider::before { transform: translateX(
    ============================================================ */
 .card, .stat-card, .dept-card, .udash-kpi, .udash-panel, .article-card {
   transition:
-    transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1),
-    border-color 0.2s ease;
+    transform var(--dur-base) var(--ease-expo),
+    box-shadow var(--dur-base) var(--ease-expo),
+    border-color var(--dur-fast) ease;
 }
 
 /* Lift + halo are gated to true hover devices so touch screens don't
@@ -463,8 +609,8 @@ html[dir='rtl'] .switch input:checked + .slider::before { transform: translateX(
   .article-card:active {
     transform: translateY(-2px);
     transition:
-      transform 0.09s ease-out,
-      box-shadow 0.09s ease-out;
+      transform var(--dur-fast) ease-out,
+      box-shadow var(--dur-fast) ease-out;
   }
 }
 
@@ -538,7 +684,7 @@ html[dir='rtl'] .switch input:checked + .slider::before { transform: translateX(
 
 @media (prefers-reduced-motion: reduce) {
   .card, .stat-card, .dept-card, .udash-kpi, .udash-panel, .article-card {
-    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    transition: box-shadow var(--dur-fast) ease, border-color var(--dur-fast) ease;
   }
   .card:hover, .stat-card:hover, .dept-card:hover,
   .udash-kpi:hover, .udash-panel:hover, .article-card:hover,
@@ -555,8 +701,7 @@ html[dir='rtl'] .switch input:checked + .slider::before { transform: translateX(
   }
   /* Also freeze the identity pseudo-elements — no strip pulse, no stripe
      brighten — so reduced-motion users get a completely static card. */
-  .dept-card::before,
-  .udash-kpi::before {
+  .dept-card::before {
     transition: none;
   }
   .dept-card:hover::before,
@@ -564,16 +709,11 @@ html[dir='rtl'] .switch input:checked + .slider::before { transform: translateX(
   .dept-card:has(:focus-visible)::before {
     transform: none;
   }
-  .udash-kpi:hover::before,
-  .udash-kpi:focus-visible::before,
-  .udash-kpi:has(:focus-visible)::before {
-    opacity: 0.85;
-  }
 }
 
 /* Recent activity row — just a soft background wash on hover, no shift */
 .udash-recent-item {
-  transition: background 0.18s ease, box-shadow 0.18s ease;
+  transition: background var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
   transform: none !important;
 }
 .udash-recent-item:hover {
@@ -584,7 +724,7 @@ html[dir='rtl'] .switch input:checked + .slider::before { transform: translateX(
 
 /* Sidebar links — no shift, just a soft background tint */
 .side-link {
-  transition: background 0.18s ease, color 0.18s ease;
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
 }
 .side-link:not(.active):hover {
   background: var(--bg-hover);
@@ -594,7 +734,7 @@ html[dir='rtl'] .side-link:not(.active):hover { transform: none !important; }
 
 /* Table rows — very soft warm tint using the brand color */
 .data tbody tr {
-  transition: background 0.18s ease;
+  transition: background var(--dur-fast) ease;
 }
 .data tbody tr:hover td {
   background: var(--bg-sunken);
@@ -602,7 +742,7 @@ html[dir='rtl'] .side-link:not(.active):hover { transform: none !important; }
 
 /* Intro examples — softer & no jitter */
 .intro-example {
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
   transform: none !important;
 }
 .intro-example:hover {
@@ -664,7 +804,7 @@ html[dir='rtl'] .side-section { text-transform: none; letter-spacing: 0; font-si
   color: var(--text-secondary);
   font-size: var(--fs-sm);
   font-weight: 500;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
 }
 .side-link .side-icon {
   width: 20px; height: 20px;
@@ -725,7 +865,7 @@ html[dir='rtl'] .side-section { text-transform: none; letter-spacing: 0; font-si
   border-radius: var(--radius-pill);
   font-size: var(--fs-sm);
   color: var(--text-primary);
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background var(--dur-fast) ease, border-color var(--dur-fast) ease;
   min-height: 40px;
 }
 html[dir='rtl'] .topbar-search input { padding: 0.6rem 2.5rem 0.6rem 1rem; }
@@ -747,7 +887,7 @@ html[dir='rtl'] .topbar-search input { padding: 0.6rem 2.5rem 0.6rem 1rem; }
   border: none;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background var(--dur-fast) ease;
 }
 .notification-btn:hover { background: var(--bg-hover); }
 .notification-dot {
@@ -784,7 +924,7 @@ html[dir='rtl'] .user-chip-info { align-items: flex-start; }
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
   font-size: 1rem;
 }
 .icon-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
@@ -838,7 +978,7 @@ html[dir='rtl'] .user-chip-info { align-items: flex-start; }
   border: none;
   font: inherit;
   color: inherit;
-  transition: background 0.15s ease;
+  transition: background var(--dur-fast) ease;
 }
 .user-chip.is-button:hover { background: var(--bg-hover); }
 .user-chip.is-button:focus-visible {
@@ -871,7 +1011,7 @@ html[dir='rtl'] .user-chip-info { align-items: flex-start; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s ease, transform 0.15s ease;
+  transition: background var(--dur-fast) ease, transform var(--dur-fast) ease;
 }
 .profile-avatar-edit:hover:not(:disabled) { background: var(--brand-hover); transform: scale(1.05); }
 .profile-avatar-edit:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -1105,7 +1245,7 @@ html[dir='rtl'] .actions-col-header { text-align: start; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  transition: color var(--dur-fast) ease, background var(--dur-fast) ease, border-color var(--dur-fast) ease;
 }
 .repeater-remove:hover:not(:disabled) {
   color: var(--danger);
@@ -1125,7 +1265,7 @@ html[dir='rtl'] .actions-col-header { text-align: start; }
   cursor: pointer;
   font-weight: 600;
   font-size: var(--fs-sm);
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition: background var(--dur-fast) ease, border-color var(--dur-fast) ease, color var(--dur-fast) ease;
 }
 .repeater-add-btn:hover:not(:disabled) {
   background: var(--brand);
@@ -1155,10 +1295,10 @@ html[dir='rtl'] .actions-col-header { text-align: start; }
   cursor: pointer;
   position: relative;
   transition:
-    background 0.18s ease,
-    border-color 0.18s ease,
-    box-shadow 0.18s ease,
-    transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+    background var(--dur-fast) ease,
+    border-color var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease,
+    transform var(--dur-fast) var(--ease-out);
   flex-shrink: 0;
   vertical-align: middle;
   margin: 0;
@@ -1177,17 +1317,20 @@ html[dir='rtl'] .actions-col-header { text-align: start; }
     center / 14px 14px no-repeat,
     linear-gradient(135deg, #0f5fd1 0%, #22c3d9 100%);
   border-color: transparent;
-  animation: checkPop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: checkPop var(--dur-base) var(--ease-expo);
 }
 .row-check input:checked:hover,
 .dept-card-check input:checked:hover,
 .bulk-action-select-all input:checked:hover {
   filter: brightness(1.08);
 }
+/* Scales in and stops. The overshoot that used to sit at 60% was doubled by a bounce
+   easing on top of it, and this fires on every row checkbox — including once per visible
+   row when "select all" is hit, which set the whole table wobbling. A tool people spend
+   a shift in should confirm a click, not celebrate it. */
 @keyframes checkPop {
-  0%   { transform: scale(0.7); }
-  60%  { transform: scale(1.12); }
-  100% { transform: scale(1); }
+  from { transform: scale(0.7); }
+  to   { transform: scale(1); }
 }
 .row-check input:focus-visible,
 .dept-card-check input:focus-visible,
@@ -1225,7 +1368,7 @@ html[dir='rtl'] table.data tr:has(.row-check input:checked) td:first-child {
   border-radius: var(--radius);
   color: var(--brand-soft-text);
   font-size: var(--fs-sm);
-  animation: bulkBarIn 0.25s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: bulkBarIn var(--dur-base) var(--ease-out) both;
 }
 @keyframes bulkBarIn {
   from { opacity: 0; transform: translateY(-6px); }
@@ -1289,7 +1432,7 @@ html[dir='rtl'] table.data tr:has(.row-check input:checked) td:first-child {
   cursor: pointer;
   font-size: var(--fs-xs);
   font-weight: 600;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease, border-color var(--dur-fast) ease;
 }
 .chip-toggle:hover { background: var(--bg-hover); color: var(--text-primary); }
 .chip-toggle.is-on {
@@ -1440,14 +1583,14 @@ html[dir='rtl'] .modal-footer { justify-content: flex-start; }
   box-shadow: -12px 0 32px rgba(0,0,0,0.1);
   z-index: 101;
   display: flex; flex-direction: column;
-  animation: slideIn 0.2s ease-out;
+  animation: slideIn var(--dur-fast) ease-out;
 }
 html[dir='rtl'] .side-panel { box-shadow: 12px 0 32px rgba(0,0,0,0.1); }
 @keyframes slideIn {
   from { transform: translateX(100%); }
   to { transform: translateX(0); }
 }
-html[dir='rtl'] .side-panel { animation: slideInRtl 0.2s ease-out; }
+html[dir='rtl'] .side-panel { animation: slideInRtl var(--dur-fast) ease-out; }
 @keyframes slideInRtl {
   from { transform: translateX(-100%); }
   to { transform: translateX(0); }
@@ -1492,7 +1635,7 @@ html[dir='rtl'] .side-panel-footer { justify-content: flex-start; }
   height: 10px;
   background: var(--dept-card-color, var(--dept-color-1));
   transform-origin: top;
-  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform var(--dur-base) var(--ease-expo);
 }
 /* On hover / keyboard-focus the identity strip pulses forward — the
    department is asserting its color at the moment of contact. */
@@ -1621,7 +1764,7 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
   margin-top: auto;
   position: relative; z-index: 3;
   max-width: 480px;
-  animation: neurixFadeUp 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) 0.1s both;
+  animation: neurixFadeUp var(--dur-slow) var(--ease-out) calc(var(--stagger) * 1) both;
 }
 .auth-brand-headline {
   font-size: 2.75rem;
@@ -1652,12 +1795,12 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
   color: rgba(234, 240, 255, 0.9);
   font-weight: 500;
   opacity: 0;
-  animation: neurixFadeInLeft 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: neurixFadeInLeft var(--dur-slow) var(--ease-out) both;
 }
 html[dir='rtl'] .auth-brand-features li { animation-name: neurixFadeInRight; }
-.auth-brand-features li:nth-child(1) { animation-delay: 0.35s; }
-.auth-brand-features li:nth-child(2) { animation-delay: 0.45s; }
-.auth-brand-features li:nth-child(3) { animation-delay: 0.55s; }
+.auth-brand-features li:nth-child(1) { animation-delay: calc(var(--stagger) * 2); }
+.auth-brand-features li:nth-child(2) { animation-delay: calc(var(--stagger) * 3); }
+.auth-brand-features li:nth-child(3) { animation-delay: calc(var(--stagger) * 4); }
 .auth-brand-features li .dot {
   width: 24px; height: 24px; border-radius: 50%;
   background: linear-gradient(135deg, #0f5fd1, #22c3d9);
@@ -1671,7 +1814,7 @@ html[dir='rtl'] .auth-brand-features li { animation-name: neurixFadeInRight; }
   margin-top: 2.5rem;
   color: rgba(234, 240, 255, 0.55);
   font-size: var(--fs-xs);
-  animation: neurixFadeUp 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) 0.6s both;
+  animation: neurixFadeUp var(--dur-slow) var(--ease-out) calc(var(--stagger) * 5) both;
 }
 
 /* ---------- Form side ---------- */
@@ -1695,7 +1838,7 @@ html[dir='rtl'] .auth-brand-features li { animation-name: neurixFadeInRight; }
   box-shadow: none;
   max-width: 400px;
   width: 100%;
-  animation: neurixFadeUp 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: neurixFadeUp var(--dur-slow) var(--ease-out) both;
 }
 .auth-form-logo {
   margin-bottom: 2.25rem;
@@ -1736,7 +1879,7 @@ html[dir='rtl'] .auth-brand-features li { animation-name: neurixFadeInRight; }
   color: #ffffff;
   border-color: transparent;
   transition:
-    background 0.18s ease, transform 0.15s ease, box-shadow 0.2s ease;
+    background var(--dur-fast) ease, transform var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
 }
 .auth-submit.btn-primary:hover:not(:disabled) {
   background: #12234a;
@@ -1853,9 +1996,9 @@ html[dir='rtl'] .auth-brand-features li { animation-name: neurixFadeInRight; }
     0 12px 28px -10px rgba(15, 95, 209, 0.55),
     0 0 0 1px rgba(255, 255, 255, 0.10) inset;
   transition:
-    transform 0.2s cubic-bezier(0.2, 0.7, 0.2, 1),
-    box-shadow 0.2s ease,
-    filter 0.2s ease;
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) ease,
+    filter var(--dur-fast) ease;
 }
 .chat-fab:hover {
   transform: translateY(-2px);
@@ -1881,7 +2024,7 @@ html[dir='rtl'] .auth-brand-features li { animation-name: neurixFadeInRight; }
   inset: -4px;
   border-radius: 50%;
   border: 2px solid rgba(34, 195, 217, 0.55);
-  animation: chatPulse 2.6s cubic-bezier(0.2, 0.7, 0.2, 1) infinite;
+  animation: chatPulse 2.6s var(--ease-out) infinite;
   pointer-events: none;
 }
 @keyframes chatPulse {
@@ -1909,7 +2052,7 @@ html[dir='rtl'] .auth-brand-features li { animation-name: neurixFadeInRight; }
   flex-direction: column;
   overflow: hidden;
   z-index: 199;
-  animation: chatPanelIn 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: chatPanelIn var(--dur-base) var(--ease-out) both;
 }
 :root[data-theme='dark'] .chat-panel {
   box-shadow:
@@ -1973,7 +2116,7 @@ html[dir='rtl'] .auth-brand-features li { animation-name: neurixFadeInRight; }
   border: none;
   border-radius: 8px;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
 }
 .chat-icon-btn:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -2068,7 +2211,7 @@ html[dir='rtl'] .chat-msg-user .chat-bubble {
   font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+  transition: background var(--dur-fast) ease, transform var(--dur-fast) ease, border-color var(--dur-fast) ease;
 }
 .chat-action-btn:hover {
   background: var(--brand);
@@ -2090,8 +2233,8 @@ html[dir='rtl'] .chat-msg-user .chat-bubble {
   background: var(--text-tertiary);
   animation: chatDot 1.2s ease-in-out infinite;
 }
-.chat-typing span:nth-child(2) { animation-delay: 0.15s; }
-.chat-typing span:nth-child(3) { animation-delay: 0.3s; }
+.chat-typing span:nth-child(2) { animation-delay: calc(var(--stagger) * 1); }
+.chat-typing span:nth-child(3) { animation-delay: calc(var(--stagger) * 2); }
 @keyframes chatDot {
   0%, 60%, 100% { transform: scale(0.7); opacity: 0.5; }
   30%           { transform: scale(1);   opacity: 1; }
@@ -2127,7 +2270,7 @@ html[dir='rtl'] .chat-msg-user .chat-bubble {
   font-size: 0.88rem;
   line-height: 1.4;
   resize: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
 }
 .chat-input::placeholder { color: var(--text-tertiary); }
 .chat-input:focus {
@@ -2145,7 +2288,7 @@ html[dir='rtl'] .chat-msg-user .chat-bubble {
   background: var(--brand);
   color: #ffffff;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
+  transition: background var(--dur-fast) ease, transform var(--dur-fast) ease, opacity var(--dur-fast) ease;
   flex-shrink: 0;
 }
 .chat-send:hover:not(:disabled) { background: var(--brand-hover); transform: translateY(-1px); }
@@ -2172,7 +2315,7 @@ html[dir='rtl'] .chat-msg-user .chat-bubble {
   background: var(--bg-sunken);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease, background var(--dur-fast) ease;
   overflow: hidden;
 }
 .password-field:focus-within {
@@ -2202,7 +2345,7 @@ html[dir='rtl'] .chat-msg-user .chat-bubble {
   border-inline-start: 1px solid var(--border);
   cursor: pointer;
   color: var(--brand);
-  transition: color 0.15s ease, background 0.15s ease;
+  transition: color var(--dur-fast) ease, background var(--dur-fast) ease;
 }
 .password-field-toggle svg { width: 22px; height: 22px; display: block; }
 .password-field-toggle:hover {
@@ -2241,7 +2384,7 @@ html[dir='rtl'] .chat-msg-user .chat-bubble {
   inset: 0;
   background: radial-gradient(circle at 50% 50%, rgba(6, 16, 41, 0.28), transparent 60%);
   pointer-events: none;
-  animation: toastScrim 0.15s ease-out both;
+  animation: toastScrim var(--dur-fast) ease-out both;
   z-index: -1;
 }
 @keyframes toastScrim {
@@ -2265,7 +2408,7 @@ html[dir='rtl'] .chat-msg-user .chat-bubble {
   line-height: 1.45;
   pointer-events: auto;
   overflow: hidden;
-  animation: toastIn 0.18s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: toastIn var(--dur-fast) var(--ease-out) both;
 }
 .toast-success {
   padding: 22px 22px;
@@ -2309,7 +2452,7 @@ html[dir='rtl'] .chat-msg-user .chat-bubble {
   color: var(--text-tertiary);
   cursor: pointer;
   border-radius: 6px;
-  transition: color 0.15s ease, background 0.15s ease;
+  transition: color var(--dur-fast) ease, background var(--dur-fast) ease;
 }
 .toast-close:hover { color: var(--text-primary); background: var(--bg-hover); }
 .toast-close:focus-visible {
@@ -2435,7 +2578,7 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   border: none;
   color: var(--text-tertiary);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
 }
 .view-toggle button.active { background: var(--bg-hover); color: var(--text-primary); }
 
@@ -2459,7 +2602,7 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   border-radius: var(--radius-pill);
   font-size: var(--fs-xs);
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background var(--dur-fast) ease, border-color var(--dur-fast) ease;
 }
 .multi-select label.selected {
   background: var(--brand-soft);
@@ -2495,7 +2638,7 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   background: var(--brand);
   border-radius: 6px 6px 0 0;
   min-height: 4px;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--dur-fast) ease;
 }
 .bar-chart-bar:hover { opacity: 0.85; }
 .bar-chart-bar[data-color='1'] { background: var(--dept-color-1); }
@@ -2517,12 +2660,19 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   border-radius: var(--radius-pill);
   overflow: hidden;
 }
+/* Driven by `--fill` (0–1), not by `width`. Animating width relayouts the bar and every
+   sibling on each frame; scaleX is composited and stays smooth under a table of them. */
 .progress-bar-fill {
   height: 100%;
+  width: 100%;
   background: var(--brand);
-  border-radius: var(--radius-pill);
-  transition: width 0.4s ease;
+  /* No radius of its own: scaleX would squash it into flat ends at low values.
+     The track is already pill-shaped with overflow:hidden, so it does the rounding. */
+  transform: scaleX(var(--fill, 0));
+  transform-origin: left center;
+  transition: transform var(--dur-slow) var(--ease-out);
 }
+html[dir='rtl'] .progress-bar-fill { transform-origin: right center; }
 .progress-bar-fill[data-tone='amber'] { background: var(--accent-deep); }
 .progress-bar-fill[data-tone='blue'] { background: var(--status-progress); }
 .progress-bar-fill[data-tone='green'] { background: var(--success); }
@@ -2686,11 +2836,11 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   color: var(--text-primary);
   cursor: pointer;
   transition:
-    transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1),
-    border-color 0.2s ease,
-    background 0.25s ease,
-    opacity 0.25s ease;
+    transform var(--dur-base) var(--ease-expo),
+    box-shadow var(--dur-base) var(--ease-expo),
+    border-color var(--dur-fast) ease,
+    background var(--dur-base) ease,
+    opacity var(--dur-base) ease;
   overflow: hidden;
   isolation: isolate;
 }
@@ -2706,7 +2856,7 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
     color-mix(in oklch, var(--card-accent) 12%, transparent) 0%,
     color-mix(in oklch, var(--card-accent)  4%, transparent) 100%);
   opacity: 0;
-  transition: opacity 0.28s ease;
+  transition: opacity var(--dur-base) ease;
 }
 .article-mode-card:hover::before { opacity: 0.7; }
 .article-mode-card.is-active::before { opacity: 1; }
@@ -2721,7 +2871,7 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
     box-shadow: 0 12px 32px -14px color-mix(in oklch, var(--card-accent) 45%, transparent);
   }
 }
-.article-mode-card:active { transform: translateY(-1px); transition: transform 0.09s ease-out; }
+.article-mode-card:active { transform: translateY(-1px); transition: transform var(--dur-fast) ease-out; }
 .article-mode-card:focus-visible {
   outline: 2px solid var(--card-accent);
   outline-offset: 3px;
@@ -2744,7 +2894,7 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   background: color-mix(in oklch, var(--card-accent) 14%, var(--bg-surface));
   color: var(--card-accent);
   flex-shrink: 0;
-  transition: background 0.28s ease, color 0.28s ease, transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background var(--dur-base) ease, color var(--dur-base) ease, transform var(--dur-base) var(--ease-expo);
 }
 .article-mode-card.is-active .article-mode-card-icon {
   background: var(--card-accent);
@@ -2781,7 +2931,7 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   border-radius: 50%;
   background: var(--card-accent);
   box-shadow: 0 0 0 3px color-mix(in oklch, var(--card-accent) 22%, transparent);
-  animation: articleModePip 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation: articleModePip var(--dur-slow) var(--ease-expo) both;
 }
 @keyframes articleModePip {
   from { transform: scale(0); opacity: 0; }
@@ -2791,7 +2941,7 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
 /* Panel reveal — the article list is unmounted when no mode is picked, and gets a
    fresh key on every tab swap. Both cases play this fade-and-lift keyframe. */
 .article-mode-panel {
-  animation: articleModeReveal 0.36s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: articleModeReveal var(--dur-base) var(--ease-expo) both;
 }
 @keyframes articleModeReveal {
   from { opacity: 0; transform: translateY(10px); }
@@ -2802,11 +2952,11 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
    same key remount that plays the panel keyframe. */
 .article-mode-panel .article-card-section > .field,
 .article-mode-panel .article-card-section > .field-group {
-  animation: articleFieldFade 0.36s cubic-bezier(0.16, 1, 0.3, 1) both;
-  animation-delay: 0.08s;
+  animation: articleFieldFade var(--dur-base) var(--ease-expo) both;
+  animation-delay: calc(var(--stagger-tight) * 1);
 }
-.article-mode-panel .article-card-section > *:nth-child(2) { animation-delay: 0.14s; }
-.article-mode-panel .article-card-section > *:nth-child(3) { animation-delay: 0.2s; }
+.article-mode-panel .article-card-section > *:nth-child(2) { animation-delay: calc(var(--stagger-tight) * 2); }
+.article-mode-panel .article-card-section > *:nth-child(3) { animation-delay: calc(var(--stagger-tight) * 3); }
 @keyframes articleFieldFade {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -2846,7 +2996,7 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
 }
 .extracted-image-card:hover {
   border-color: var(--border-strong);
@@ -2909,7 +3059,7 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   overflow: hidden;
   background: var(--bg-sunken);
   text-decoration: none;
-  transition: border-color 0.18s ease;
+  transition: border-color var(--dur-fast) ease;
 }
 .extracted-images-preview-item:hover {
   border-color: var(--brand);
@@ -3003,7 +3153,7 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   background: var(--bg-sunken);
   border-radius: var(--radius);
   border: 1px solid var(--border);
-  transition: transform 0.2s ease, border-color 0.2s ease;
+  transition: transform var(--dur-fast) ease, border-color var(--dur-fast) ease;
 }
 .intro-example:hover {
   transform: translateY(-2px);
@@ -3096,7 +3246,7 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   cursor: pointer;
   font-size: 0.85rem;
   font-weight: 600;
-  transition: all 0.15s ease;
+  transition: all var(--dur-fast) ease;
 }
 .udash-range-picker button.active {
   background: #fff;
@@ -3123,33 +3273,20 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
 }
 /* Left accent stripe — very thin, subtle, professional.
    On hover the stripe reaches full opacity so the KPI's accent asserts itself. */
-.udash-kpi::before {
-  content: '';
-  position: absolute;
-  inset-inline-start: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--accent);
-  opacity: 0.85;
-  transition: opacity 0.22s ease;
-}
-@media (hover: hover) and (pointer: fine) {
-  .udash-kpi:hover::before { opacity: 1; }
-}
-.udash-kpi:focus-visible::before,
-.udash-kpi:has(:focus-visible)::before { opacity: 1; }
+/* The 3px accent rail that used to sit here was decoration: every KPI carried one, in a
+   colour the tinted icon chip already states. Two marks for one fact, and the stripe is
+   the one that can't be read. The icon keeps the colour-coding; the card keeps its edge. */
 
 /* Every KPI variant maps --card-glow to its own --accent so the lift halo
    tracks the accent automatically. --accent-soft uses color-mix so the chip
    re-tints against light vs dark surfaces without a dark-mode override. */
 .udash-kpi { --card-glow: var(--accent); }
-.udash-kpi[data-accent="blue"]   { --accent: #0f5fd1; --accent-soft: color-mix(in srgb, #0f5fd1 12%, transparent); }
-.udash-kpi[data-accent="green"]  { --accent: #0e9f7c; --accent-soft: color-mix(in srgb, #0e9f7c 12%, transparent); }
-.udash-kpi[data-accent="amber"]  { --accent: #f0a020; --accent-soft: color-mix(in srgb, #f0a020 12%, transparent); }
-.udash-kpi[data-accent="rose"]   { --accent: #e04562; --accent-soft: color-mix(in srgb, #e04562 12%, transparent); }
-.udash-kpi[data-accent="purple"] { --accent: #7c56d9; --accent-soft: color-mix(in srgb, #7c56d9 12%, transparent); }
-.udash-kpi[data-accent="teal"]   { --accent: #22c3d9; --accent-soft: color-mix(in srgb, #22c3d9 12%, transparent); }
+.udash-kpi[data-accent="blue"]   { --accent: var(--brand);         --accent-soft: color-mix(in srgb, var(--brand) 12%, transparent); }
+.udash-kpi[data-accent="green"]  { --accent: var(--success);       --accent-soft: color-mix(in srgb, var(--success) 12%, transparent); }
+.udash-kpi[data-accent="amber"]  { --accent: var(--warning);       --accent-soft: color-mix(in srgb, var(--warning) 12%, transparent); }
+.udash-kpi[data-accent="rose"]   { --accent: var(--danger);        --accent-soft: color-mix(in srgb, var(--danger) 12%, transparent); }
+.udash-kpi[data-accent="purple"] { --accent: var(--dept-color-3); --accent-soft: color-mix(in srgb, var(--dept-color-3) 12%, transparent); }
+.udash-kpi[data-accent="teal"]   { --accent: var(--accent-cyan);   --accent-soft: color-mix(in srgb, var(--accent-cyan) 12%, transparent); }
 
 .udash-kpi-head {
   display: flex;
@@ -3182,14 +3319,15 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   font-size: 0.75rem;
   font-weight: 600;
 }
-.udash-kpi-trend.up   { background: color-mix(in srgb, #10b981 12%, transparent); color: #059669; }
-.udash-kpi-trend.down { background: color-mix(in srgb, #f43f5e 12%, transparent); color: #e11d48; }
-.udash-kpi-trend.flat { background: color-mix(in srgb, #64748b 12%, transparent); color: #475569; }
-/* Lift the trend text on dark surfaces — the saturated darks above are hard to read against
-   deep bg-surface; brighter tints keep the same semantic hue but hit contrast targets. */
-:root[data-theme='dark'] .udash-kpi-trend.up   { color: #34d399; }
-:root[data-theme='dark'] .udash-kpi-trend.down { color: #fb7185; }
-:root[data-theme='dark'] .udash-kpi-trend.flat { color: #94a3b8; }
+/* Semantic tokens, not a second green. These badges previously used #10b981/#f43f5e —
+   a different green and red from the --success/--danger the rest of the app uses, which
+   read as two palettes on one screen. The soft/soft-text pairs already carry their own
+   dark-theme values, so the manual per-theme overrides that used to sit here are gone. */
+.udash-kpi-trend.up   { background: var(--success-soft); color: var(--success-soft-text); }
+.udash-kpi-trend.down { background: var(--danger-soft);  color: var(--danger-soft-text); }
+.udash-kpi-trend.flat { background: var(--bg-muted);     color: var(--text-secondary); }
+/* Optical: the arrow reads heavier than the numeral beside it at the same size. */
+.udash-kpi-trend-icon { flex-shrink: 0; opacity: 0.85; }
 
 .udash-grid-2 {
   display: grid;
@@ -3220,7 +3358,12 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
 .udash-panel-title { font-size: 1rem; font-weight: 700; color: var(--text-primary); }
 .udash-panel-sub { color: var(--text-tertiary); font-size: 0.85rem; }
 
-/* Trend chart */
+/* ============================================================
+   Trend chart — bars grow in staggered on mount.
+   Uses transform: scaleY() instead of animating height so the
+   animation stays on the compositor thread. Hover / focus on a
+   bar dims the others via a container `.has-active` class.
+   ============================================================ */
 .udash-trend {
   display: flex;
   align-items: flex-end;
@@ -3231,15 +3374,36 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
 .udash-trend-bar {
   flex: 1;
   min-width: 4px;
+  height: var(--bar-h, 4%);
   background: linear-gradient(180deg, #2a7ce0 0%, #7fc8f0 100%);
   border-radius: 4px 4px 0 0;
   position: relative;
-  transition: filter 0.18s ease;
+  padding: 0;
+  border: 0;
   cursor: pointer;
+  transform-origin: bottom;
+  transform: scaleY(0);
+  opacity: 0;
+  transition:
+    transform var(--dur-slow) var(--ease-out) var(--bar-delay, 0ms),
+    opacity var(--dur-base) ease var(--bar-delay, 0ms),
+    filter var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease;
 }
-.udash-trend-bar:hover {
-  filter: brightness(1.05) saturate(1.05);
+.udash-trend.is-mounted .udash-trend-bar {
+  transform: scaleY(1);
+  opacity: 1;
 }
+.udash-trend-bar:hover:not(:disabled),
+.udash-trend-bar:focus-visible {
+  filter: brightness(1.08) saturate(1.05);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-cyan-soft);
+}
+/* Dim non-active bars when the container has an active target */
+.udash-trend.has-active .udash-trend-bar { opacity: 0.35; }
+.udash-trend.has-active .udash-trend-bar.is-active { opacity: 1; }
+
 .udash-trend-bar.today {
   background: linear-gradient(180deg, #0a3f9c 0%, #22c3d9 100%);
 }
@@ -3251,7 +3415,7 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   position: absolute;
   bottom: 100%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateY(4px);
   background: var(--text-primary);
   color: var(--bg-surface);
   padding: 0.3rem 0.55rem;
@@ -3261,10 +3425,14 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   white-space: nowrap;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.15s ease;
-  margin-bottom: 4px;
+  transition: opacity var(--dur-fast) ease, transform var(--dur-fast) var(--ease-out);
+  margin-bottom: 6px;
 }
-.udash-trend-bar:hover .udash-trend-bar-tip { opacity: 1; }
+.udash-trend-bar:hover .udash-trend-bar-tip,
+.udash-trend-bar:focus-visible .udash-trend-bar-tip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
 
 .udash-trend-axis {
   display: flex;
@@ -3274,7 +3442,10 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   margin-top: 0.5rem;
 }
 
-/* Donut */
+/* ============================================================
+   Donut chart — arcs draw in via stroke-dashoffset, hover
+   thickens the active arc, legend items are toggleable pills.
+   ============================================================ */
 .udash-donut-wrap {
   display: flex;
   align-items: center;
@@ -3282,6 +3453,19 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   flex-wrap: wrap;
 }
 .udash-donut { position: relative; width: 140px; height: 140px; flex-shrink: 0; }
+.udash-donut svg { overflow: visible; }
+.udash-donut-arc {
+  transition:
+    stroke-dasharray var(--dur-slow) var(--ease-out),
+    stroke-dashoffset var(--dur-slow) var(--ease-out),
+    stroke-width var(--dur-fast) var(--ease-out),
+    opacity var(--dur-fast) ease;
+  cursor: pointer;
+}
+/* Draw-on: start each arc collapsed, then remove the .is-priming class
+   on the next frame to release the dasharray to its final value.
+   Implemented purely via the JSX props (dasharray transitions cover both). */
+
 .udash-donut-center {
   position: absolute;
   inset: 0;
@@ -3290,8 +3474,15 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   align-items: center;
   justify-content: center;
   text-align: center;
+  pointer-events: none;
 }
-.udash-donut-value { font-size: 1.6rem; font-weight: 700; color: var(--text-primary); line-height: 1; }
+.udash-donut-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
 .udash-donut-label { font-size: 0.7rem; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.15rem; }
 
 .udash-legend { display: flex; flex-direction: column; gap: 0.5rem; flex: 1; min-width: 120px; }
@@ -3302,10 +3493,55 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   padding: 0.5rem 0.75rem;
   border-radius: var(--radius);
   background: var(--bg-sunken);
+  border: 1px solid transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) ease,
+    border-color var(--dur-fast) ease,
+    transform var(--dur-fast) var(--ease-out),
+    opacity var(--dur-fast) ease;
 }
-.udash-legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.udash-legend-item:hover,
+.udash-legend-item.is-hovered {
+  background: var(--bg-hover);
+  border-color: var(--brand-border);
+  transform: translateX(2px);
+}
+html[dir='rtl'] .udash-legend-item:hover,
+html[dir='rtl'] .udash-legend-item.is-hovered { transform: translateX(-2px); }
+.udash-legend-item.is-hidden {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+.udash-legend-item.is-hidden .udash-legend-dot { opacity: 0.4; }
+.udash-legend-item:focus-visible {
+  outline: none;
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 3px var(--accent-cyan-soft);
+}
+.udash-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  transition: opacity var(--dur-fast) ease;
+}
 .udash-legend-label { flex: 1; font-size: 0.85rem; color: var(--text-secondary); }
-.udash-legend-value { font-weight: 700; color: var(--text-primary); }
+.udash-legend-value { font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+
+/* Reduced motion: no draw-on, no bar stagger, no lift */
+@media (prefers-reduced-motion: reduce) {
+  .udash-trend-bar,
+  .udash-donut-arc,
+  .udash-legend-item,
+  .udash-trend-bar-tip { transition: none !important; }
+  .udash-trend-bar { transform: none; opacity: 1; }
+  .udash-legend-item:hover,
+  .udash-legend-item.is-hovered { transform: none; }
+}
 
 /* Breakdown bars */
 .udash-breakdown { display: flex; flex-direction: column; gap: 0.75rem; }
@@ -3327,9 +3563,17 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
 }
 .udash-breakdown-fill {
   height: 100%;
-  background: linear-gradient(90deg, #0f5fd1 0%, #22c3d9 100%);
-  border-radius: 999px;
-  transition: width 0.5s ease;
+  width: 100%;
+  /* Was a literal blue→cyan gradient, so it kept light-mode colours on the dark theme.
+     The tokens lift on dark; the bar now moves with them. */
+  background: linear-gradient(90deg, var(--brand) 0%, var(--accent-cyan) 100%);
+  transform: scaleX(var(--fill, 0));
+  transform-origin: left center;
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+html[dir='rtl'] .udash-breakdown-fill {
+  transform-origin: right center;
+  background: linear-gradient(270deg, var(--brand) 0%, var(--accent-cyan) 100%);
 }
 
 /* Recent activity */
@@ -3341,7 +3585,7 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   padding: 0.75rem 0.9rem;
   border-radius: var(--radius);
   background: var(--bg-sunken);
-  transition: transform 0.15s ease;
+  transition: transform var(--dur-fast) ease;
 }
 .udash-recent-item:hover { transform: translateX(4px); }
 html[dir='rtl'] .udash-recent-item:hover { transform: translateX(-4px); }
@@ -3408,7 +3652,7 @@ html[dir='rtl'] .udash-recent-item:hover { transform: translateX(-4px); }
   border-radius: 10px;
   background: var(--bg-surface);
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background var(--dur-fast) ease;
 }
 .topbar-menu-btn:hover { background: var(--bg-hover); }
 .hamburger-icon {
@@ -3444,7 +3688,7 @@ html[dir='rtl'] .udash-recent-item:hover { transform: translateX(-4px); }
   z-index: 39;
   background: rgba(15, 16, 22, 0.45);
   backdrop-filter: blur(2px);
-  animation: fadeIn 0.15s ease;
+  animation: fadeIn var(--dur-fast) ease;
 }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
@@ -3479,7 +3723,7 @@ html[dir='rtl'] .udash-recent-item:hover { transform: translateX(-4px); }
     width: 280px;
     max-width: 82vw;
     transform: translateX(-100%);
-    transition: transform 0.22s ease;
+    transition: transform var(--dur-base) ease;
     box-shadow: 8px 0 32px -12px rgba(0, 0, 0, 0.25);
   }
   html[dir='rtl'] .sidebar {
@@ -3644,7 +3888,7 @@ html[dir='rtl'] .sidebar-brand .super-tag {
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition: background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast);
 }
 .super-toolbar .filter-pill:hover { background: var(--bg-hover); color: var(--text-primary); }
 .super-toolbar .filter-pill.active {
@@ -3674,6 +3918,14 @@ html[dir='rtl'] .sidebar-brand .super-tag {
   align-items: flex-start;
 }
 .super-modal-hint svg { flex-shrink: 0; margin-top: 2px; }
+/* Warning variant. Two callers previously reproduced this with inline light-mode hex
+   (#fff7ed / #fed7aa / #9a3412), which survived the theme switch and left an orange
+   card glowing on the dark surface. */
+.super-modal-hint.is-warning {
+  background: var(--warning-soft);
+  border-color: var(--warning);
+  color: var(--warning-soft-text);
+}
 .super-modal-actions {
   display: flex;
   justify-content: flex-end;
@@ -3706,15 +3958,9 @@ html[dir='rtl'] .sidebar-brand .super-tag {
   z-index: -1;
 }
 /* Vertical accent strip on the leading edge — the "identity color" for each card. */
-.super-stat::after {
-  content: '';
-  position: absolute;
-  top: 0; bottom: 0; inset-inline-start: 0;
-  width: 4px;
-  background: var(--tint, var(--brand));
-  border-start-start-radius: var(--radius-lg);
-  border-end-start-radius: var(--radius-lg);
-}
+/* Same call as the KPI rail: the 4px tinted edge that used to sit here repeated the tint
+   the icon chip below already carries. Removed rather than thinned — one statement of a
+   fact is enough, and the stat should be the loudest thing on the card. */
 .super-stat .stat-card-icon {
   background: var(--tint, var(--brand));
   color: #fff;
@@ -3740,3 +3986,37 @@ html[dir='rtl'] .sidebar-brand .super-tag {
 .super-stat.tint-coral   { --tint: var(--danger);       --tint-soft: var(--danger-soft); }
 .super-stat.tint-amber   { --tint: var(--warning);      --tint-soft: var(--warning-soft); }
 .super-stat.tint-navy    { --tint: var(--accent-deep);  --tint-soft: var(--bg-muted); }
+
+/* ============================================================
+   Reduced motion — global floor
+   ============================================================
+   The per-component `prefers-reduced-motion` blocks earlier in this file each name
+   their own selectors, which means motion added *after* they were written is
+   unguarded by default. This catch-all inverts that: everything is off unless it
+   opts back in, so a new animation is safe the day it ships.
+
+   Escape hatch: `data-motion="essential"` keeps its animation running. Reserved for
+   motion that carries state rather than decoration — a spinner is the whole of the
+   loading affordance, and freezing it reads as a hung UI, not a calm one. Those are
+   slowed rather than stopped, which is what the preference actually asks for.
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  [data-motion='essential'],
+  .spinner,
+  .btn.is-loading::after {
+    /* Deliberately off the duration scale, and deliberately slower than the 0.7s these
+       normally run at. The scale describes motion the user opted into; this is the one
+       case where the answer to "less motion" is a calmer version of the same signal. */
+    animation-duration: 1.4s !important;
+    animation-iteration-count: infinite !important;
+  }
+}

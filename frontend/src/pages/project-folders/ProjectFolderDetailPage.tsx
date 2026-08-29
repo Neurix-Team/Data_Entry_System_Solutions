@@ -298,7 +298,7 @@ function AuthorSection({
                   <td>
                     <StatusPill status={tk.status} />
                     {justApproved && (
-                      <div className="small" style={{ color: 'var(--success, #16a34a)', marginTop: 2 }}>
+                      <div className="small" style={{ color: 'var(--success)', marginTop: 2 }}>
                         {lang === 'ar' ? '✓ اتحفظت في الداتا بيز' : '✓ Saved to database'}
                       </div>
                     )}

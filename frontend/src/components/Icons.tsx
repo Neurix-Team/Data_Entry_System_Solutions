@@ -141,6 +141,15 @@ export const IconTrendDown = ({ size, className }: IconProps) => (
   </svg>
 );
 
+/* Flat counterpart to IconTrendUp/Down — same 24-wide baseline and terminal arrow so a
+   trend row keeps one silhouette whichever direction it reports. */
+export const IconTrendFlat = ({ size, className }: IconProps) => (
+  <svg {...p(size, className)}>
+    <polyline points="1 12 17 12" />
+    <polyline points="17 7 23 12 17 17" />
+  </svg>
+);
+
 export const IconCamera = ({ size, className }: IconProps) => (
   <svg {...p(size, className)}>
     <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />

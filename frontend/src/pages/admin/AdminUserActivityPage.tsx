@@ -139,7 +139,7 @@ function BreakdownList({ rows }: { rows: { id: number; name: string; count: numb
               <span className="muted small">{r.count}</span>
             </div>
             <div className="progress-bar">
-              <div className="progress-bar-fill" data-tone="ok" style={{ width: `${pct}%` }} />
+              <div className="progress-bar-fill" data-tone="ok" style={{ ["--fill" as string]: pct / 100 }} />
             </div>
           </div>
         );

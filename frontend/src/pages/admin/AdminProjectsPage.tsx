@@ -370,7 +370,7 @@ export function AdminProjectsPage() {
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 130 }}>
                       <div className="progress-bar" style={{ flex: 1, maxWidth: 120 }}>
-                        <div className="progress-bar-fill" data-tone={barTone} style={{ width: `${p.progress}%` }} />
+                        <div className="progress-bar-fill" data-tone={barTone} style={{ ["--fill" as string]: p.progress / 100 }} />
                       </div>
                       <span style={{ fontSize: 'var(--fs-xs)', fontWeight: 600, color: 'var(--text-secondary)', minWidth: 32 }}>
                         {p.progress}%

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { IconTrendDown, IconTrendFlat, IconTrendUp } from '../../../components/Icons';
 
 type Accent = 'blue' | 'green' | 'amber' | 'rose' | 'purple' | 'teal';
 type TrendDir = 'up' | 'down' | 'flat';
@@ -10,6 +11,11 @@ interface Props {
   icon?: ReactNode;
   accent?: Accent;
   trend?: { dir: TrendDir; text: string };
+}
+
+function TrendIcon({ dir }: { dir: TrendDir }) {
+  const Cmp = dir === 'up' ? IconTrendUp : dir === 'down' ? IconTrendDown : IconTrendFlat;
+  return <Cmp size={14} className="udash-kpi-trend-icon" />;
 }
 
 export function KpiCard({ label, value, sub, icon, accent = 'blue', trend }: Props) {
@@ -24,7 +30,11 @@ export function KpiCard({ label, value, sub, icon, accent = 'blue', trend }: Pro
         {sub && <span className="udash-kpi-sub">{sub}</span>}
         {trend && (
           <span className={`udash-kpi-trend ${trend.dir}`}>
-            {trend.dir === 'up' ? '↑' : trend.dir === 'down' ? '↓' : '→'} {trend.text}
+            {/* Drawn icons rather than ↑/↓/→ glyphs: the arrows rendered at whatever
+                weight and baseline the user's fallback font happened to supply, which
+                never matched the 1.75px stroke used everywhere else in the app. */}
+            <TrendIcon dir={trend.dir} />
+            {trend.text}
           </span>
         )}
       </div>

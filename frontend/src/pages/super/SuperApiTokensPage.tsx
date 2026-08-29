@@ -257,9 +257,9 @@ function StatusPill({ row, t }: { row: ApiTokenRow; t: (k: string) => string }) 
   let dot = 'var(--success)';
   if (row.revokedAt) {
     label = t('super.tokens.status.revoked') || 'Revoked';
-    bg = 'var(--danger-soft, #fee2e2)';
-    color = 'var(--danger-soft-text, #991b1b)';
-    dot = 'var(--danger, #dc2626)';
+    bg = 'var(--danger-soft)';
+    color = 'var(--danger-soft-text)';
+    dot = 'var(--danger)';
   } else if (row.expiresAt && new Date(row.expiresAt).getTime() <= Date.now()) {
     label = t('super.tokens.status.expired') || 'Expired';
     bg = 'var(--status-completed-soft)';
@@ -393,9 +393,7 @@ function RevealTokenModal({ response, onClose }: {
   return (
     <Modal open onClose={onClose} title={t('super.tokens.reveal') || 'Copy your new token'}>
       <div className="super-modal-form">
-        <div className="super-modal-hint" style={{
-          background: '#fff7ed', borderColor: '#fed7aa', color: '#9a3412',
-        }}>
+        <div className="super-modal-hint is-warning">
           <IconAlert size={16} />
           <span>
             {t('super.tokens.revealWarn')
@@ -423,7 +421,7 @@ function RevealTokenModal({ response, onClose }: {
         <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
           {t('super.tokens.useHint') || 'Use as a Bearer token:'}
           <pre style={{
-            marginTop: 6, padding: 12, background: 'var(--bg-subtle, #f6f7f9)',
+            marginTop: 6, padding: 12, background: 'var(--bg-sunken)',
             borderRadius: 6, fontSize: 12, overflow: 'auto',
           }}>{`curl -H "Authorization: Bearer ${response.plaintext}" \\
   ${apiOrigin()}/api/v1/export/tickets`}</pre>
