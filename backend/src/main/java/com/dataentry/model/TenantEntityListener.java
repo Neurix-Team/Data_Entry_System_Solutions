@@ -3,8 +3,8 @@ package com.dataentry.model;
 import com.dataentry.security.TenantContext;
 import jakarta.persistence.PostLoad;
 import jakarta.persistence.PrePersist;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Belt-and-suspenders tenant enforcement on {@link TeamOwned} entities.
@@ -14,15 +14,19 @@ import org.springframework.web.server.ResponseStatusException;
  * omitting the field. Skipped for SUPER_ADMIN because they legitimately create global
  * things (like teams themselves) with no owning team.
  *
- * <p><b>{@link PostLoad}</b> — The Hibernate {@code teamFilter} on {@link org.hibernate.annotations.Filter}
- * is only applied to JPQL/HQL queries; primary-key lookups ({@code EntityManager.find},
- * used internally by Spring Data JPA's {@code findById}, {@code deleteById}, {@code save}
- * on merge) bypass it. Without this hook, a team admin could pass any project id to
- * {@code DELETE /admin/projects/{id}} and Spring Data would happily hand back the entity
- * from another team. This callback rejects that access as a 404, matching what the
- * filter would have done during a JPQL list.
+ * <p><b>{@link PostLoad}</b> — Purely observational: logs a warning when a TeamOwned row
+ * loaded on a scoped request belongs to a different team than the caller. It does <em>not</em>
+ * throw. Previously it did throw a hard 404, which was correct for direct
+ * {@code repository.findById} bypass attempts but also fired on incidental lazy loads
+ * through {@code @ManyToOne} associations (e.g. {@code Department.project} pointing at
+ * another team's project after a legacy migration), aborting whole list endpoints with an
+ * opaque "Not found". Mutation authorisation is now enforced explicitly by
+ * {@link com.dataentry.security.TenantGuard#assertOwnership(TeamOwned)} in every write-path
+ * service method; the Hibernate {@code teamFilter} continues to scope list queries.
  */
 public class TenantEntityListener {
+
+    private static final Logger log = LoggerFactory.getLogger(TenantEntityListener.class);
 
     @PrePersist
     public void beforeInsert(Object entity) {
@@ -39,18 +43,15 @@ public class TenantEntityListener {
         if (!(entity instanceof TeamOwned owned)) return;
         if (TenantContext.isSuperAdmin()) return;
         Long expected = TenantContext.getTeamId();
-        if (expected == null) return; // no auth context (seeder, tests, health checks)
+        if (expected == null) return;
         Team owner = owned.getTeam();
-        // Reading getId() on a Hibernate lazy proxy does NOT trigger DB load — the FK is
-        // kept on the proxy itself, so this check is essentially free.
-        //
-        // Only fail when a *known* other team owns the row. Rows with a null team (legacy
-        // seed data, system-owned lookup tables, or entities in mid-flight before the
-        // @PrePersist stamper runs) are considered unowned and allowed through — otherwise
-        // the guard fires on legit lazy-loads of cross-team-but-owner-null associations and
-        // breaks perfectly legitimate list pages.
-        if (owner != null && owner.getId() != null && !expected.equals(owner.getId())) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Not found");
+        if (owner == null || owner.getId() == null) return;
+        if (!expected.equals(owner.getId())) {
+            // Log-only. Enable com.dataentry.model.TenantEntityListener=DEBUG to trace the
+            // origin of a cross-team load; the mutation-side TenantGuard is what actually
+            // blocks unauthorised writes.
+            log.debug("Cross-team load on {} (owner={}, caller={})",
+                    entity.getClass().getSimpleName(), owner.getId(), expected);
         }
     }
 }

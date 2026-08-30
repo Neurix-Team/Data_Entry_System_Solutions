@@ -6,6 +6,7 @@ import com.dataentry.repository.DepartmentRepository;
 import com.dataentry.repository.ProjectRepository;
 import com.dataentry.repository.TicketRepository;
 import com.dataentry.repository.UserRepository;
+import com.dataentry.security.TenantGuard;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -156,6 +157,7 @@ public class ProjectService {
     public ProjectDtos.ProjectResponse update(Long id, ProjectDtos.UpsertProjectRequest req) {
         Project p = repository.findWithMembersById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+        TenantGuard.assertOwnership(p);
 
         String newName = req.name().trim();
         String newSubtitle = req.subtitle() != null ? req.subtitle().trim() : null;
@@ -224,6 +226,7 @@ public class ProjectService {
     public void delete(Long id) {
         Project p = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+        TenantGuard.assertOwnership(p);
 
         DepartmentService deptSvc = departmentServiceProvider.getObject();
         List<Department> children = departmentRepository.findAllByProjectId(id);
@@ -258,6 +261,7 @@ public class ProjectService {
         if (found.size() != ids.size()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "One or more departments not found");
         }
+        found.forEach(TenantGuard::assertOwnership);
         // Preserve request order so the first ID becomes the legacy primary.
         found.sort(Comparator.comparingInt(d -> ids.indexOf(d.getId())));
         return found;
@@ -273,6 +277,7 @@ public class ProjectService {
     private Set<User> resolveMembers(Set<Long> memberIds) {
         if (memberIds == null || memberIds.isEmpty()) return new HashSet<>();
         List<User> found = userRepository.findAllById(memberIds);
+        found.forEach(TenantGuard::assertOwnership);
         return new HashSet<>(found);
     }
 

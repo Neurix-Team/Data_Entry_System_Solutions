@@ -116,6 +116,7 @@ public class ProjectFolderService {
         }
         Project p = projectRepository.findById(projectId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+        com.dataentry.security.TenantGuard.assertOwnership(p);
 
         List<Ticket> tickets = isAdmin
                 ? ticketRepository.findAllByProjectIdOrderBySubmittedAtDesc(projectId)

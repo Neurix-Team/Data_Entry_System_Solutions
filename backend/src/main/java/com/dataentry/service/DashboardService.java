@@ -150,6 +150,7 @@ public class DashboardService {
     public DashboardDtos.DomainDetail domain(Long departmentId) {
         Department dept = departmentRepository.findById(departmentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Department not found"));
+        com.dataentry.security.TenantGuard.assertOwnership(dept);
 
         Map<Long, Long> totals = toLongMap(ticketRepository.countByDepartment());
         Map<Long, Long> agents = toLongMap(ticketRepository.distinctAgentsByDepartment());
@@ -180,6 +181,7 @@ public class DashboardService {
         }
         Department dept = departmentRepository.findById(departmentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Department not found"));
+        com.dataentry.security.TenantGuard.assertOwnership(dept);
         return subcategoriesFor(dept);
     }
 
@@ -265,6 +267,7 @@ public class DashboardService {
     public DashboardDtos.UserActivity userActivity(Long userId, Integer days) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        com.dataentry.security.TenantGuard.assertOwnership(user);
 
         int window = (days == null || days <= 0 || days > 365) ? 30 : days;
         LocalDate today = today();

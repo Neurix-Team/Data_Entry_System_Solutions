@@ -9,6 +9,7 @@ import com.dataentry.repository.DepartmentRepository;
 import com.dataentry.repository.ProjectRepository;
 import com.dataentry.repository.SubcategoryRepository;
 import com.dataentry.repository.TicketRepository;
+import com.dataentry.security.TenantGuard;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -108,6 +109,7 @@ public class DepartmentService {
     public DepartmentDtos.DepartmentResponse update(Long id, DepartmentDtos.UpsertDepartmentRequest req) {
         Department d = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Department not found"));
+        TenantGuard.assertOwnership(d);
         String newName = req.name().trim();
         if (!d.getName().equalsIgnoreCase(newName) && repository.existsByNameIgnoreCase(newName)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Department already exists");
@@ -130,9 +132,11 @@ public class DepartmentService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "A department must belong to a project");
         }
-        return projectRepository.findById(projectId)
+        Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "Project not found"));
+        TenantGuard.assertOwnership(project);
+        return project;
     }
 
     @Transactional
@@ -148,9 +152,9 @@ public class DepartmentService {
      */
     @Transactional
     public void deleteWithChildren(Long id) {
-        if (!repository.existsById(id)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Department not found");
-        }
+        Department d = repository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Department not found"));
+        TenantGuard.assertOwnership(d);
         SubcategoryService subSvc = subcategoryServiceProvider.getObject();
         for (Subcategory s : subcategoryRepository.findAllByDepartmentId(id)) {
             subSvc.deleteWithChildren(s.getId());

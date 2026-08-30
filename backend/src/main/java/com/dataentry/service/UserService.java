@@ -4,6 +4,7 @@ import com.dataentry.dto.UserDtos;
 import com.dataentry.model.Role;
 import com.dataentry.model.User;
 import com.dataentry.repository.UserRepository;
+import com.dataentry.security.TenantGuard;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -71,6 +72,7 @@ public class UserService {
     public UserDtos.UserResponse update(Long id, UserDtos.UpdateUserRequest req) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        TenantGuard.assertOwnership(user);
 
         if (req.displayName() != null) {
             boolean changed = !Objects.equals(user.getDisplayName(), req.displayName());
@@ -110,6 +112,7 @@ public class UserService {
         }
         User u = userRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        TenantGuard.assertOwnership(u);
         userRepository.deleteById(id);
         audit.record(AuditService.Action.DELETE, AuditService.EntityType.USER, id, "username=" + u.getUsername());
     }

@@ -7,6 +7,7 @@ import com.dataentry.repository.DepartmentRepository;
 import com.dataentry.repository.ProjectRepository;
 import com.dataentry.repository.SubcategoryRepository;
 import com.dataentry.repository.TicketRepository;
+import com.dataentry.security.TenantGuard;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -111,6 +112,7 @@ public class TicketService {
     public Ticket createAttachmentTicket(User currentUser, Long projectId, String title) {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Project not found"));
+        TenantGuard.assertOwnership(project);
         Department dept = resolveDepartmentForQuickUpload(project);
         String cleanTitle = title == null ? "" : title.trim();
         Ticket t = Ticket.builder()
@@ -275,13 +277,16 @@ public class TicketService {
 
     private Project loadOptionalProject(Long id) {
         if (id == null) return null;
-        return projectRepository.findById(id)
+        Project project = projectRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Project not found"));
+        TenantGuard.assertOwnership(project);
+        return project;
     }
 
     private Department loadActiveDepartment(Long id) {
         Department dept = departmentRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Department not found"));
+        TenantGuard.assertOwnership(dept);
         if (!dept.isActive()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Department is not active");
         }
@@ -292,6 +297,7 @@ public class TicketService {
         if (id == null) return null;
         Subcategory sub = subcategoryRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Subcategory not found"));
+        TenantGuard.assertOwnership(sub);
         if (!sub.isActive()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Subcategory is not active");
         }
@@ -428,6 +434,7 @@ public class TicketService {
     public TicketDtos.TicketResponse getOne(Long id, User currentUser, boolean isAdmin) {
         Ticket t = ticketRepository.findWithDetailsById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ticket not found"));
+        TenantGuard.assertOwnership(t);
         if (!isAdmin && !t.getSubmittedBy().getId().equals(currentUser.getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
@@ -442,6 +449,7 @@ public class TicketService {
         assertAdminAuthenticated();
         Ticket t = ticketRepository.findWithDetailsById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ticket not found"));
+        TenantGuard.assertOwnership(t);
         String previous = t.getStatus().name();
         try {
             t.setStatus(TicketStatus.valueOf(status));
@@ -508,6 +516,7 @@ public class TicketService {
         }
         Ticket t = ticketRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ticket not found"));
+        TenantGuard.assertOwnership(t);
         if (!t.getSubmittedBy().getId().equals(currentUser.getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
@@ -515,9 +524,9 @@ public class TicketService {
     }
 
     private void deleteInternal(Long id) {
-        if (!ticketRepository.existsById(id)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ticket not found");
-        }
+        Ticket t = ticketRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ticket not found"));
+        TenantGuard.assertOwnership(t);
         ticketRepository.deleteById(id);
         // Files on disk aren't managed by JPA — sweep them after the DB rows are gone.
         // ObjectProvider avoids a circular-dependency cycle with TicketDocumentService,

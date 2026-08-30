@@ -116,6 +116,7 @@ public class TicketDocumentService {
         }
         Ticket ticket = ticketRepository.findById(ticketId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ticket not found"));
+        com.dataentry.security.TenantGuard.assertOwnership(ticket);
         if (!isAdmin && !ticket.getSubmittedBy().getId().equals(currentUser.getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
@@ -186,6 +187,7 @@ public class TicketDocumentService {
     public DownloadHandle download(Long ticketId, Long docId, User currentUser, boolean isAdmin) {
         Ticket ticket = ticketRepository.findById(ticketId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ticket not found"));
+        com.dataentry.security.TenantGuard.assertOwnership(ticket);
         if (!isAdmin && !ticket.getSubmittedBy().getId().equals(currentUser.getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
@@ -213,6 +215,7 @@ public class TicketDocumentService {
     public void delete(Long ticketId, Long docId, User currentUser, boolean isAdmin) {
         Ticket ticket = ticketRepository.findById(ticketId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ticket not found"));
+        com.dataentry.security.TenantGuard.assertOwnership(ticket);
         if (!isAdmin && !ticket.getSubmittedBy().getId().equals(currentUser.getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }

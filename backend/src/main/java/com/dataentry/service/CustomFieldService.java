@@ -6,6 +6,7 @@ import com.dataentry.model.FieldType;
 import com.dataentry.model.Subcategory;
 import com.dataentry.repository.CustomFieldRepository;
 import com.dataentry.repository.SubcategoryRepository;
+import com.dataentry.security.TenantGuard;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -81,6 +82,7 @@ public class CustomFieldService {
     public CustomFieldDtos.FieldResponse update(Long id, CustomFieldDtos.UpsertFieldRequest req) {
         CustomField f = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Field not found"));
+        TenantGuard.assertOwnership(f);
         Subcategory sub = loadSubcategory(req.subcategoryId());
         boolean movedSub = !f.getSubcategory().getId().equals(sub.getId());
         if (movedSub && repository.existsBySubcategoryIdAndFieldKeyIgnoreCase(sub.getId(), f.getFieldKey())) {
@@ -131,9 +133,9 @@ public class CustomFieldService {
 
     @Transactional
     public void delete(Long id) {
-        if (!repository.existsById(id)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Field not found");
-        }
+        CustomField existing = repository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Field not found"));
+        TenantGuard.assertOwnership(existing);
         try {
             repository.deleteById(id);
             audit.record(AuditService.Action.DELETE, AuditService.EntityType.CUSTOM_FIELD, id, null);
@@ -144,8 +146,10 @@ public class CustomFieldService {
     }
 
     private Subcategory loadSubcategory(Long id) {
-        return subcategoryRepository.findById(id)
+        Subcategory sub = subcategoryRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid subcategory"));
+        TenantGuard.assertOwnership(sub);
+        return sub;
     }
 
     private CustomFieldDtos.FieldResponse toDto(CustomField f) {

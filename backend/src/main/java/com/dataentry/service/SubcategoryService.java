@@ -9,6 +9,7 @@ import com.dataentry.repository.CustomFieldRepository;
 import com.dataentry.repository.DepartmentRepository;
 import com.dataentry.repository.SubcategoryRepository;
 import com.dataentry.repository.TicketRepository;
+import com.dataentry.security.TenantGuard;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -84,6 +85,7 @@ public class SubcategoryService {
     public SubcategoryDtos.SubcategoryResponse getOne(Long id) {
         Subcategory s = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Subcategory not found"));
+        TenantGuard.assertOwnership(s);
         return toDto(s);
     }
 
@@ -91,6 +93,7 @@ public class SubcategoryService {
     public SubcategoryDtos.SubcategoryResponse create(SubcategoryDtos.UpsertSubcategoryRequest req) {
         Department dept = departmentRepository.findById(req.departmentId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid department"));
+        TenantGuard.assertOwnership(dept);
         String name = req.name().trim();
         if (repository.existsByDepartmentIdAndNameIgnoreCase(dept.getId(), name)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
@@ -114,8 +117,10 @@ public class SubcategoryService {
     public SubcategoryDtos.SubcategoryResponse update(Long id, SubcategoryDtos.UpsertSubcategoryRequest req) {
         Subcategory s = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Subcategory not found"));
+        TenantGuard.assertOwnership(s);
         Department dept = departmentRepository.findById(req.departmentId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid department"));
+        TenantGuard.assertOwnership(dept);
         String newName = req.name().trim();
         boolean movedDept = !s.getDepartment().getId().equals(dept.getId());
         boolean renamed = !s.getName().equalsIgnoreCase(newName);
@@ -153,6 +158,7 @@ public class SubcategoryService {
     public void deleteWithChildren(Long id) {
         Subcategory s = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Subcategory not found"));
+        TenantGuard.assertOwnership(s);
         // deleteAll(...) tolerates entities that are already gone (e.g. cascaded away by a
         // prior delete in this same transaction) instead of throwing
         // EmptyResultDataAccessException the way deleteById does.
