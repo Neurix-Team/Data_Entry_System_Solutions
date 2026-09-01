@@ -11,6 +11,7 @@ import com.dataentry.repository.DepartmentRepository;
 import com.dataentry.repository.SubcategoryRepository;
 import com.dataentry.repository.TicketRepository;
 import com.dataentry.repository.UserRepository;
+import com.dataentry.security.TenantContext;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -78,16 +79,20 @@ public class DashboardService {
     public DashboardDtos.AdminStats adminStats() {
         LocalDate today = today();
         Instant startOfToday = today.atStartOfDay(zone()).toInstant();
-
+        // teamId may be null for a SUPER_ADMIN that hasn't entered a team yet;
+        // the native query treats null as "no team restriction" and returns cross-team totals.
+        Long teamId = TenantContext.getTeamId();
+        TicketRepository.AdminStatsProjection row =
+                ticketRepository.aggregateAdminStats(teamId, startOfToday);
         return new DashboardDtos.AdminStats(
-                ticketRepository.count(),
-                departmentRepository.count(),
-                customFieldRepository.countByActiveTrue(),
-                userRepository.count(),
-                ticketRepository.countByStatus(TicketStatus.IN_PROGRESS),
-                ticketRepository.countByStatus(TicketStatus.REVIEW),
-                ticketRepository.countByStatus(TicketStatus.COMPLETED),
-                ticketRepository.countByStatusAndSubmittedAtGreaterThanEqual(TicketStatus.COMPLETED, startOfToday)
+                row.getTotalTickets(),
+                row.getTotalDepartments(),
+                row.getActiveFields(),
+                row.getTotalUsers(),
+                row.getInProgress(),
+                row.getReview(),
+                row.getCompleted(),
+                row.getCompletedToday()
         );
     }
 
@@ -97,23 +102,21 @@ public class DashboardService {
         LocalDate today = today();
         LocalDate sixDaysAgo = today.minusDays(6);
         Instant weekStart = sixDaysAgo.atStartOfDay(zone()).toInstant();
+        Long teamId = TenantContext.getTeamId();
 
-        // Bucketed byDay counts — one query returning timestamps, grouped in Java
         Map<String, Long> byDay = new LinkedHashMap<>();
         for (int i = 0; i < 7; i++) {
             byDay.put(sixDaysAgo.plusDays(i).toString(), 0L);
         }
-        for (Instant t : ticketRepository.submissionTimesSince(weekStart)) {
-            String key = t.atZone(zone()).toLocalDate().toString();
-            byDay.computeIfPresent(key, (k, v) -> v + 1);
+        long completedThisWeek = 0;
+        for (TicketRepository.WeeklySummaryProjection row :
+                ticketRepository.weeklySummary(teamId, weekStart, zone().getId())) {
+            byDay.computeIfPresent(row.getDay().toString(), (key, ignored) -> row.getTotal());
+            completedThisWeek += row.getCompleted();
         }
 
-        // Top performers (COMPLETED, top 5) — one JPQL query with LIMIT
         List<DashboardDtos.TopPerformer> topPerformers =
                 ticketRepository.topPerformersByStatus(TicketStatus.COMPLETED, PageRequest.of(0, 5));
-
-        long completedThisWeek = ticketRepository
-                .countByStatusAndSubmittedAtGreaterThanEqual(TicketStatus.COMPLETED, weekStart);
 
         return new DashboardDtos.ReportData(byDay, topPerformers, completedThisWeek);
     }
@@ -121,29 +124,31 @@ public class DashboardService {
     // ---------- domains ----------
 
     public List<DashboardDtos.DomainStats> domains() {
-        List<Department> depts = departmentRepository.findAll();
-        Map<Long, Long> totals = toLongMap(ticketRepository.countByDepartment());
-        Map<Long, Long> agents = toLongMap(ticketRepository.distinctAgentsByDepartment());
-        Map<Long, Map<String, Long>> byStatus = toDepartmentStatusMap(ticketRepository.countByDepartmentAndStatus());
-        Map<Long, Long> subCounts = countSubcategoriesByDepartment(depts);
-
+        Long teamId = TenantContext.getTeamId();
+        List<DepartmentRepository.DomainAggregateRow> rows =
+                departmentRepository.findDomainAggregates(teamId);
         LocalDate today = today();
         LocalDate weekStart = today.minusDays(6);
         Instant since = weekStart.atStartOfDay(zone()).toInstant();
-        Map<Long, List<DashboardDtos.DailyCount>> sparklines = buildDailyBucketsFromDepartments(
-                ticketRepository.departmentSubmissionsSince(since), weekStart, 7);
+        Map<Long, List<DashboardDtos.DailyCount>> sparklines = buildDailyBucketsFromDepartmentCounts(
+                ticketRepository.departmentDailyCounts(teamId, since, zone().getId()), weekStart, 7);
 
-        return depts.stream()
-                .sorted(Comparator.comparing(Department::getName, String.CASE_INSENSITIVE_ORDER))
-                .map(d -> new DashboardDtos.DomainStats(
-                        d.getId(),
-                        deptName(d),
-                        totals.getOrDefault(d.getId(), 0L),
-                        subCounts.getOrDefault(d.getId(), 0L),
-                        agents.getOrDefault(d.getId(), 0L),
-                        byStatus.getOrDefault(d.getId(), emptyStatusMap()),
-                        sparklines.getOrDefault(d.getId(), emptyDaily(weekStart, 7))
-                ))
+        return rows.stream()
+                .map(row -> {
+                    Map<String, Long> byStatus = emptyStatusMap();
+                    byStatus.put("IN_PROGRESS", row.getInProgress());
+                    byStatus.put("REVIEW", row.getReview());
+                    byStatus.put("COMPLETED", row.getCompleted());
+                    return new DashboardDtos.DomainStats(
+                        row.getDepartmentId(),
+                        localizer.pick(row.getNameEn(), row.getNameAr(), row.getName()),
+                        row.getTotalTickets(),
+                        row.getSubcategoryCount(),
+                        row.getActiveAgents(),
+                        byStatus,
+                        sparklines.getOrDefault(row.getDepartmentId(), emptyDaily(weekStart, 7))
+                    );
+                })
                 .toList();
     }
 
@@ -223,45 +228,30 @@ public class DashboardService {
         };
         int windowDays = (int) java.time.temporal.ChronoUnit.DAYS.between(windowStart, today) + 1;
         Instant since = windowStart.atStartOfDay(zone()).toInstant();
-
-        List<DashboardDtos.LeaderboardRowRaw> board = ticketRepository.leaderboardSince(since);
-        long distinctAgents = ticketRepository.distinctAgentsSince(since);
-
         Instant todayStart = today.atStartOfDay(zone()).toInstant();
-        Map<Long, Long> todayByUser = userCountMap(ticketRepository.countByUserSince(todayStart));
         Instant weekStart = today.minusDays(6).atStartOfDay(zone()).toInstant();
-        Map<Long, Long> weekByUser = userCountMap(ticketRepository.countByUserSince(weekStart));
-
-        // Fetch only the users that showed up on the leaderboard — previously loaded the
-        // entire users table on every dashboard refresh which got expensive as the org grew.
-        List<Long> boardUserIds = board.stream()
-                .map(DashboardDtos.LeaderboardRowRaw::userId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
-        Map<Long, User> usersById = boardUserIds.isEmpty()
-                ? Map.of()
-                : userRepository.findAllById(boardUserIds).stream()
-                        .collect(Collectors.toMap(User::getId, u -> u));
+        Long teamId = TenantContext.getTeamId();
+        List<TicketRepository.LeaderboardAggregateProjection> board =
+                ticketRepository.leaderboardAggregate(teamId, since, todayStart, weekStart);
         List<DashboardDtos.AgentLeaderboardRow> rows = board.stream()
                 .map(row -> {
-                    double avg = windowDays > 0 ? (double) row.total() / windowDays : 0;
-                    User u = usersById.get(row.userId());
-                    String display = u != null ? userDisplayName(u)
-                            : (row.displayName() != null ? row.displayName() : row.username());
+                    double avg = windowDays > 0 ? (double) row.getTotal() / windowDays : 0;
+                    String display = localizer.pick(
+                            row.getDisplayNameEn(), row.getDisplayNameAr(), row.getDisplayName());
+                    if (display == null || display.isBlank()) display = row.getUsername();
                     return new DashboardDtos.AgentLeaderboardRow(
-                            row.userId(),
-                            row.username(),
+                            row.getUserId(),
+                            row.getUsername(),
                             display,
-                            row.total(),
-                            todayByUser.getOrDefault(row.userId(), 0L),
-                            weekByUser.getOrDefault(row.userId(), 0L),
+                            row.getTotal(),
+                            row.getTodayCount(),
+                            row.getWeekCount(),
                             Math.round(avg * 100.0) / 100.0
                     );
                 })
                 .toList();
 
-        return new DashboardDtos.LeaderboardResponse(normalized, distinctAgents, rows);
+        return new DashboardDtos.LeaderboardResponse(normalized, rows.size(), rows);
     }
 
     public DashboardDtos.UserActivity userActivity(Long userId, Integer days) {
@@ -450,14 +440,6 @@ public class DashboardService {
         };
     }
 
-    private Map<Long, Long> countSubcategoriesByDepartment(List<Department> depts) {
-        Map<Long, Long> out = new HashMap<>();
-        for (Department d : depts) {
-            out.put(d.getId(), subcategoryRepository.countByDepartmentId(d.getId()));
-        }
-        return out;
-    }
-
     private Map<Long, Long> toLongMap(List<DashboardDtos.DepartmentCount> rows) {
         Map<Long, Long> out = new HashMap<>();
         for (DashboardDtos.DepartmentCount r : rows) {
@@ -521,6 +503,17 @@ public class DashboardService {
             if (r.departmentId() == null || r.submittedAt() == null) continue;
             LocalDate d = r.submittedAt().atZone(zone()).toLocalDate();
             grouped.computeIfAbsent(r.departmentId(), k -> new HashMap<>()).merge(d, 1L, Long::sum);
+        }
+        return fillDailySeries(grouped, start, days);
+    }
+
+    private Map<Long, List<DashboardDtos.DailyCount>> buildDailyBucketsFromDepartmentCounts(
+            List<TicketRepository.DepartmentDailyCountProjection> rows, LocalDate start, int days) {
+        Map<Long, Map<LocalDate, Long>> grouped = new HashMap<>();
+        for (TicketRepository.DepartmentDailyCountProjection row : rows) {
+            if (row.getDepartmentId() == null || row.getDay() == null) continue;
+            grouped.computeIfAbsent(row.getDepartmentId(), ignored -> new HashMap<>())
+                    .put(row.getDay(), row.getTotal());
         }
         return fillDailySeries(grouped, start, days);
     }

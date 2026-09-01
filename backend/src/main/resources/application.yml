@@ -6,6 +6,13 @@ server:
     # can return a clean 413.
     max-http-form-post-size: 60MB
     max-swallow-size: 60MB
+  # gzip API responses. Dashboard payloads (leaderboards, day-bucket sparklines) shrink 5-10x
+  # over the wire; the JSON is text-heavy and highly compressible. 1 KB minimum avoids wasting
+  # CPU on tiny bodies (e.g. 204s and small error envelopes).
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/plain,text/css,application/javascript
+    min-response-size: 1KB
 
 spring:
   config:
@@ -19,10 +26,16 @@ spring:
     password: ${DB_PASSWORD:}
     hikari:
       maximum-pool-size: ${DB_POOL_MAX_SIZE:20}
-      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      # Keep more connections warm so a bursty page load (dashboard fires ~5 parallel API
+      # calls) doesn't wait on connection creation for each request. The previous default of
+      # 2 idle connections meant the 3rd+ concurrent request paid a ~50-100 ms handshake.
+      minimum-idle: ${DB_POOL_MIN_IDLE:10}
       connection-timeout: 30000
       validation-timeout: 5000
       max-lifetime: 1800000
+      # Verify a pooled connection before handing it out only when it's been idle for a
+      # while — cheap keepalive that avoids handing back a stale socket to the request path.
+      keepalive-time: 60000
   jpa:
     hibernate:
       ddl-auto: update
@@ -30,6 +43,9 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
+        default_batch_fetch_size: 50
+        jdbc:
+          fetch_size: 100
     show-sql: false
     open-in-view: false
   servlet:

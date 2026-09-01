@@ -10,6 +10,7 @@ import com.dataentry.repository.DepartmentRepository;
 import com.dataentry.repository.SubcategoryRepository;
 import com.dataentry.repository.TicketRepository;
 import com.dataentry.security.TenantGuard;
+import com.dataentry.security.TenantContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,17 +51,12 @@ public class SubcategoryService {
     }
 
     public List<SubcategoryDtos.SubcategoryResponse> listAll(Long departmentId, boolean activeOnly) {
-        List<Subcategory> rows;
-        if (departmentId != null) {
-            rows = activeOnly
-                    ? repository.findAllByDepartmentIdAndActiveTrueOrderByNameAsc(departmentId)
-                    : repository.findAllByDepartmentIdOrderByNameAsc(departmentId);
-        } else {
-            rows = activeOnly
-                    ? repository.findAllByActiveTrueOrderByDepartmentIdAscNameAsc()
-                    : repository.findAllByOrderByDepartmentIdAscNameAsc();
-        }
-        return rows.stream().map(this::toDto).toList();
+        // teamId may be null when a SUPER_ADMIN calls without impersonating a team;
+        // the native query then returns rows across every team (pre-refactor behavior).
+        Long teamId = TenantContext.getTeamId();
+        return repository.findAdminListRows(teamId, departmentId, activeOnly).stream()
+                .map(this::toDto)
+                .toList();
     }
 
     /**
@@ -185,6 +181,22 @@ public class SubcategoryService {
                 s.isActive(),
                 tickets,
                 fields
+        );
+    }
+
+    private SubcategoryDtos.SubcategoryResponse toDto(SubcategoryRepository.ListRow row) {
+        return new SubcategoryDtos.SubcategoryResponse(
+                row.getId(),
+                row.getDepartmentId(),
+                localizer.pick(row.getDepartmentNameEn(), row.getDepartmentNameAr(), row.getDepartmentName()),
+                row.getDepartmentNameEn(),
+                row.getDepartmentNameAr(),
+                localizer.pick(row.getNameEn(), row.getNameAr(), row.getName()),
+                row.getNameEn(),
+                row.getNameAr(),
+                Boolean.TRUE.equals(row.getActive()),
+                row.getTicketCount(),
+                row.getFieldCount()
         );
     }
 }

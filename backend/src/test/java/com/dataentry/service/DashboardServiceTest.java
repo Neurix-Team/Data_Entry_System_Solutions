@@ -1,12 +1,15 @@
 package com.dataentry.service;
 
 import com.dataentry.dto.DashboardDtos;
+import com.dataentry.model.Role;
 import com.dataentry.model.TicketStatus;
 import com.dataentry.repository.CustomFieldRepository;
 import com.dataentry.repository.DepartmentRepository;
 import com.dataentry.repository.SubcategoryRepository;
 import com.dataentry.repository.TicketRepository;
 import com.dataentry.repository.UserRepository;
+import com.dataentry.security.TenantContext;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -32,6 +35,9 @@ class DashboardServiceTest {
     @Mock SubcategoryRepository subcategoryRepository;
     @Mock CustomFieldRepository customFieldRepository;
     @Mock UserRepository userRepository;
+    @Mock TicketRepository.AdminStatsProjection adminStatsProjection;
+    @Mock TicketRepository.WeeklySummaryProjection weeklyDayOne;
+    @Mock TicketRepository.WeeklySummaryProjection weeklyDayTwo;
 
     /** Fixed clock: 2026-08-09 12:00 UTC — makes every date-based test deterministic. */
     private final Clock fixedClock = Clock.fixed(
@@ -44,17 +50,24 @@ class DashboardServiceTest {
                 subcategoryRepository, customFieldRepository, userRepository, new Localizer());
     }
 
+    @AfterEach
+    void clearTenantContext() {
+        TenantContext.clear();
+    }
+
     @Test
     void adminStats_aggregatesUsingRepositoryCounts() {
-        when(ticketRepository.count()).thenReturn(42L);
-        when(departmentRepository.count()).thenReturn(3L);
-        when(customFieldRepository.countByActiveTrue()).thenReturn(7L);
-        when(userRepository.count()).thenReturn(11L);
-        when(ticketRepository.countByStatus(TicketStatus.IN_PROGRESS)).thenReturn(10L);
-        when(ticketRepository.countByStatus(TicketStatus.REVIEW)).thenReturn(5L);
-        when(ticketRepository.countByStatus(TicketStatus.COMPLETED)).thenReturn(27L);
-        when(ticketRepository.countByStatusAndSubmittedAtGreaterThanEqual(eq(TicketStatus.COMPLETED), any(Instant.class)))
-                .thenReturn(4L);
+        TenantContext.set(1L, Role.ADMIN, 10L, null);
+        when(ticketRepository.aggregateAdminStats(eq(1L), any(Instant.class)))
+                .thenReturn(adminStatsProjection);
+        when(adminStatsProjection.getTotalTickets()).thenReturn(42L);
+        when(adminStatsProjection.getTotalDepartments()).thenReturn(3L);
+        when(adminStatsProjection.getActiveFields()).thenReturn(7L);
+        when(adminStatsProjection.getTotalUsers()).thenReturn(11L);
+        when(adminStatsProjection.getInProgress()).thenReturn(10L);
+        when(adminStatsProjection.getReview()).thenReturn(5L);
+        when(adminStatsProjection.getCompleted()).thenReturn(27L);
+        when(adminStatsProjection.getCompletedToday()).thenReturn(4L);
 
         DashboardDtos.AdminStats stats = newService().adminStats();
 
@@ -71,16 +84,17 @@ class DashboardServiceTest {
     @Test
     void report_bucketsSubmissionsAcrossSevenDays() {
         // Today is 2026-08-09 → week window is 2026-08-03 .. 2026-08-09
-        Instant t = LocalDate.of(2026, 8, 5).atStartOfDay(ZoneOffset.UTC).toInstant();
-        Instant t2 = LocalDate.of(2026, 8, 5).atStartOfDay(ZoneOffset.UTC).toInstant().plusSeconds(3600);
-        Instant t3 = LocalDate.of(2026, 8, 9).atStartOfDay(ZoneOffset.UTC).toInstant();
-
-        when(ticketRepository.submissionTimesSince(any(Instant.class)))
-                .thenReturn(List.of(t, t2, t3));
+        TenantContext.set(1L, Role.ADMIN, 10L, null);
+        when(weeklyDayOne.getDay()).thenReturn(LocalDate.of(2026, 8, 5));
+        when(weeklyDayOne.getTotal()).thenReturn(2L);
+        when(weeklyDayOne.getCompleted()).thenReturn(1L);
+        when(weeklyDayTwo.getDay()).thenReturn(LocalDate.of(2026, 8, 9));
+        when(weeklyDayTwo.getTotal()).thenReturn(1L);
+        when(weeklyDayTwo.getCompleted()).thenReturn(1L);
+        when(ticketRepository.weeklySummary(eq(1L), any(Instant.class), eq("Z")))
+                .thenReturn(List.of(weeklyDayOne, weeklyDayTwo));
         when(ticketRepository.topPerformersByStatus(eq(TicketStatus.COMPLETED), any(Pageable.class)))
                 .thenReturn(List.of(new DashboardDtos.TopPerformer(1L, "alice", "Alice", 5L)));
-        when(ticketRepository.countByStatusAndSubmittedAtGreaterThanEqual(eq(TicketStatus.COMPLETED), any(Instant.class)))
-                .thenReturn(9L);
 
         DashboardDtos.ReportData report = newService().report();
 
@@ -88,16 +102,16 @@ class DashboardServiceTest {
         assertThat(report.byDay().get("2026-08-05")).isEqualTo(2L);
         assertThat(report.byDay().get("2026-08-09")).isEqualTo(1L);
         assertThat(report.byDay().get("2026-08-03")).isEqualTo(0L);
-        assertThat(report.completedThisWeek()).isEqualTo(9);
+        assertThat(report.completedThisWeek()).isEqualTo(2);
         assertThat(report.topPerformers()).hasSize(1);
         assertThat(report.topPerformers().get(0).username()).isEqualTo("alice");
     }
 
     @Test
     void leaderboard_normalizesUnknownRangeToWeek() {
-        when(ticketRepository.leaderboardSince(any(Instant.class))).thenReturn(List.of());
-        when(ticketRepository.distinctAgentsSince(any(Instant.class))).thenReturn(0L);
-        when(ticketRepository.countByUserSince(any(Instant.class))).thenReturn(List.of());
+        TenantContext.set(1L, Role.ADMIN, 10L, null);
+        when(ticketRepository.leaderboardAggregate(eq(1L), any(Instant.class), any(Instant.class), any(Instant.class)))
+                .thenReturn(List.of());
 
         DashboardDtos.LeaderboardResponse res = newService().leaderboard("garbage-value");
         assertThat(res.range()).isEqualTo("week");

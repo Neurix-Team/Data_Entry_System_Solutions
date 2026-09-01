@@ -419,14 +419,14 @@ public class TicketService {
 
     @Transactional(readOnly = true)
     public TicketDtos.TicketPage listForUser(User user, int page, int size) {
-        Page<Ticket> p = ticketRepository.findAllBySubmittedByOrderBySubmittedAtDesc(user, PageRequest.of(page, size));
-        return toPage(p);
+        Page<Long> ids = ticketRepository.findUserPageIds(user.getId(), PageRequest.of(page, size));
+        return toPage(ids);
     }
 
     @Transactional(readOnly = true)
     public TicketDtos.TicketPage listAll(int page, int size) {
-        Page<Ticket> p = ticketRepository.findAllByOrderBySubmittedAtDesc(PageRequest.of(page, size));
-        return toPage(p);
+        Page<Long> ids = ticketRepository.findAdminPageIds(PageRequest.of(page, size));
+        return toPage(ids);
     }
 
     @Transactional(readOnly = true)
@@ -538,9 +538,20 @@ public class TicketService {
         audit.record(AuditService.Action.DELETE, AuditService.EntityType.TICKET, id, null);
     }
 
-    private TicketDtos.TicketPage toPage(Page<Ticket> p) {
+    private TicketDtos.TicketPage toPage(Page<Long> p) {
+        if (p.isEmpty()) {
+            return new TicketDtos.TicketPage(
+                    List.of(), p.getTotalElements(), p.getTotalPages(), p.getNumber(), p.getSize());
+        }
+        Map<Long, Ticket> byId = ticketRepository.findListDetailsByIdIn(p.getContent()).stream()
+                .collect(java.util.stream.Collectors.toMap(Ticket::getId, ticket -> ticket));
+        List<TicketDtos.TicketResponse> items = p.getContent().stream()
+                .map(byId::get)
+                .filter(java.util.Objects::nonNull)
+                .map(this::toDto)
+                .toList();
         return new TicketDtos.TicketPage(
-                p.getContent().stream().map(this::toDto).toList(),
+                items,
                 p.getTotalElements(), p.getTotalPages(), p.getNumber(), p.getSize()
         );
     }

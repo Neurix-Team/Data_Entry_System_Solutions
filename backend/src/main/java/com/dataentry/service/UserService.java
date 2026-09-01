@@ -4,6 +4,7 @@ import com.dataentry.dto.UserDtos;
 import com.dataentry.model.Role;
 import com.dataentry.model.User;
 import com.dataentry.repository.UserRepository;
+import com.dataentry.security.JwtAuthFilter;
 import com.dataentry.security.TenantGuard;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -27,17 +28,20 @@ public class UserService {
     private final TranslationService translator;
     private final Localizer localizer;
     private final AuditService audit;
+    private final JwtAuthFilter jwtAuthFilter;
 
     public UserService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
                        TranslationService translator,
                        Localizer localizer,
-                       AuditService audit) {
+                       AuditService audit,
+                       JwtAuthFilter jwtAuthFilter) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.translator = translator;
         this.localizer = localizer;
         this.audit = audit;
+        this.jwtAuthFilter = jwtAuthFilter;
     }
 
     public List<UserDtos.UserResponse> list() {
@@ -86,6 +90,10 @@ public class UserService {
         }
         if (req.active() != null) user.setActive(req.active());
         User saved = userRepository.save(user);
+        // Any change (password, active flag, display name) invalidates the auth cache entry
+        // so a deactivated user is bounced on their next request instead of getting up to
+        // 30 s of grace period from a cached principal.
+        jwtAuthFilter.evictUser(saved.getId());
         // Record whether the password/active flag changed — but never log the value itself.
         String details = "displayName=" + saved.getDisplayName()
                 + " active=" + saved.isActive()
@@ -114,6 +122,7 @@ public class UserService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
         TenantGuard.assertOwnership(u);
         userRepository.deleteById(id);
+        jwtAuthFilter.evictUser(id);
         audit.record(AuditService.Action.DELETE, AuditService.EntityType.USER, id, "username=" + u.getUsername());
     }
 

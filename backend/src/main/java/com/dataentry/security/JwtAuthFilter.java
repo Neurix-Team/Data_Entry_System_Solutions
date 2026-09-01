@@ -25,6 +25,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
@@ -36,6 +39,27 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     /** Name of the httpOnly cookie used for browser sessions. Kept in sync with AuthController. */
     public static final String AUTH_COOKIE = "dems_auth";
+
+    /**
+     * Short-lived cache of authenticated principals keyed by (JWT + impersonation header).
+     * The previous implementation ran {@code userRepository.findByUsername} on every request
+     * — a single DB round-trip that accounted for ~100–200 ms of the total request latency on
+     * warm endpoints. Cached entries expire after {@link #AUTH_CACHE_TTL_NS} so
+     * deactivations, role changes, and team edits take effect within a few seconds.
+     * Cache size is bounded so a stream of unique/expired tokens can't grow the map without
+     * limit (a very cheap sweep runs when {@link #AUTH_CACHE_MAX_ENTRIES} is exceeded).
+     */
+    private static final long AUTH_CACHE_TTL_NS = TimeUnit.SECONDS.toNanos(30);
+    private static final int AUTH_CACHE_MAX_ENTRIES = 5_000;
+    private final ConcurrentHashMap<String, AuthCacheEntry> authCache = new ConcurrentHashMap<>();
+    private final AtomicLong lastSweepNs = new AtomicLong(0);
+
+    private record AuthCacheEntry(long expiresAtNs,
+                                  User user,
+                                  Long teamId,
+                                  Role effectiveRole,
+                                  Long impersonatedBy,
+                                  List<SimpleGrantedAuthority> authorities) {}
 
     private final JwtService jwtService;
     private final UserRepository userRepository;
@@ -49,6 +73,24 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         this.teamRepository = teamRepository;
     }
 
+    /**
+     * Force-invalidate all cached principals (invoked from admin flows that mutate a user's
+     * team/role/active state — see {@link #evictUser(Long)} for a targeted variant).
+     */
+    public void clearAuthCache() {
+        authCache.clear();
+    }
+
+    /**
+     * Drop every cache entry for the given user id. Called when an admin/super admin
+     * changes a user's role, team, or active flag so the next request re-reads the DB
+     * instead of honoring stale cached authorities.
+     */
+    public void evictUser(Long userId) {
+        if (userId == null) return;
+        authCache.values().removeIf(e -> userId.equals(e.user().getId()));
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -57,12 +99,28 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         try {
             if (token != null) {
                 try {
-                    Claims claims = jwtService.parse(token);
-                    String username = claims.getSubject();
-                    if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                        Optional<User> userOpt = userRepository.findByUsername(username);
-                        if (userOpt.isPresent() && userOpt.get().isActive()) {
-                            authenticate(request, userOpt.get(), claims);
+                    // Cache key must include the impersonation header — the same JWT presented
+                    // with different X-Impersonate-Team-Id headers resolves to different
+                    // effective scopes, so we can't collapse them into one entry.
+                    String impersonateHeader = request.getHeader(IMPERSONATE_HEADER);
+                    String cacheKey = impersonateHeader == null
+                            ? token
+                            : token + "" + impersonateHeader;
+                    AuthCacheEntry cached = authCache.get(cacheKey);
+                    long now = System.nanoTime();
+                    if (cached != null && cached.expiresAtNs() > now) {
+                        applyAuth(request, cached);
+                    } else {
+                        Claims claims = jwtService.parse(token);
+                        String username = claims.getSubject();
+                        if (username != null
+                                && SecurityContextHolder.getContext().getAuthentication() == null) {
+                            Optional<User> userOpt = userRepository.findByUsername(username);
+                            if (userOpt.isPresent() && userOpt.get().isActive()) {
+                                AuthCacheEntry entry = buildEntry(request, userOpt.get());
+                                storeInCache(cacheKey, entry);
+                                applyAuth(request, entry);
+                            }
                         }
                     }
                 } catch (JwtException e) {
@@ -80,7 +138,30 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
     }
 
-    private void authenticate(HttpServletRequest request, User user, Claims claims) {
+    private void storeInCache(String key, AuthCacheEntry entry) {
+        authCache.put(key, entry);
+        if (authCache.size() > AUTH_CACHE_MAX_ENTRIES) {
+            // Cheap opportunistic sweep — remove expired entries and, if still over, drop
+            // arbitrary ones. Only one thread runs the sweep at a time; the throttling
+            // prevents a hot-path burst from thrashing the map.
+            long now = System.nanoTime();
+            long last = lastSweepNs.get();
+            if (now - last > TimeUnit.SECONDS.toNanos(5)
+                    && lastSweepNs.compareAndSet(last, now)) {
+                authCache.values().removeIf(e -> e.expiresAtNs() <= now);
+                if (authCache.size() > AUTH_CACHE_MAX_ENTRIES) {
+                    int toDrop = authCache.size() - AUTH_CACHE_MAX_ENTRIES;
+                    var it = authCache.entrySet().iterator();
+                    while (toDrop-- > 0 && it.hasNext()) {
+                        it.next();
+                        it.remove();
+                    }
+                }
+            }
+        }
+    }
+
+    private AuthCacheEntry buildEntry(HttpServletRequest request, User user) {
         Role role = user.getRole();
         Long teamId = user.getTeam() != null ? user.getTeam().getId() : null;
         Long impersonatedBy = null;
@@ -100,7 +181,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         // Grant authorities: the actual DB role plus (for super admins) ROLE_ADMIN so the
         // impersonation path can reach /api/admin/** without needing separate auth logic.
-        List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+        List<SimpleGrantedAuthority> authorities = new ArrayList<>(3);
         authorities.add(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
         if (user.getRole() == Role.SUPER_ADMIN) {
             authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
@@ -109,9 +190,22 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
         }
 
-        TenantContext.set(teamId, role, user.getId(), impersonatedBy);
+        return new AuthCacheEntry(
+                System.nanoTime() + AUTH_CACHE_TTL_NS,
+                user,
+                teamId,
+                role,
+                impersonatedBy,
+                List.copyOf(authorities)
+        );
+    }
 
-        var authToken = new UsernamePasswordAuthenticationToken(user, null, authorities);
+    private void applyAuth(HttpServletRequest request, AuthCacheEntry entry) {
+        if (SecurityContextHolder.getContext().getAuthentication() != null) return;
+        TenantContext.set(entry.teamId(), entry.effectiveRole(),
+                entry.user().getId(), entry.impersonatedBy());
+        var authToken = new UsernamePasswordAuthenticationToken(
+                entry.user(), null, entry.authorities());
         authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
         SecurityContextHolder.getContext().setAuthentication(authToken);
     }

@@ -6,6 +6,7 @@ import com.dataentry.model.Team;
 import com.dataentry.model.User;
 import com.dataentry.repository.TeamRepository;
 import com.dataentry.repository.UserRepository;
+import com.dataentry.security.JwtAuthFilter;
 import com.dataentry.security.TenantContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -42,19 +43,22 @@ public class SuperAdminService {
     private final PasswordEncoder passwordEncoder;
     private final TranslationService translator;
     private final JdbcTemplate jdbc;
+    private final JwtAuthFilter jwtAuthFilter;
 
     public SuperAdminService(Clock clock,
                              TeamRepository teamRepository,
                              UserRepository userRepository,
                              PasswordEncoder passwordEncoder,
                              TranslationService translator,
-                             JdbcTemplate jdbc) {
+                             JdbcTemplate jdbc,
+                             JwtAuthFilter jwtAuthFilter) {
         this.clock = clock;
         this.teamRepository = teamRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.translator = translator;
         this.jdbc = jdbc;
+        this.jwtAuthFilter = jwtAuthFilter;
     }
 
     // ---------- overview ----------
@@ -175,6 +179,11 @@ public class SuperAdminService {
         if (req.color() != null) team.setColor(req.color());
         if (req.active() != null) team.setActive(req.active());
         teamRepository.save(team);
+        // A team edit (especially deactivation) affects every member's effective session, and
+        // the JWT auth cache holds the User entity with its EAGER-loaded Team snapshot. Drop
+        // the whole cache so the change is honored on the next request instead of after the
+        // 30 s TTL.
+        jwtAuthFilter.clearAuthCache();
         // Re-load counts so the response accurately reflects the team's current size.
         long[] counts = loadPerTeamCounts().getOrDefault(id, new long[5]);
         return toSummary(team, counts, 0);

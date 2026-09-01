@@ -3,6 +3,7 @@ package com.dataentry.model;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.Filter;
+import org.hibernate.annotations.BatchSize;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -83,15 +84,18 @@ public class Ticket implements TeamOwned {
     private TicketStatus status = TicketStatus.IN_PROGRESS;
 
     @OneToMany(mappedBy = "ticket", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @BatchSize(size = 50)
     @Builder.Default
     private List<TicketFieldValue> customValues = new ArrayList<>();
 
     @OneToMany(mappedBy = "ticket", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @BatchSize(size = 50)
     @OrderBy("displayOrder ASC, id ASC")
     @Builder.Default
     private List<TicketResource> resources = new ArrayList<>();
 
     @OneToMany(mappedBy = "ticket", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @BatchSize(size = 50)
     @OrderBy("uploadedAt ASC, id ASC")
     @Builder.Default
     private List<TicketDocument> documents = new ArrayList<>();

@@ -17,11 +17,150 @@ import java.util.Optional;
 
 public interface TicketRepository extends JpaRepository<Ticket, Long> {
 
+    interface AdminStatsProjection {
+        long getTotalTickets();
+        long getTotalDepartments();
+        long getActiveFields();
+        long getTotalUsers();
+        long getInProgress();
+        long getReview();
+        long getCompleted();
+        long getCompletedToday();
+    }
+
+    interface DepartmentDailyCountProjection {
+        Long getDepartmentId();
+        java.time.LocalDate getDay();
+        long getTotal();
+    }
+
+    interface WeeklySummaryProjection {
+        java.time.LocalDate getDay();
+        long getTotal();
+        long getCompleted();
+    }
+
+    interface LeaderboardAggregateProjection {
+        Long getUserId();
+        String getUsername();
+        String getDisplayName();
+        String getDisplayNameEn();
+        String getDisplayNameAr();
+        long getTotal();
+        long getTodayCount();
+        long getWeekCount();
+    }
+
+    /**
+     * All admin KPI counters in one network round-trip.
+     *
+     * <p>{@code teamId} may be {@code null} — that's the SUPER_ADMIN case (no team entered yet),
+     * where the pre-refactor code returned unscoped totals across every team. The
+     * {@code CAST(:teamId AS BIGINT) IS NULL OR ...} predicate reproduces that behavior without
+     * duplicating the query. The cast is required because PostgreSQL cannot infer the parameter
+     * type from a bare {@code IS NULL} check.
+     */
+    @Query(value = """
+            SELECT
+              (SELECT COUNT(*) FROM tickets
+                WHERE (CAST(:teamId AS BIGINT) IS NULL OR team_id = :teamId)) AS "totalTickets",
+              (SELECT COUNT(*) FROM departments
+                WHERE (CAST(:teamId AS BIGINT) IS NULL OR team_id = :teamId)) AS "totalDepartments",
+              (SELECT COUNT(*) FROM custom_fields
+                WHERE (CAST(:teamId AS BIGINT) IS NULL OR team_id = :teamId) AND active = TRUE)
+                AS "activeFields",
+              (SELECT COUNT(*) FROM users
+                WHERE (CAST(:teamId AS BIGINT) IS NULL OR team_id = :teamId)) AS "totalUsers",
+              (SELECT COUNT(*) FROM tickets
+                WHERE (CAST(:teamId AS BIGINT) IS NULL OR team_id = :teamId) AND status = 'IN_PROGRESS')
+                AS "inProgress",
+              (SELECT COUNT(*) FROM tickets
+                WHERE (CAST(:teamId AS BIGINT) IS NULL OR team_id = :teamId) AND status = 'REVIEW')
+                AS "review",
+              (SELECT COUNT(*) FROM tickets
+                WHERE (CAST(:teamId AS BIGINT) IS NULL OR team_id = :teamId) AND status = 'COMPLETED')
+                AS "completed",
+              (SELECT COUNT(*) FROM tickets
+                WHERE (CAST(:teamId AS BIGINT) IS NULL OR team_id = :teamId)
+                  AND status = 'COMPLETED' AND submitted_at >= :startOfToday)
+                AS "completedToday"
+            """, nativeQuery = true)
+    AdminStatsProjection aggregateAdminStats(@Param("teamId") Long teamId,
+                                             @Param("startOfToday") Instant startOfToday);
+
+    @Query(value = """
+            SELECT department_id AS "departmentId",
+                   CAST(submitted_at AT TIME ZONE :zoneId AS date) AS "day",
+                   COUNT(*) AS "total"
+              FROM tickets
+             WHERE (CAST(:teamId AS BIGINT) IS NULL OR team_id = :teamId)
+               AND submitted_at >= :since
+             GROUP BY 1, 2
+            """, nativeQuery = true)
+    List<DepartmentDailyCountProjection> departmentDailyCounts(
+            @Param("teamId") Long teamId,
+            @Param("since") Instant since,
+            @Param("zoneId") String zoneId);
+
+    @Query(value = """
+            SELECT CAST(submitted_at AT TIME ZONE :zoneId AS date) AS "day",
+                   COUNT(*) AS "total",
+                   COUNT(*) FILTER (WHERE status = 'COMPLETED') AS "completed"
+              FROM tickets
+             WHERE (CAST(:teamId AS BIGINT) IS NULL OR team_id = :teamId)
+               AND submitted_at >= :since
+             GROUP BY 1
+             ORDER BY 1
+            """, nativeQuery = true)
+    List<WeeklySummaryProjection> weeklySummary(
+            @Param("teamId") Long teamId,
+            @Param("since") Instant since,
+            @Param("zoneId") String zoneId);
+
+    @Query(value = """
+            SELECT u.id AS "userId",
+                   u.username AS "username",
+                   u.display_name AS "displayName",
+                   u.display_name_en AS "displayNameEn",
+                   u.display_name_ar AS "displayNameAr",
+                   COUNT(t.id) FILTER (WHERE t.submitted_at >= :rangeStart) AS "total",
+                   COUNT(t.id) FILTER (WHERE t.submitted_at >= :todayStart) AS "todayCount",
+                   COUNT(t.id) FILTER (WHERE t.submitted_at >= :weekStart) AS "weekCount"
+              FROM users u
+              LEFT JOIN tickets t
+                     ON t.submitted_by_id = u.id
+                    AND (CAST(:teamId AS BIGINT) IS NULL OR t.team_id = :teamId)
+             WHERE (CAST(:teamId AS BIGINT) IS NULL OR u.team_id = :teamId)
+             GROUP BY u.id, u.username, u.display_name, u.display_name_en, u.display_name_ar
+            HAVING COUNT(t.id) FILTER (WHERE t.submitted_at >= :rangeStart) > 0
+             ORDER BY COUNT(t.id) FILTER (WHERE t.submitted_at >= :rangeStart) DESC,
+                      LOWER(u.username), u.id
+            """, nativeQuery = true)
+    List<LeaderboardAggregateProjection> leaderboardAggregate(
+            @Param("teamId") Long teamId,
+            @Param("rangeStart") Instant rangeStart,
+            @Param("todayStart") Instant todayStart,
+            @Param("weekStart") Instant weekStart);
+
     @EntityGraph(attributePaths = {"customValues", "customValues.field", "department", "subcategory", "submittedBy"})
     Page<Ticket> findAllBySubmittedByOrderBySubmittedAtDesc(User submittedBy, Pageable pageable);
 
     @EntityGraph(attributePaths = {"customValues", "customValues.field", "department", "subcategory", "submittedBy"})
     Page<Ticket> findAllByOrderBySubmittedAtDesc(Pageable pageable);
+
+    @Query(value = "select t.id from Ticket t order by t.submittedAt desc",
+           countQuery = "select count(t) from Ticket t")
+    Page<Long> findAdminPageIds(Pageable pageable);
+
+    @Query(value = "select t.id from Ticket t where t.submittedBy.id = :userId order by t.submittedAt desc",
+           countQuery = "select count(t) from Ticket t where t.submittedBy.id = :userId")
+    Page<Long> findUserPageIds(@Param("userId") Long userId, Pageable pageable);
+
+    @EntityGraph(attributePaths = {
+            "customValues", "customValues.field", "department", "subcategory", "project", "submittedBy"
+    })
+    @Query("select distinct t from Ticket t where t.id in :ids")
+    List<Ticket> findListDetailsByIdIn(@Param("ids") java.util.Collection<Long> ids);
 
     @EntityGraph(attributePaths = {"customValues", "customValues.field", "department", "subcategory", "submittedBy"})
     Optional<Ticket> findWithDetailsById(Long id);
