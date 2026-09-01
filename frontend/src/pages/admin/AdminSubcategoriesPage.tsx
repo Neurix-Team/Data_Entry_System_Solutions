@@ -137,8 +137,7 @@ export function AdminSubcategoriesPage() {
     if (!proceed) return;
     setBulkDeleting(true);
     let ok = 0; let fail = 0;
-    // Serial — see AdminProjectsPage note; SQLite doesn't tolerate concurrent writers so
-    // Promise.allSettled would leave most rows behind with a SQLITE_BUSY error.
+    // Keep bulk deletes serial so related-row failures are reported per subcategory.
     for (const id of ids) {
       try {
         await subcategoriesApi.remove(id);

@@ -163,8 +163,7 @@ export function AdminDepartmentsPage() {
 
     setBulkDeleting(true);
     let ok = 0; let fail = 0;
-    // Serial rather than parallel — SQLite only allows one writer, and Promise.allSettled
-    // was firing all deletes concurrently which hit SQLITE_BUSY on all but the first request.
+    // Keep bulk deletes serial so failures are isolated and progress remains predictable.
     for (const id of ids) {
       try {
         await departmentsApi.remove(id);

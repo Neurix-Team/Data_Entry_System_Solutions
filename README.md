@@ -2,7 +2,7 @@
 
 A production-grade, full-stack data entry management system:
 
-- **Backend** — Java 17 + Spring Boot 3, JPA/Hibernate, SQLite (swap to Postgres/MySQL with two config lines), JWT auth, BCrypt password hashing.
+- **Backend** — Java 17 + Spring Boot 3, JPA/Hibernate, PostgreSQL, JWT auth, BCrypt password hashing.
 - **Frontend** — React 18 + TypeScript + Vite, React Router, axios, a hand-crafted design system (no UI library) tuned for long working hours (soft palette, generous spacing, muted accents).
 - **Auth** — JWT bearer tokens, stateless sessions, role-based route protection (`ADMIN` / `USER`).
 - **Dynamic form** — Admin adds/edits form fields at runtime; users see them automatically. Values are stored in a normalized `ticket_field_values` table (no schema changes needed).
@@ -29,11 +29,11 @@ Just Docker required (`docker` + `docker compose`, both included with Docker Des
 docker compose up --build
 ```
 
-Then open **http://localhost:8081**. The backend also exposes its API on **http://localhost:8080** if you want to call it directly.
+Then open **http://localhost:8082**. The backend also exposes its API on **http://localhost:8083** if you want to call it directly.
 
 - Frontend nginx proxies `/api/*` internally to the backend service — no CORS setup needed.
-- SQLite data lives in a named volume (`dems-data`) so it survives restarts.
-- Stop with `Ctrl+C`, remove containers with `docker compose down`, wipe data with `docker compose down -v`.
+- PostgreSQL connection values come from the root `.env`; `dems-data` keeps uploaded files.
+- Stop with `Ctrl+C` or `docker compose down`. Database data remains in PostgreSQL.
 
 Default credentials (change immediately):
 
@@ -52,6 +52,7 @@ Change the JWT secret before shipping anywhere real — edit `JWT_SECRET` in `do
 
 - **JDK 17+** (for the backend)
 - **Node.js 18+** and **npm** (for the frontend)
+- **PostgreSQL 16+** with an existing database and a user that can create tables
 - No Maven install needed — the project uses a `pom.xml` + `mvnw` wrapper. If `mvnw` is missing, install Maven 3.9+ and use `mvn` instead.
 
 ---
@@ -75,7 +76,7 @@ mvn spring-boot:run
 
 The API starts on **http://localhost:8080**. On first run it will:
 
-- Create `./data/dataentry.db` (SQLite)
+- Connect to PostgreSQL and create/update the application tables
 - Seed a default admin user, sample data-entry agent, departments, and example custom fields
 
 **Default credentials (change immediately after first login):**
@@ -109,29 +110,22 @@ Edit `backend/src/main/resources/application.yml` (or set env vars at runtime):
 
 | Setting                        | Env var           | Default                            |
 |--------------------------------|-------------------|------------------------------------|
+| PostgreSQL host                | `DB_HOST`         | `localhost`                        |
+| PostgreSQL port                | `DB_PORT`         | `5432`                             |
+| PostgreSQL database            | `DB_NAME`         | `dataentry`                        |
+| PostgreSQL username            | `DB_USERNAME`     | `daleel`                           |
+| PostgreSQL password            | `DB_PASSWORD`     | required                           |
 | JWT signing secret             | `JWT_SECRET`      | ⚠ change in production            |
 | Token expiration               | —                 | 24 hours                           |
 | CORS allowed origins           | —                 | `http://localhost:5173, :3000`     |
 | Seed default admin             | —                 | `true` (idempotent)                |
 | Default admin username / pwd   | —                 | `admin` / `admin123`               |
 
-### Switching from SQLite to another database
+### PostgreSQL connection
 
-Only two properties change:
-
-```yaml
-spring:
-  datasource:
-    url: jdbc:postgresql://host:5432/dataentry
-    username: ...
-    password: ...
-  jpa:
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-```
-
-Then swap the SQLite driver in `pom.xml` for the appropriate JDBC driver (`postgresql`, `mysql-connector-j`, …). All entities use standard JPA — no SQLite-specific SQL.
+Copy `.env.example` to `.env`, set the `DB_*` values, and start the backend. Hibernate
+creates missing tables and updates the schema on startup. Docker uses `DB_DOCKER_HOST`
+when the database host differs from the address used by a backend running directly on Windows.
 
 ---
 

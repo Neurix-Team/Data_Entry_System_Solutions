@@ -7,7 +7,13 @@ import org.hibernate.annotations.Filter;
 import java.time.Instant;
 
 @Entity
-@Table(name = "departments")
+@Table(
+        name = "departments",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_department_team_name",
+                columnNames = {"team_id", "name"}
+        )
+)
 @Filter(name = "teamFilter", condition = "team_id = :teamId")
 @EntityListeners(TenantEntityListener.class)
 @Getter
@@ -25,13 +31,8 @@ public class Department implements TeamOwned {
     @JoinColumn(name = "team_id")
     private Team team;
 
-    /**
-     * Department names are unique per team, not globally. The {@code unique = true} on the
-     * column has to stay (removing it in SQLite requires a table rebuild) but the
-     * DepartmentService performs the actual per-team lookup so two teams can both have a
-     * "Marketing" department once the legacy unique index is dropped by the startup migration.
-     */
-    @Column(nullable = false, unique = true, length = 150)
+    /** Department names are unique within a team, not across the whole system. */
+    @Column(nullable = false, length = 150)
     private String name;
 
     @Column(name = "name_en", length = 150)

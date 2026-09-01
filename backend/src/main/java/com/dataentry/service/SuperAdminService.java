@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -80,7 +81,7 @@ public class SuperAdminService {
         long weekTotal = summaries.stream().mapToLong(SuperAdminDtos.TeamSummary::ticketsThisWeek).sum();
         Long ticketsToday = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM tickets WHERE submitted_at >= ?",
-                Long.class, startOfToday.toString());
+                Long.class, Timestamp.from(startOfToday));
 
         return new SuperAdminDtos.OverviewStats(
                 teams.size(),
@@ -124,7 +125,7 @@ public class SuperAdminService {
             jdbc.query(
                     "SELECT team_id, COUNT(*) FROM tickets " +
                             "WHERE team_id IS NOT NULL AND submitted_at >= ? GROUP BY team_id",
-                    ps -> ps.setString(1, since.toString()),
+                    ps -> ps.setTimestamp(1, Timestamp.from(since)),
                     rs -> { out.put(rs.getLong(1), rs.getLong(2)); }
             );
         } catch (Exception ignored) {}
@@ -281,14 +282,13 @@ public class SuperAdminService {
                     (RowCallbackHandler) rs -> ticketsByProject.put(rs.getLong(1), rs.getLong(2)));
             jdbc.query(
                     "SELECT project_id, COUNT(*) FROM tickets WHERE project_id IS NOT NULL AND submitted_at >= ? GROUP BY project_id",
-                    ps -> ps.setString(1, weekStart.toString()),
+                    ps -> ps.setTimestamp(1, Timestamp.from(weekStart)),
                     (RowCallbackHandler) rs -> weekTicketsByProject.put(rs.getLong(1), rs.getLong(2))
             );
         } catch (Exception ignored) {}
 
         // Projects + their team info. Explicit RowCallbackHandler cast disambiguates from
-        // ResultSetExtractor; getLong+wasNull avoids the JDBC-driver ambiguity around
-        // Object-typed BIGINT columns on SQLite.
+        // ResultSetExtractor; getLong+wasNull handles nullable BIGINT columns consistently.
         try {
             jdbc.query(
                     "SELECT p.id, p.name, p.name_en, p.name_ar, p.status, " +

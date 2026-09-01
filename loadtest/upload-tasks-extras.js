@@ -57,11 +57,11 @@ const TASKS = [
     d: '**Ops** — `frontend/nginx.conf` serves `index.html` for any path that doesn\'t match a real file (`try_files $uri $uri/ /index.html`) so React Router deep links work on refresh. `/api` is `proxy_pass`ed to the `backend` service on port 8080 with `X-Forwarded-*` headers so the backend\'s rate limiter and JWT filter see the real client IP.' },
 
   { g: 'Container Images', n: '80. Backend Docker Image',
-    d: '**Ops** — `backend/Dockerfile` uses `eclipse-temurin:17-jre` as the base, copies the Maven-built fat jar, exposes 8080, runs as a non-root `app` user with a dedicated `/app/data` writable dir for the SQLite volume. Includes system Tesseract (`tesseract-ocr`, `tesseract-ocr-ara`, `tesseract-ocr-eng`) + fonts so OCR runs out of the box.' },
+    d: '**Ops** — `backend/Dockerfile` uses `eclipse-temurin:17-jre` as the base, copies the Maven-built fat jar, exposes 8080, runs as a non-root `app` user with a dedicated `/app/data` writable directory for uploads and extraction artifacts. Includes system Tesseract (`tesseract-ocr`, `tesseract-ocr-ara`, `tesseract-ocr-eng`) + fonts so OCR runs out of the box.' },
 
   // ---------- Repo hygiene ----------
   { g: 'Foundation', n: '81. .gitignore Hardening',
-    d: 'Ignores generated build artifacts (`backend/target/`, `frontend/dist/`, `frontend/node_modules/`, `frontend/.vite/`, `tsconfig.tsbuildinfo`), OS junk (`.DS_Store`, `Thumbs.db`, `desktop.ini`), IDE metadata (`.idea/`, `.vscode/`, `*.iml`), and — critically — secrets: `.env`, `.env.*` (with `!.env.example` escape hatch), private keys (`*.pem`, `*.key`, `*.p12`, `*.pfx`), and any accidentally-copied SQLite DB files (`**/dataentry.db`, `**/*.db-journal`). Also excludes the Claude Code local scratch dir (`.claude/settings.local.json`, `.claude/plans/`, `.claude/logs/`).' },
+    d: 'Ignores generated build artifacts (`backend/target/`, `frontend/dist/`, `frontend/node_modules/`, `frontend/.vite/`, `tsconfig.tsbuildinfo`), OS junk (`.DS_Store`, `Thumbs.db`, `desktop.ini`), IDE metadata (`.idea/`, `.vscode/`, `*.iml`), and — critically — secrets: `.env`, `.env.*` (with `!.env.example` escape hatch), and private keys (`*.pem`, `*.key`, `*.p12`, `*.pfx`). Also excludes the Claude Code local scratch dir (`.claude/settings.local.json`, `.claude/plans/`, `.claude/logs/`).' },
 
   // ---------- Ops small stuff ----------
   { g: 'Container Images', n: '82. LibreTranslate Healthcheck',

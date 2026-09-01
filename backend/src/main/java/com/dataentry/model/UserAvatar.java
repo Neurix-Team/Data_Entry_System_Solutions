@@ -25,11 +25,9 @@ public class UserAvatar {
     @Column(name = "content_type", nullable = false, length = 80)
     private String contentType;
 
-    // SQLite JDBC does not implement ResultSet.getBlob(), so we cannot use @Lob here — it
-    // makes Hibernate go down the Blob path and every avatar fetch dies with
-    // SQLFeatureNotSupportedException. Plain byte[] maps to VARBINARY, which the driver
-    // handles via getBytes(). Avatars are capped at 2 MB, so no streaming is needed.
-    @Column(name = "data", nullable = false, columnDefinition = "BLOB")
+    // PostgreSQL maps the byte array to BYTEA. Avatars are capped at 2 MB, so loading the
+    // complete value for the dedicated avatar endpoint is intentional.
+    @Column(name = "data", nullable = false, length = 2 * 1024 * 1024)
     private byte[] data;
 
     @Column(name = "updated_at", nullable = false)

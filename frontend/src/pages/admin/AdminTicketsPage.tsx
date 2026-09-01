@@ -147,8 +147,7 @@ export function AdminTicketsPage() {
     if (!proceed) return;
     setBulkDeleting(true);
     let ok = 0; let fail = 0;
-    // Serial — SQLite only accepts one writer at a time. Parallel Promise.allSettled
-    // triggered SQLITE_BUSY on all but the first request and left most rows undeleted.
+    // Keep bulk deletes serial so each ticket result is deterministic.
     for (const id of ids) {
       try {
         await ticketsApi.remove(id);

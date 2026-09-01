@@ -30,9 +30,8 @@ public class User implements TeamOwned {
      * transaction and later used in stateless contexts (e.g. AuthController.me, AuthService.toDto)
      * where a lazy proxy would fail with "no Session". It's one FK lookup — negligible.
      *
-     * <p>Note on uniqueness: {@code username} is still globally unique at the DB level for
-     * SQLite compatibility (composite-unique-constraint removal requires a table rebuild).
-     * Enforce per-team uniqueness at the service layer if that becomes a real ask.
+     * <p>Usernames are globally unique at the PostgreSQL schema level. Enforce per-team
+     * uniqueness at the service layer if that becomes a real requirement.
      */
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "team_id")

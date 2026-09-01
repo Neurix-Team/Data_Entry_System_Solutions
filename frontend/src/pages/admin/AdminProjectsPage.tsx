@@ -176,9 +176,7 @@ export function AdminProjectsPage() {
     if (!proceed) return;
     setBulkDeleting(true);
     let ok = 0; let fail = 0;
-    // Serial rather than Promise.allSettled — the backend uses SQLite which only allows one
-    // writer at a time. Parallel deletes triggered SQLITE_BUSY errors on all but the first
-    // one or two, so the user saw "Deleted 2, 10 failed" for a selection of 12.
+    // Keep bulk deletes serial so related-row failures are reported per project.
     for (const id of ids) {
       try {
         await projectsApi.remove(id);

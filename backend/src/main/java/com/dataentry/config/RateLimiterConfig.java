@@ -10,15 +10,15 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * Picks the {@link LoginRateLimiter} implementation from configuration.
- *   memory   → per-process counters (default; correct when there's a single backend instance)
- *   database → shared counters via the login_attempts table (correct when running >1 replica)
+ *   memory   → per-process counters for isolated development only
+ *   database → durable shared counters via the login_attempts table (the default)
  */
 @Configuration
 public class RateLimiterConfig {
 
     @Bean
     public LoginRateLimiter loginRateLimiter(
-            @Value("${app.security.login-rate.storage:memory}") String storage,
+            @Value("${app.security.login-rate.storage:database}") String storage,
             @Value("${app.security.login-rate.max-attempts:10}") int maxAttempts,
             @Value("${app.security.login-rate.window-seconds:300}") long windowSeconds,
             LoginAttemptRepository loginAttemptRepository

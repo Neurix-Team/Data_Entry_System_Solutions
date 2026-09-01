@@ -48,13 +48,6 @@ Thumbs.db
 desktop.ini
 ehthumbs.db
 
-# ===== Docker runtime / local data =====
-# Persistent SQLite lives in a named Docker volume, not the repo,
-# but ignore any accidental host copies.
-**/dataentry.db
-**/*.db-journal
-**/*.sqlite
-
 # ===== Claude Code local artifacts =====
 .claude/settings.local.json
 .claude/scheduled_tasks.lock

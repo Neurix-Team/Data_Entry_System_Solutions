@@ -9,6 +9,9 @@ services:
       # If unset the container fails fast at startup — see AppConfig#jwtSecret.
       JWT_SECRET: "${JWT_SECRET:?JWT_SECRET must be set (min 32 chars) — see .env}"
       SPRING_PROFILES_ACTIVE: "docker"
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://${DB_DOCKER_HOST:-host.docker.internal}:${DB_PORT:-5432}/${DB_NAME:-dataentry}"
+      SPRING_DATASOURCE_USERNAME: "${DB_USERNAME:-daleel}"
+      SPRING_DATASOURCE_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set in .env}"
       # Which browser origins may call the API (comma-separated).  The API sends credentialed
       # cookies, so "*" is rejected at boot by SecurityConfig — an explicit allowlist is required.
       # Override in .env when the UI is served from a different host, e.g.:
@@ -23,6 +26,8 @@ services:
       APP_SEED_SUPERADMIN_PASSWORD: "${APP_SEED_SUPERADMIN_PASSWORD:-superadmin123}"
       # Set to false only for local http:// dev.  Real deployments (https) leave true.
       APP_AUTH_COOKIE_SECURE: "${APP_AUTH_COOKIE_SECURE:-true}"
+      # Persist brute-force counters so restarts and multiple backend replicas share state.
+      APP_LOGIN_RATE_STORAGE: "${APP_LOGIN_RATE_STORAGE:-database}"
       # Rolling 24h upload cap per user (bytes). 500 MB default.
       APP_UPLOADS_PER_USER_DAILY_BYTES: "${APP_UPLOADS_PER_USER_DAILY_BYTES:-524288000}"
       # Point at the self-hosted LibreTranslate service below (no API key, no rate limit).
@@ -30,8 +35,11 @@ services:
       TRANSLATION_BASE_URL: "${TRANSLATION_BASE_URL:-http://libretranslate:5000}"
       TRANSLATION_API_KEY: "${TRANSLATION_API_KEY:-}"
     volumes:
-      # Persist the SQLite database on the host
+      # Uploaded documents and temporary extraction artifacts (database data is in PostgreSQL).
       - dems-data:/app/data
+    extra_hosts:
+      # Makes host.docker.internal work on Linux as well as Docker Desktop.
+      - "host.docker.internal:host-gateway"
     expose:
       - "8080"
     ports:
@@ -77,7 +85,8 @@ services:
     # Not published to the host — only the backend needs to reach it.
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:5000/languages"]
+      test:
+        ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/languages', timeout=5).read()"]
       interval: 30s
       timeout: 5s
       retries: 20

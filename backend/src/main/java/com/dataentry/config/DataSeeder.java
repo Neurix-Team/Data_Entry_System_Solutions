@@ -78,7 +78,7 @@ public class DataSeeder implements CommandLineRunner {
     public void run(String... args) {
         if (!seedEnabled) return;
 
-        migrateSchema();
+        cleanOrphanRows();
         Team defaultTeam = seedDefaultTeam();
         backfillTeamIds(defaultTeam);
         seedUsers(defaultTeam);
@@ -90,21 +90,8 @@ public class DataSeeder implements CommandLineRunner {
         backfillTranslations();
     }
 
-    /**
-     * Startup schema patches for cases Hibernate's {@code ddl-auto=update} can't handle on
-     * SQLite. Two migrations live here:
-     * <ol>
-     *   <li>Relax {@code projects.department_id} to NULLABLE (legacy pre-Departments-on-Projects).</li>
-     *   <li>Rebuild {@code departments} to drop the {@code UNIQUE(name)} constraint, so two
-     *       teams can each own a "Marketing" department. Uniqueness is now enforced per team
-     *       at the service layer.</li>
-     * </ol>
-     */
-    private void migrateSchema() {
-        // Clean up any orphaned rows that earlier half-completed deletes left behind. Two
-        // patterns show up: TicketFieldValues pointing at a CustomField that no longer
-        // exists (breaks the whole ticket list because the EntityGraph tries to load the
-        // missing field), and TicketDocuments/TicketResources pointing at a deleted ticket.
+    private void cleanOrphanRows() {
+        // Clean up orphaned dependent rows before normal startup work.
         try {
             int fv = jdbc.update("DELETE FROM ticket_field_values WHERE field_id NOT IN (SELECT id FROM custom_fields)");
             int t1 = jdbc.update("DELETE FROM ticket_field_values WHERE ticket_id NOT IN (SELECT id FROM tickets)");
@@ -118,185 +105,16 @@ public class DataSeeder implements CommandLineRunner {
         } catch (Exception e) {
             log.warn("Orphan cleanup skipped: {}", e.getMessage());
         }
-
-        try {
-            Integer notNull = jdbc.queryForObject(
-                    "select \"notnull\" from pragma_table_info('projects') where name = 'department_id'",
-                    Integer.class);
-            if (notNull != null && notNull != 0) {
-                log.info("Migrating projects.department_id to NULLABLE (legacy schema).");
-                jdbc.execute("PRAGMA foreign_keys=OFF");
-                try {
-                    jdbc.execute("""
-                            CREATE TABLE projects_new (
-                              id INTEGER PRIMARY KEY AUTOINCREMENT,
-                              name VARCHAR(200) NOT NULL,
-                              name_en VARCHAR(200),
-                              name_ar VARCHAR(200),
-                              subtitle VARCHAR(250),
-                              subtitle_en VARCHAR(250),
-                              subtitle_ar VARCHAR(250),
-                              department_id INTEGER,
-                              team_id INTEGER,
-                              start_date DATE,
-                              end_date DATE,
-                              progress INTEGER NOT NULL DEFAULT 0,
-                              status VARCHAR(20) NOT NULL DEFAULT 'ON_TRACK',
-                              created_at TIMESTAMP NOT NULL
-                            )
-                            """);
-                    // Copy either with or without team_id depending on whether the column already exists.
-                    if (columnExists("projects", "team_id")) {
-                        jdbc.execute("""
-                                INSERT INTO projects_new
-                                  (id, name, name_en, name_ar, subtitle, subtitle_en, subtitle_ar,
-                                   department_id, team_id, start_date, end_date, progress, status, created_at)
-                                SELECT id, name, name_en, name_ar, subtitle, subtitle_en, subtitle_ar,
-                                       department_id, team_id, start_date, end_date, progress, status, created_at
-                                FROM projects
-                                """);
-                    } else {
-                        jdbc.execute("""
-                                INSERT INTO projects_new
-                                  (id, name, name_en, name_ar, subtitle, subtitle_en, subtitle_ar,
-                                   department_id, team_id, start_date, end_date, progress, status, created_at)
-                                SELECT id, name, name_en, name_ar, subtitle, subtitle_en, subtitle_ar,
-                                       department_id, NULL, start_date, end_date, progress, status, created_at
-                                FROM projects
-                                """);
-                    }
-                    jdbc.execute("DROP TABLE projects");
-                    jdbc.execute("ALTER TABLE projects_new RENAME TO projects");
-                } finally {
-                    jdbc.execute("PRAGMA foreign_keys=ON");
-                }
-                log.info("projects.department_id is now nullable.");
-            }
-        } catch (Exception e) {
-            log.warn("Skipping projects.department_id migration: {}", e.getMessage());
-        }
-
-        // Users: legacy CHECK(role IN ('ADMIN','USER')) blocks the new SUPER_ADMIN value.
-        // Rebuild the table without any CHECK on role so all three enum values work — Hibernate's
-        // @Enumerated(EnumType.STRING) still validates at write time, so this doesn't loosen
-        // application-level type safety.
-        try {
-            boolean hasLegacyRoleCheck = jdbc.queryForList(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name='users' " +
-                            "AND sql LIKE '%role in (%ADMIN%USER%)%'"
-            ).size() > 0;
-
-            if (hasLegacyRoleCheck) {
-                log.info("Migrating users table — dropping legacy CHECK(role IN ('ADMIN','USER')).");
-                jdbc.execute("PRAGMA foreign_keys=OFF");
-                try {
-                    jdbc.execute("""
-                            CREATE TABLE users_new (
-                              id INTEGER PRIMARY KEY AUTOINCREMENT,
-                              username VARCHAR(100) NOT NULL UNIQUE,
-                              password_hash VARCHAR(255) NOT NULL,
-                              role VARCHAR(20) NOT NULL,
-                              display_name VARCHAR(150),
-                              display_name_en VARCHAR(150),
-                              display_name_ar VARCHAR(150),
-                              email VARCHAR(200),
-                              phone VARCHAR(40),
-                              active BOOLEAN NOT NULL DEFAULT 1,
-                              created_at TIMESTAMP NOT NULL,
-                              avatar_updated_at TIMESTAMP,
-                              team_id INTEGER
-                            )
-                            """);
-                    if (columnExists("users", "team_id")) {
-                        jdbc.execute("""
-                                INSERT INTO users_new
-                                  (id, username, password_hash, role, display_name, display_name_en,
-                                   display_name_ar, email, phone, active, created_at, avatar_updated_at, team_id)
-                                SELECT id, username, password_hash, role, display_name, display_name_en,
-                                       display_name_ar, email, phone, active, created_at, avatar_updated_at, team_id
-                                FROM users
-                                """);
-                    } else {
-                        jdbc.execute("""
-                                INSERT INTO users_new
-                                  (id, username, password_hash, role, display_name, display_name_en,
-                                   display_name_ar, email, phone, active, created_at, avatar_updated_at, team_id)
-                                SELECT id, username, password_hash, role, display_name, display_name_en,
-                                       display_name_ar, email, phone, active, created_at, avatar_updated_at, NULL
-                                FROM users
-                                """);
-                    }
-                    jdbc.execute("DROP TABLE users");
-                    jdbc.execute("ALTER TABLE users_new RENAME TO users");
-                } finally {
-                    jdbc.execute("PRAGMA foreign_keys=ON");
-                }
-                log.info("users.role CHECK constraint removed; SUPER_ADMIN can now be seeded.");
-            }
-        } catch (Exception e) {
-            log.warn("Skipping users role-check migration: {}", e.getMessage());
-        }
-
-        // Departments unique(name) → per-team uniqueness. Detect by looking for either the
-        // named unique index or the sqlite_autoindex generated from the column-level UNIQUE.
-        try {
-            boolean hasLegacyUnique = jdbc.queryForList(
-                    "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='departments' AND sql LIKE '%UNIQUE%name%'"
-            ).size() > 0
-                    || jdbc.queryForList(
-                            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='departments' AND name LIKE 'sqlite_autoindex_departments_%'"
-            ).size() > 0;
-
-            if (hasLegacyUnique) {
-                log.info("Migrating departments to drop global UNIQUE(name) — becomes per-team uniqueness.");
-                jdbc.execute("PRAGMA foreign_keys=OFF");
-                try {
-                    jdbc.execute("""
-                            CREATE TABLE departments_new (
-                              id INTEGER PRIMARY KEY AUTOINCREMENT,
-                              name VARCHAR(150) NOT NULL,
-                              name_en VARCHAR(150),
-                              name_ar VARCHAR(150),
-                              active BOOLEAN NOT NULL DEFAULT 1,
-                              created_at TIMESTAMP NOT NULL,
-                              project_id INTEGER,
-                              team_id INTEGER
-                            )
-                            """);
-                    if (columnExists("departments", "team_id")) {
-                        jdbc.execute("""
-                                INSERT INTO departments_new
-                                  (id, name, name_en, name_ar, active, created_at, project_id, team_id)
-                                SELECT id, name, name_en, name_ar, active, created_at, project_id, team_id
-                                FROM departments
-                                """);
-                    } else {
-                        jdbc.execute("""
-                                INSERT INTO departments_new
-                                  (id, name, name_en, name_ar, active, created_at, project_id, team_id)
-                                SELECT id, name, name_en, name_ar, active, created_at, project_id, NULL
-                                FROM departments
-                                """);
-                    }
-                    jdbc.execute("DROP TABLE departments");
-                    jdbc.execute("ALTER TABLE departments_new RENAME TO departments");
-                    jdbc.execute("CREATE UNIQUE INDEX uk_department_team_name ON departments(team_id, name)");
-                } finally {
-                    jdbc.execute("PRAGMA foreign_keys=ON");
-                }
-                log.info("departments UNIQUE(name) removed; per-team uniqueness enforced by index.");
-            }
-        } catch (Exception e) {
-            log.warn("Skipping departments unique-migration: {}", e.getMessage());
-        }
     }
 
     private boolean columnExists(String table, String column) {
         try {
-            return jdbc.queryForList(
-                    "SELECT name FROM pragma_table_info(?) WHERE name = ?",
-                    table, column
-            ).size() > 0;
+            Long count = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.columns " +
+                            "WHERE table_schema = current_schema() " +
+                            "AND lower(table_name) = lower(?) AND lower(column_name) = lower(?)",
+                    Long.class, table, column);
+            return count != null && count > 0;
         } catch (Exception e) {
             return false;
         }

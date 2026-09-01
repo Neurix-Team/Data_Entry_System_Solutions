@@ -164,7 +164,7 @@ export function AdminUsersPage() {
     if (!proceed) return;
     setBulkDeleting(true);
     let ok = 0; let fail = 0;
-    // Serial — SQLite is single-writer, parallel deletes drop into SQLITE_BUSY.
+    // Keep bulk deletes serial so each user result is deterministic.
     for (const id of ids) {
       try {
         await usersApi.remove(id);

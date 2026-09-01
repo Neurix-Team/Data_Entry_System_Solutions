@@ -8,28 +8,27 @@ server:
     max-swallow-size: 60MB
 
 spring:
+  config:
+    # Lets local Maven/JAR runs consume the git-ignored root .env file. Containers receive
+    # the same values as environment variables from docker-compose.yml.
+    import: optional:file:.env[.properties],optional:file:../.env[.properties]
   datasource:
-    # WAL journal lets one writer + many readers coexist without global locks; busy_timeout
-    # makes the driver wait instead of throwing SQLITE_BUSY on transient contention;
-    # foreign_keys=on is off by default in SQLite despite the schema declaring FKs.
-    url: jdbc:sqlite:./data/dataentry.db?journal_mode=WAL&busy_timeout=5000&foreign_keys=on&synchronous=NORMAL
-    driver-class-name: org.sqlite.JDBC
-    username:
-    password:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:dataentry}
+    driver-class-name: org.postgresql.Driver
+    username: ${DB_USERNAME:daleel}
+    password: ${DB_PASSWORD:}
     hikari:
-      # SQLite in WAL mode supports many readers + one writer. A small pool keeps read
-      # concurrency without letting many threads race to acquire the writer lock; anything
-      # blocked on a writer waits inside busy_timeout instead of erroring.
-      maximum-pool-size: 5
-      minimum-idle: 1
-      connection-timeout: 10000
-      max-lifetime: 0
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:20}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      connection-timeout: 30000
+      validation-timeout: 5000
+      max-lifetime: 1800000
   jpa:
     hibernate:
       ddl-auto: update
     properties:
       hibernate:
-        dialect: org.hibernate.community.dialect.SQLiteDialect
+        dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
     show-sql: false
     open-in-view: false
@@ -58,15 +57,14 @@ app:
     per-user-daily-bytes: ${APP_UPLOADS_PER_USER_DAILY_BYTES:524288000}
   security:
     login-rate:
-      # "memory" → per-instance counters (default; correct for a single backend replica).
-      # "database" → shared counters via login_attempts table — flip to this if you scale out.
-      storage: ${APP_LOGIN_RATE_STORAGE:memory}
+      # Persist counters in PostgreSQL so restart/scale-out cannot reset brute-force protection.
+      storage: ${APP_LOGIN_RATE_STORAGE:database}
       max-attempts: 10
       window-seconds: 300
   seed:
     enabled: true
-    admin-username: admin
-    admin-password: admin123
+    admin-username: ${APP_SEED_ADMIN_USERNAME:admin}
+    admin-password: ${APP_SEED_ADMIN_PASSWORD:admin123}
     # SUPER_ADMIN is the cross-team operator — sees and manages every team, can "enter" any
     # team as an impersonated admin. Only one is auto-seeded; extras are created from the
     # super-admin UI. Rotate these before first prod boot; the seeder logs a loud warning if

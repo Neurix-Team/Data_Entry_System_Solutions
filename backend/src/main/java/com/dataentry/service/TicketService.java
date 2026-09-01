@@ -354,8 +354,7 @@ public class TicketService {
         if (!cleanUrl.isEmpty()) {
             validateUrl(cleanUrl);
         }
-        // Empty string (not null) so pre-existing NOT NULL constraints on the SQLite table
-        // don't reject inserts from legacy databases.
+        // Preserve non-null values for installations upgraded from earlier schemas.
         String cleanName = websiteName == null ? "" : websiteName.trim();
         String cleanTitle = title == null ? "" : title.trim();
         String cleanContent = content == null ? "" : content.trim();

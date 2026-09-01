@@ -3,13 +3,13 @@ FROM maven:3.9-eclipse-temurin-17 AS builder
 
 WORKDIR /build
 
-# Copy pom first for better layer caching
+# Copy build metadata and sources, then resolve only the dependencies the real build needs.
+# dependency:go-offline also resolves optional plugin metadata and can hang for minutes on
+# unavailable third-party repositories used by the PDF stack.
 COPY pom.xml .
-RUN mvn -B -q dependency:go-offline
-
-# Copy sources and build
 COPY src ./src
-RUN mvn -B -q -DskipTests package \
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn -B -q -DskipTests -Dmaven.wagon.http.retryHandler.count=5 package \
  && mv target/*.jar app.jar
 
 # --- Stage 2: runtime ---

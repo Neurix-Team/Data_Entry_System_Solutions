@@ -887,7 +887,7 @@
       </div>
       <div class="stack-node">
         <strong>Database</strong>
-        SQLite (dev) · Postgres/MySQL (prod-ready)<br />
+        PostgreSQL 18<br />
         <span class="muted">Managed by JPA/Hibernate — no hand-written DDL</span>
       </div>
     </div>
@@ -936,7 +936,7 @@
     <li>The request hits nginx at <code>/api/user/tickets</code>, which rewrites it and forwards to <code>dems-backend:8080/api/user/tickets</code>.</li>
     <li>Spring's security filter chain (<code>SecurityConfig.java</code>) matches the URL against the rules: <code>/api/user/**</code> requires <code>ROLE_USER</code> or <code>ROLE_ADMIN</code>. If the JWT is valid, the authentication object gets populated; otherwise 403 is returned.</li>
     <li><code>TicketController</code> receives the DTO, hands it to <code>TicketService</code>, which validates business rules and persists via <code>TicketRepository</code>.</li>
-    <li>Hibernate emits SQL against SQLite (or Postgres, if configured), the entity is saved, and the ID is returned.</li>
+    <li>Hibernate emits SQL against PostgreSQL, the entity is saved, and the ID is returned.</li>
     <li><code>TicketService</code> also writes an audit-log entry via <code>AuditService</code>. The audit table is append-only — nothing else in the app writes to it, and no admin UI lets you delete rows.</li>
     <li>The controller returns the ticket DTO; nginx passes the JSON back to the browser; React updates state and shows a success toast.</li>
   </ol>
@@ -971,15 +971,9 @@
     </tbody>
   </table>
 
-  <h3>SQLite by default, Postgres/MySQL on demand</h3>
+  <h3>PostgreSQL as the only application database</h3>
 
-  <p>SQLite makes local development a single command with zero prerequisites: <code>docker compose up</code> and you're running. The database file lives in a named volume (<code>dems-data</code>), so it survives container restarts but wipes with <code>docker compose down -v</code>. This is the right tradeoff for a demo / small team — SQLite handles the write volume of a data-entry system without breaking a sweat.</p>
-
-  <p>Swapping to Postgres or MySQL is a two-line change in <code>application.yml</code> plus a JDBC driver swap in <code>pom.xml</code>. Every entity uses plain JPA — no SQLite-specific tricks, no native queries with dialect quirks. See Chapter 10 for the exact incantation.</p>
-
-  <div class="callout warn">
-    <p>SQLite's write serialization is fine at low concurrency but will bite you above a few dozen simultaneous writers. If you're planning to onboard hundreds of concurrent agents, do the Postgres swap first — it's cheap up front, painful under load.</p>
-  </div>
+  <p>Every environment uses PostgreSQL through the official JDBC driver and Hibernate dialect. Connection values are supplied through environment variables, and uploaded documents remain in the application data volume separately from relational data.</p>
 
   <h3>JWT auth via JJWT 0.12.x</h3>
 
@@ -1785,23 +1779,18 @@ User        1 ── * AuditLog</div>
   <table>
     <thead><tr><th>Variable</th><th>Purpose</th><th>Default (⚠ change in prod)</th></tr></thead>
     <tbody>
-      <tr><td><code>JWT_SECRET</code></td><td>Signing key for JWTs</td><td>hard-coded dev value in <code>application.yml</code></td></tr>
-      <tr><td><code>SPRING_PROFILES_ACTIVE</code></td><td>Toggle SQLite vs. Postgres config</td><td><code>default</code> (SQLite)</td></tr>
-      <tr><td><code>SPRING_DATASOURCE_URL</code></td><td>JDBC URL — required when switching DB</td><td>—</td></tr>
+      <tr><td><code>JWT_SECRET</code></td><td>Signing key for JWTs</td><td>Required in Docker; use a random 32+ character value</td></tr>
+      <tr><td><code>SPRING_PROFILES_ACTIVE</code></td><td>Spring runtime profile</td><td><code>docker</code> in Compose</td></tr>
+      <tr><td><code>SPRING_DATASOURCE_URL</code></td><td>PostgreSQL JDBC URL</td><td>Built from the <code>DB_*</code> variables by Compose</td></tr>
       <tr><td><code>SPRING_DATASOURCE_USERNAME</code>, <code>_PASSWORD</code></td><td>DB credentials</td><td>—</td></tr>
-      <tr><td><code>APP_CORS_ALLOWED_ORIGINS</code></td><td>Comma-separated list of allowed origins</td><td><code>*</code></td></tr>
+      <tr><td><code>APP_CORS_ALLOWED_ORIGINS</code></td><td>Comma-separated list of allowed origins</td><td>Explicit origins only; wildcard is rejected</td></tr>
       <tr><td><code>APP_ADMIN_USERNAME</code>, <code>_PASSWORD</code></td><td>Default admin credentials seeded on first boot</td><td><code>admin</code> / <code>admin123</code></td></tr>
     </tbody>
   </table>
 
-  <h2>Switching from SQLite to Postgres</h2>
+  <h2>PostgreSQL configuration</h2>
 
-  <p>Two files change:</p>
-
-  <ol>
-    <li><code>backend/pom.xml</code> — swap the SQLite dialect dependency for <code>postgresql</code>.</li>
-    <li><code>backend/src/main/resources/application.yml</code> — set the JDBC URL, credentials, and dialect. Or override at runtime with env vars.</li>
-  </ol>
+  <p>The application is PostgreSQL-only. Set the JDBC URL, credentials, and dialect through <code>application.yml</code> or the corresponding environment variables.</p>
 
 <pre><code>spring:
   datasource:
@@ -1813,16 +1802,13 @@ User        1 ── * AuditLog</div>
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect</code></pre>
 
-  <p>Every JPA entity uses standard column types — no SQLite-specific casts, no native queries. Hibernate will emit the correct DDL for Postgres on first boot.</p>
+  <p>Every JPA entity uses standard PostgreSQL-compatible column types. Hibernate emits the schema DDL on first boot.</p>
 
   <h2>Backups</h2>
 
-  <p>With SQLite, the database file lives in the <code>dems-data</code> Docker volume. To back up:</p>
+  <p>Use <code>pg_dump</code> for consistent PostgreSQL backups and test restore procedures on a schedule that matches your RPO.</p>
 
-<pre><code>docker run --rm -v dems-data:/data -v $(pwd):/backup alpine \
-  tar czf /backup/dems-backup-$(date +%Y%m%d).tar.gz -C /data .</code></pre>
-
-  <p>With Postgres, use <code>pg_dump</code> as usual. Nothing about the app assumes anything about the backup cadence — pick what fits your RPO.</p>
+<pre><code>pg_dump --format=custom --dbname="$SPRING_DATASOURCE_URL" --file=dataentry.dump</code></pre>
 </section>
 
 <!-- ============================================================
@@ -1848,7 +1834,7 @@ User        1 ── * AuditLog</div>
 ./mvnw spring-boot:run     # macOS / Linux
 mvnw.cmd spring-boot:run   # Windows</code></pre>
 
-  <p>The API starts on <code>http://localhost:8080</code>. On first boot it creates <code>./data/dataentry.db</code> (SQLite) and seeds the default admin (<code>admin / admin123</code>) plus a sample agent (<code>agent1 / agent123</code>).</p>
+  <p>The API starts on <code>http://localhost:8080</code>, connects to PostgreSQL using the configured <code>DB_*</code> values, and seeds the configured initial accounts when needed.</p>
 
   <h2>Running the frontend</h2>
 
@@ -1880,7 +1866,7 @@ docker run --rm \
 # Or a subset while iterating:
 mvn -B test -Dtest=TicketBulkSubmitMvcTest</code></pre>
 
-  <p>The <code>src/test/resources/application.yml</code> profile swaps SQLite for in-memory H2 and sets a throwaway JWT secret so the context boots without touching real credentials.</p>
+  <p>The <code>src/test/resources/application.yml</code> profile uses in-memory H2 and a throwaway JWT secret so tests boot without touching the real PostgreSQL database or credentials.</p>
 
   <p>Frontend tests are not wired up yet — this is the largest remaining gap in the codebase. If you add them, use Vitest for units and Playwright for the end-to-end submit / upload flow that keeps regressing.</p>
 

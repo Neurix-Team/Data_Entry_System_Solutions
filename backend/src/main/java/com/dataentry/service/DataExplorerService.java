@@ -103,12 +103,12 @@ public class DataExplorerService {
         List<DataExplorerDtos.Named> projects = new ArrayList<>();
         List<DataExplorerDtos.Named> users = new ArrayList<>();
 
-        jdbc.query("SELECT id, name FROM teams WHERE active = 1 ORDER BY name",
+        jdbc.query("SELECT id, name FROM teams WHERE active = TRUE ORDER BY name",
                 (RowCallbackHandler) rs -> teams.add(new DataExplorerDtos.Named(rs.getLong(1), rs.getString(2))));
         jdbc.query("SELECT id, name FROM projects ORDER BY name",
                 (RowCallbackHandler) rs -> projects.add(new DataExplorerDtos.Named(rs.getLong(1), rs.getString(2))));
         jdbc.query("SELECT id, COALESCE(display_name, username) FROM users " +
-                        "WHERE active = 1 AND role != 'SUPER_ADMIN' ORDER BY 2",
+                        "WHERE active = TRUE AND role != 'SUPER_ADMIN' ORDER BY 2",
                 (RowCallbackHandler) rs -> users.add(new DataExplorerDtos.Named(rs.getLong(1), rs.getString(2))));
 
         return new DataExplorerDtos.Facets(teams, projects, users);

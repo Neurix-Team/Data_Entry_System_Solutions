@@ -18,11 +18,11 @@ const TASKS = [
   { g: 'Foundation', n: '1. Repository & Build Skeleton',
     d: 'Establish the monorepo layout: `backend/` (Maven, Spring Boot 3.3, Java 17) and `frontend/` (Vite, React 18, TypeScript). Add root `docker-compose.yml`, `.gitignore`, `.env` pattern, and README. Configure the frontend build to output static assets and the backend to package as an executable jar.' },
   { g: 'Foundation', n: '2. Multi-Container Deployment',
-    d: 'Compose three services: `dems-backend` (Spring Boot on port 8083), `dems-frontend` (nginx serving the Vite build on port 8082), and `dems-libretranslate` (self-hosted translation on internal port 5000). Persist SQLite to a named volume (`dems-data`) and LibreTranslate models to a second volume (`libretranslate-models`). Fail fast if `JWT_SECRET` is not provided.' },
+    d: 'Compose three services: `dems-backend` (Spring Boot on port 8083), `dems-frontend` (nginx serving the Vite build on port 8082), and `dems-libretranslate` (self-hosted translation on internal port 5000). Connect the backend to PostgreSQL, persist uploaded files in `dems-data`, and cache LibreTranslate models in a second volume. Fail fast if database credentials or `JWT_SECRET` are not provided.' },
   { g: 'Foundation', n: '3. Environment Configuration',
     d: 'Externalize every deployment-sensitive value through env vars with safe defaults: `JWT_SECRET`, `APP_CORS_ALLOWED_ORIGINS`, `APP_SEED_ADMIN_USERNAME/PASSWORD`, `APP_AUTH_COOKIE_SECURE`, `APP_UPLOADS_PER_USER_DAILY_BYTES`, `TRANSLATION_BASE_URL`, `TRANSLATION_API_KEY`, `APP_LOGIN_RATE_STORAGE`. Document each inline in `application.yml` and `docker-compose.yml`.' },
   { g: 'Foundation', n: '4. Database Layer',
-    d: 'Define JPA entities for User, Department, Subcategory, CustomField, Project, Ticket, TicketFieldValue, AuditLog, LoginAttempt. Use SQLite in production via `sqlite-jdbc` + Hibernate `SQLiteDialect`. Rely on `ddl-auto=update` for zero-effort schema evolution. Add indexes on audit-log lookups and login-attempt window queries.' },
+    d: 'Define JPA entities for User, Department, Subcategory, CustomField, Project, Ticket, TicketFieldValue, AuditLog, LoginAttempt. Use PostgreSQL through the official JDBC driver and Hibernate dialect. Add indexes on audit-log lookups and login-attempt window queries.' },
   { g: 'Foundation', n: '5. Nginx Frontend Serving',
     d: '`frontend/Dockerfile` builds the Vite bundle in a Node stage and serves it from nginx with a custom `nginx.conf` that supports SPA fallback (all non-file paths route to `index.html`) and proxies `/api` to the backend service.' },
 
@@ -170,7 +170,7 @@ const TASKS = [
   { g: 'Quality & Ops', n: '65. Deployment Playbook',
     d: 'Documented steps: clone → populate `.env` (`JWT_SECRET` random 32+, rotate seed admin) → `docker compose up -d --build` → wait for `libretranslate` model download (1-3 min on first boot) → smoke-test `/api/auth/me` → rotate admin password through the UI.' },
   { g: 'Quality & Ops', n: '66. Backup Strategy',
-    d: 'SQLite lives in the `dems-data` named volume. Snapshot with `docker cp dems-backend:/app/data/dataentry.db <target>`; restore by placing a copy back into the volume before container start.' },
+    d: 'Back up PostgreSQL with `pg_dump`, verify restores regularly, and back up the `dems-data` volume separately because it contains uploaded documents rather than relational data.' },
 ];
 
 function post(path, body) {
