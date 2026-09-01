@@ -21,6 +21,25 @@ data_entry/
 
 ---
 
+## Deploying to a server
+
+`.env` is gitignored — it holds the database password, the JWT signing key and the seed
+admin passwords, so it never travels through the repository. Generate it on the server
+instead; only the PostgreSQL password is asked for, everything else is generated or
+defaulted:
+
+```bash
+git pull origin main
+./scripts/setup-env.sh
+sudo docker compose up -d --build
+```
+
+`setup-env.sh` refuses to overwrite an existing `.env` unless you pass `--force`, and prints
+the generated seed credentials once. PostgreSQL is expected to be running **on the host**
+(not in compose) with the `dataentry` database and the `daleel` role already created.
+
+---
+
 ## Quickest way — Docker Compose
 
 Just Docker required (`docker` + `docker compose`, both included with Docker Desktop):
