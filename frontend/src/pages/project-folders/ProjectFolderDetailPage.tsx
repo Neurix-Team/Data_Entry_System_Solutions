@@ -4,7 +4,8 @@ import { extractError } from '../../api/client';
 import { projectFoldersApi, ticketsApi } from '../../api/resources';
 import type { ProjectFolderDetail, Ticket } from '../../api/types';
 import { Avatar } from '../../components/Avatar';
-import { IconCheck, IconFolder, IconPlus } from '../../components/Icons';
+import { useConfirm } from '../../components/ConfirmDialog';
+import { IconCheck, IconClose, IconFolder, IconPlus } from '../../components/Icons';
 import { Modal } from '../../components/Modal';
 import { StatusPill } from '../../components/StatusPill';
 import { useToast } from '../../components/toast/ToastContext';
@@ -41,6 +42,8 @@ export function ProjectFolderDetailPage() {
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [freshlyApproved, setFreshlyApproved] = useState<Set<number>>(new Set());
+  const [deletingDocId, setDeletingDocId] = useState<number | null>(null);
+  const confirm = useConfirm();
 
   const backHref = isAdmin ? '/admin/project-folders' : '/project-folders';
 
@@ -116,6 +119,34 @@ export function ProjectFolderDetailPage() {
       toast.error(extractError(e));
     } finally {
       setApproving(null);
+    }
+  }
+
+  /**
+   * Delete one attachment from an already-submitted ticket. Optimistically strips the row
+   * from both the folder-level detail and the modal's `selected` copy so the UI updates
+   * without a full round-trip refresh — the server delete cascades disk + DB.
+   */
+  async function onDeleteDocument(ticketId: number, docId: number) {
+    const ok = await confirm({ message: t('ticket.confirmDeleteDocument'), destructive: true });
+    if (!ok) return;
+    setDeletingDocId(docId);
+    try {
+      await ticketsApi.removeDocument(ticketId, docId);
+      setDetail((cur) => cur ? {
+        ...cur,
+        tickets: cur.tickets.map((tk) => tk.id === ticketId && tk.documents
+          ? { ...tk, documents: tk.documents.filter((d) => d.id !== docId) }
+          : tk),
+      } : cur);
+      setSelected((cur) => (cur && cur.id === ticketId && cur.documents
+        ? { ...cur, documents: cur.documents.filter((d) => d.id !== docId) }
+        : cur));
+      toast.success(t('ticket.documentDeleted'));
+    } catch (e) {
+      toast.error(extractError(e));
+    } finally {
+      setDeletingDocId(null);
     }
   }
 
@@ -213,7 +244,13 @@ export function ProjectFolderDetailPage() {
           </div>
         }
       >
-        {selected && <TicketBody ticket={selected} />}
+        {selected && (
+          <TicketBody
+            ticket={selected}
+            deletingDocId={deletingDocId}
+            onDeleteDocument={onDeleteDocument}
+          />
+        )}
       </Modal>
 
       <QuickUploadModal
@@ -340,7 +377,15 @@ function AuthorSection({
   );
 }
 
-function TicketBody({ ticket }: { ticket: Ticket }) {
+function TicketBody({
+  ticket,
+  deletingDocId,
+  onDeleteDocument,
+}: {
+  ticket: Ticket;
+  deletingDocId: number | null;
+  onDeleteDocument: (ticketId: number, docId: number) => void;
+}) {
   const { lang, t } = useT();
   return (
     <div>
@@ -373,6 +418,16 @@ function TicketBody({ ticket }: { ticket: Ticket }) {
                     {d.name || d.originalFilename}
                   </a>
                   <span className="muted small">· {formatBytes(d.sizeBytes)}</span>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => onDeleteDocument(ticket.id, d.id)}
+                    disabled={deletingDocId === d.id}
+                    title={t('ticket.deleteDocument')}
+                    aria-label={t('ticket.deleteDocument')}
+                  >
+                    <IconClose size={12} />
+                  </button>
                 </li>
               ))}
             </ul>

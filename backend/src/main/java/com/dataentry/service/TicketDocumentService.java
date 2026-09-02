@@ -19,12 +19,15 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.Set;
@@ -134,10 +137,20 @@ public class TicketDocumentService {
                     "File type '." + ext + "' is not allowed");
         }
 
+        // Read the whole payload once and reuse for MIME sniff, hash, and disk write.
+        // MAX_FILE_BYTES caps this at 50 MB so a byte[] copy is bounded and predictable —
+        // and we avoid re-reading Spring's temp file three times (MIME, hash, transfer).
+        byte[] bytes;
+        try (InputStream in = file.getInputStream()) {
+            bytes = in.readAllBytes();
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Could not read file");
+        }
+
         // Sniff the real MIME by content, not the header the browser sent. This is what
         // catches a `.jpg`-renamed HTML payload that would otherwise be served as an image.
         String detectedMime;
-        try (InputStream sniff = file.getInputStream()) {
+        try (InputStream sniff = new ByteArrayInputStream(bytes)) {
             detectedMime = TIKA.detect(sniff, originalFilename).toLowerCase(Locale.ROOT);
         } catch (IOException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Could not read file");
@@ -145,6 +158,17 @@ public class TicketDocumentService {
         if (!ALLOWED_MIME_TYPES.contains(detectedMime)) {
             throw new ResponseStatusException(HttpStatus.UNSUPPORTED_MEDIA_TYPE,
                     "File type '" + detectedMime + "' is not allowed");
+        }
+
+        // Content-based duplicate detection — SHA-256 of the raw bytes. Catches both an
+        // exact re-upload (same file name) and a rename (same content, different name).
+        // Scope is per-project (all tickets sharing the project). Ticket has no project?
+        // Fall back to per-team so at least the caller's workspace still de-dupes.
+        String contentHash = sha256Hex(bytes);
+        TicketDocument duplicate = findDuplicate(ticket, contentHash);
+        if (duplicate != null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    describeDuplicate(duplicate));
         }
 
         quota.chargeOrThrow(currentUser.getId(), file.getSize());
@@ -159,7 +183,7 @@ public class TicketDocumentService {
         String storedName = UUID.randomUUID().toString() + suffixOf(originalFilename);
         Path target = ticketDir.resolve(storedName);
         try {
-            file.transferTo(target.toFile());
+            Files.write(target, bytes);
         } catch (IOException e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not save file");
         }
@@ -173,6 +197,7 @@ public class TicketDocumentService {
                 .contentType(detectedMime)
                 .sizeBytes(file.getSize())
                 .storagePath(ticketId + "/" + storedName)
+                .contentHash(contentHash)
                 .uploadedAt(Instant.now())
                 .build();
         documentRepository.save(doc);
@@ -269,8 +294,14 @@ public class TicketDocumentService {
             }
 
             long size;
+            String hash = null;
             try {
                 size = Files.size(target);
+                // Hash the extracted image once it's on disk so future direct-uploads of
+                // the same bytes (e.g. someone dragging the extracted PNG back in) can be
+                // recognised as duplicates. Best-effort — a hash failure shouldn't block
+                // an image that was successfully staged.
+                hash = sha256Hex(Files.readAllBytes(target));
             } catch (IOException e) {
                 size = 0;
             }
@@ -287,6 +318,7 @@ public class TicketDocumentService {
                     .contentType(guessContentType(ref.filename()))
                     .sizeBytes(size)
                     .storagePath(ticket.getId() + "/" + storedName)
+                    .contentHash(hash)
                     .uploadedAt(Instant.now())
                     .build();
             documentRepository.save(doc);
@@ -295,6 +327,60 @@ public class TicketDocumentService {
         // Cleanup the staging folders once we're done — image files are gone but the
         // .owner marker and empty dir still sit around.
         touchedExtractions.forEach(staging::discard);
+    }
+
+    /**
+     * SHA-256 hex of arbitrary bytes. Same bytes always produce the same 64-char string,
+     * so this is the single source of truth for "is this the same file we already have?"
+     */
+    private static String sha256Hex(byte[] bytes) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(bytes);
+            StringBuilder sb = new StringBuilder(hash.length * 2);
+            for (byte b : hash) {
+                sb.append(Character.forDigit((b >> 4) & 0xF, 16));
+                sb.append(Character.forDigit(b & 0xF, 16));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            // SHA-256 is mandated by JLS §6.3 of the JCE spec — this is unreachable on any
+            // conforming JDK. Rethrowing as unchecked keeps the upload method signature clean.
+            throw new IllegalStateException("SHA-256 unavailable", e);
+        }
+    }
+
+    /**
+     * Existing document (if any) whose bytes match the incoming upload. Scoped per-project
+     * when the incoming ticket has one, otherwise per-team so isolated tickets still dedupe
+     * inside the caller's workspace. Only returns rows that have a non-null content_hash —
+     * historical rows from before this column existed are treated as opaque and don't block.
+     */
+    private TicketDocument findDuplicate(Ticket ticket, String hash) {
+        if (hash == null || hash.isBlank()) return null;
+        List<TicketDocument> matches;
+        if (ticket.getProject() != null) {
+            matches = documentRepository.findByProjectAndHash(ticket.getProject().getId(), hash);
+        } else if (ticket.getTeam() != null) {
+            matches = documentRepository.findByTeamAndHashWithoutProject(
+                    ticket.getTeam().getId(), hash);
+        } else {
+            return null;
+        }
+        return matches.isEmpty() ? null : matches.get(0);
+    }
+
+    /**
+     * Human-readable "this file already exists" message pointing at the existing copy.
+     * Includes the original filename and the ticket id so the user can navigate to it
+     * or delete it before re-uploading.
+     */
+    private String describeDuplicate(TicketDocument existing) {
+        String name = existing.getOriginalFilename() != null
+                ? existing.getOriginalFilename()
+                : existing.getName();
+        return "This file already exists in the project — uploaded as \""
+                + name + "\" on ticket #" + existing.getTicket().getId() + ".";
     }
 
     private String guessContentType(String filename) {

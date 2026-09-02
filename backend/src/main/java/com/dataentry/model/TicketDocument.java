@@ -41,6 +41,16 @@ public class TicketDocument {
     @Column(name = "storage_path", nullable = false, length = 500)
     private String storagePath;
 
+    /**
+     * SHA-256 of the raw file bytes, hex-encoded (64 chars). Used to reject duplicate
+     * uploads within a project scope — same bytes → same hash, regardless of what the
+     * user renamed the file to. Nullable so historical rows uploaded before this column
+     * existed still round-trip; those never participate in duplicate detection until they
+     * get re-hashed.
+     */
+    @Column(name = "content_hash", length = 64)
+    private String contentHash;
+
     @Column(name = "uploaded_at", nullable = false, updatable = false)
     @Builder.Default
     private Instant uploadedAt = Instant.now();
