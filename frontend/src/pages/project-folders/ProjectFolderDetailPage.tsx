@@ -123,28 +123,55 @@ export function ProjectFolderDetailPage() {
   }
 
   /**
-   * Delete one attachment from an already-submitted ticket. Optimistically strips the row
-   * from both the folder-level detail and the modal's `selected` copy so the UI updates
-   * without a full round-trip refresh — the server delete cascades disk + DB.
+   * Delete one attachment from a project-folder ticket. In this view, each ticket is
+   * usually just a wrapper around one uploaded file (the quick-upload flow creates one
+   * ticket per file), so removing that last file should also delete the wrapper ticket
+   * — otherwise the folder keeps a titleless empty row that the user has no way to
+   * interact with. Multi-file tickets (rare here, common in the submit flow) keep the
+   * partial-delete behaviour: only the picked doc goes.
+   *
+   * <p>Optimistic UI: we strip the doc (and, if applicable, the whole ticket) locally
+   * before the network round-trip returns. On failure we roll back with a refresh so
+   * the on-screen state can't diverge from the DB.
    */
   async function onDeleteDocument(ticketId: number, docId: number) {
     const ok = await confirm({ message: t('ticket.confirmDeleteDocument'), destructive: true });
     if (!ok) return;
+    const target = detail?.tickets.find((tk) => tk.id === ticketId);
+    const isLastFile = !!target && (target.documents?.length ?? 0) <= 1;
     setDeletingDocId(docId);
     try {
-      await ticketsApi.removeDocument(ticketId, docId);
-      setDetail((cur) => cur ? {
-        ...cur,
-        tickets: cur.tickets.map((tk) => tk.id === ticketId && tk.documents
-          ? { ...tk, documents: tk.documents.filter((d) => d.id !== docId) }
-          : tk),
-      } : cur);
-      setSelected((cur) => (cur && cur.id === ticketId && cur.documents
-        ? { ...cur, documents: cur.documents.filter((d) => d.id !== docId) }
-        : cur));
+      if (isLastFile) {
+        // Delete the whole ticket in one call — the server cascades docs + disk.
+        // Prefer the admin endpoint when the caller is an admin (works for any ticket);
+        // fall back to /user/tickets/{id} which the server permits only for the ticket owner.
+        if (isAdmin) {
+          await ticketsApi.remove(ticketId);
+        } else {
+          await ticketsApi.removeMine(ticketId);
+        }
+        setDetail((cur) => cur ? {
+          ...cur,
+          tickets: cur.tickets.filter((tk) => tk.id !== ticketId),
+        } : cur);
+        setSelected((cur) => (cur && cur.id === ticketId ? null : cur));
+      } else {
+        await ticketsApi.removeDocument(ticketId, docId);
+        setDetail((cur) => cur ? {
+          ...cur,
+          tickets: cur.tickets.map((tk) => tk.id === ticketId && tk.documents
+            ? { ...tk, documents: tk.documents.filter((d) => d.id !== docId) }
+            : tk),
+        } : cur);
+        setSelected((cur) => (cur && cur.id === ticketId && cur.documents
+          ? { ...cur, documents: cur.documents.filter((d) => d.id !== docId) }
+          : cur));
+      }
       toast.success(t('ticket.documentDeleted'));
     } catch (e) {
       toast.error(extractError(e));
+      // On failure, sync back with the server so the optimistic state doesn't linger wrong.
+      refresh();
     } finally {
       setDeletingDocId(null);
     }
@@ -364,7 +391,7 @@ function AuthorSection({
                             </span>
                             <button
                               type="button"
-                              className="btn btn-ghost btn-sm"
+                              className="btn btn-danger btn-sm"
                               onClick={() => onDeleteDocument(tk.id, d.id)}
                               disabled={deletingDocId === d.id}
                               title={t('ticket.deleteDocument')}
@@ -466,7 +493,7 @@ function TicketBody({
                   <span className="muted small">· {formatBytes(d.sizeBytes)}</span>
                   <button
                     type="button"
-                    className="btn btn-ghost btn-sm"
+                    className="btn btn-danger btn-sm"
                     onClick={() => onDeleteDocument(ticket.id, d.id)}
                     disabled={deletingDocId === d.id}
                     title={t('ticket.deleteDocument')}
