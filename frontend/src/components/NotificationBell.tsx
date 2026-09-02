@@ -24,7 +24,10 @@ export function NotificationBell() {
   const [feed, setFeed] = useState<NotificationFeed | null>(null);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ringing, setRinging] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const prevUnreadRef = useRef(0);
+  const ringTimerRef = useRef<number | null>(null);
 
   const refresh = useCallback(async () => {
     if (!user) return;
@@ -94,11 +97,25 @@ export function NotificationBell() {
 
   const unread = feed?.unread ?? 0;
 
+  // Swing the bell once when the unread count RISES (something new arrived). A drop —
+  // the user reading notifications — stays silent.
+  useEffect(() => {
+    if (unread > prevUnreadRef.current) {
+      setRinging(true);
+      if (ringTimerRef.current != null) window.clearTimeout(ringTimerRef.current);
+      ringTimerRef.current = window.setTimeout(() => setRinging(false), 650);
+    }
+    prevUnreadRef.current = unread;
+  }, [unread]);
+  useEffect(() => () => {
+    if (ringTimerRef.current != null) window.clearTimeout(ringTimerRef.current);
+  }, []);
+
   return (
     <div ref={rootRef} style={{ position: 'relative' }}>
       <button
         type="button"
-        className="notification-btn"
+        className={`notification-btn${ringing ? ' is-ringing' : ''}`}
         aria-label={lang === 'ar' ? 'الإشعارات' : 'Notifications'}
         aria-expanded={open}
         aria-haspopup="menu"
@@ -107,6 +124,8 @@ export function NotificationBell() {
         <IconBell size={20} />
         {unread > 0 && (
           <span
+            // Remount on count change so the badgePop entrance replays per new arrival.
+            key={unread}
             className="notification-dot"
             aria-label={lang === 'ar' ? `${unread} إشعار جديد` : `${unread} unread`}
             style={{

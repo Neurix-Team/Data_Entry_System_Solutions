@@ -37,6 +37,19 @@ export function TrendChart({ data, todayIso, height = 180, stagger = 22 }: Props
   const middle = data[Math.floor(data.length / 2)]?.date;
   const last = data[data.length - 1]?.date;
 
+  // Trend line through the bar tops, drawn after the last bar lands. Coordinates
+  // are LTR percentages; CSS mirrors the <svg> under html[dir='rtl'] so the line
+  // follows the bars. The dot uses inset-inline-start, so it needs no mirroring.
+  const points = data.map((d, i) => {
+    const hp = d.count === 0 ? 2 : Math.max((d.count / max) * 100, 4);
+    return { x: ((i + 0.5) / data.length) * 100, y: 100 - hp };
+  });
+  const linePath = points
+    .map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(2)} ${p.y.toFixed(2)}`)
+    .join(' ');
+  const lineDelay = data.length * stagger + 420;
+  const lastPoint = points[points.length - 1];
+
   return (
     <>
       <div
@@ -78,6 +91,21 @@ export function TrendChart({ data, todayIso, height = 180, stagger = 22 }: Props
             </button>
           );
         })}
+        {!reduced && data.length > 1 && (
+          <div
+            className="udash-trend-overlay"
+            aria-hidden="true"
+            style={{ ['--line-delay' as string]: `${lineDelay}ms` }}
+          >
+            <svg className="udash-trend-line" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <path d={linePath} pathLength={1} vectorEffect="non-scaling-stroke" />
+            </svg>
+            <span
+              className="udash-trend-dot"
+              style={{ insetInlineStart: `${lastPoint.x}%`, bottom: `${100 - lastPoint.y}%` }}
+            />
+          </div>
+        )}
       </div>
       <div className="udash-trend-axis">
         <span>{shortDate(first)}</span>

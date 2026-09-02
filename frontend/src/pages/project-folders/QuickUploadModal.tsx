@@ -34,6 +34,14 @@ function extractTitleFromFilename(name: string): string {
  *  without starving the rest of the app's requests behind the browser's per-host cap. */
 const UPLOAD_CONCURRENCY = 3;
 
+/** Soft tints cycled across the per-file icon chips, same rotation the dept cards use. */
+const CHIP_TINTS = [
+  { bg: 'var(--brand-soft)', fg: 'var(--brand-soft-text)' },
+  { bg: 'var(--accent-cyan-soft)', fg: 'var(--accent-cyan-soft-text)' },
+  { bg: 'var(--dept-mini-3)', fg: '#4a2fa8' },
+  { bg: 'var(--success-soft)', fg: 'var(--success-soft-text)' },
+];
+
 type RowStatus = 'uploading' | 'done' | 'failed';
 
 /**
@@ -238,7 +246,7 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
           </button>
           <button
             type="button"
-            className="btn btn-primary"
+            className={`btn btn-primary${submitting ? ' is-uploading' : ''}`}
             onClick={onSubmit}
             disabled={submitting || rows.length === 0}
           >
@@ -367,8 +375,8 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
               key={r.id}
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'minmax(0, 1fr) auto',
-                gap: '0.5rem',
+                gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+                gap: '0.65rem',
                 alignItems: 'flex-start',
                 padding: '0.6rem 0.75rem',
                 border: '1px solid var(--border)',
@@ -376,6 +384,26 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
                 background: 'var(--bg-surface)',
               }}
             >
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 10,
+                  background: CHIP_TINTS[idx % CHIP_TINTS.length].bg,
+                  color: CHIP_TINTS[idx % CHIP_TINTS.length].fg,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  marginTop: 2,
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                  <path d="M5 3h7l4 4v10a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+                  <path d="M12 3v4h4" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+                </svg>
+              </span>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                 <label className="field-label" style={{ margin: 0, fontSize: 'var(--fs-xs)' }}>
                   {lang === 'ar'
@@ -449,9 +477,14 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
                           </svg>
                           {lang === 'ar' ? 'تم' : 'Done'}
                         </>
-                      ) : rowStatus[r.id] === 'failed'
-                        ? (lang === 'ar' ? 'فشل' : 'Failed')
-                        : `${Math.round((progress[r.id] ?? 0) * 100)}%`}
+                      ) : rowStatus[r.id] === 'failed' ? (
+                        lang === 'ar' ? 'فشل' : 'Failed'
+                      ) : (
+                        <>
+                          <span className="mini-spinner" data-motion="essential" aria-hidden="true" />
+                          {`${Math.round((progress[r.id] ?? 0) * 100)}%`}
+                        </>
+                      )}
                     </span>
                   </div>
                 )}

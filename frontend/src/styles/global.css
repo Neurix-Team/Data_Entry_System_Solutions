@@ -4281,3 +4281,82 @@ html[dir='rtl'] .upload-shimmer { animation-name: uploadShimmerRtl; }
   animation: uploadCheckDraw var(--dur-base) var(--ease-expo) 80ms forwards;
 }
 @keyframes uploadCheckDraw { to { stroke-dashoffset: 0; } }
+
+/* --- Trend chart line overlay: draws itself over the bars once they land, ---
+   with a glowing dot popping on the newest point (canvas proposal #1). The
+   overlay matches the bars' content box (the container's 0.5rem v-padding). */
+.udash-trend { position: relative; }
+.udash-trend-overlay {
+  position: absolute;
+  inset: 0.5rem 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.udash-trend-line {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+/* Bars flow with the document direction; the path's coordinates don't. Mirror it. */
+html[dir='rtl'] .udash-trend-line { transform: scaleX(-1); }
+.udash-trend-line path {
+  stroke: var(--accent-cyan);
+  stroke-width: 2.5;
+  fill: none;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: trendDraw var(--dur-slow) var(--ease-expo) var(--line-delay, 900ms) both;
+}
+@keyframes trendDraw { to { stroke-dashoffset: 0; } }
+.udash-trend-dot {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--accent-cyan);
+  box-shadow: 0 0 10px rgba(34, 195, 217, 0.7);
+  transform: translate(-50%, 50%) scale(0);
+  animation: trendDotPop var(--dur-fast) var(--ease-expo) calc(var(--line-delay, 900ms) + var(--dur-slow)) both;
+}
+@keyframes trendDotPop { to { transform: translate(-50%, 50%) scale(1); } }
+
+/* --- Notification bell: one swing + badge pop when something new arrives. --- */
+@keyframes bellSwing {
+  0% { transform: rotate(0); }
+  20% { transform: rotate(13deg); }
+  45% { transform: rotate(-11deg); }
+  70% { transform: rotate(6deg); }
+  100% { transform: rotate(0); }
+}
+.notification-btn.is-ringing > svg {
+  animation: bellSwing 600ms var(--ease-out);
+  transform-origin: top center;
+}
+@keyframes badgePop {
+  from { transform: scale(0.4); }
+  to { transform: scale(1); }
+}
+.notification-dot { animation: badgePop var(--dur-base) var(--ease-expo); }
+
+/* --- Upload: small spinner ring for in-flight rows, and a shine that keeps ---
+   sweeping the submit button while a batch is uploading. */
+.mini-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid var(--border);
+  border-top-color: var(--brand);
+  animation: neurixSpin 0.7s linear infinite;
+}
+@keyframes btnSheenLoop {
+  from { transform: translateX(-120%); }
+  to { transform: translateX(120%); }
+}
+.btn.is-uploading::before {
+  opacity: 1;
+  animation: btnSheenLoop 2s var(--ease-out) 0.3s infinite;
+}
