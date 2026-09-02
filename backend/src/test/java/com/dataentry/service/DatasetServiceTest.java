@@ -5,6 +5,7 @@ import com.dataentry.dto.DatasetDtos;
 import com.dataentry.model.DatasetRecord;
 import com.dataentry.repository.DatasetRecordRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -22,6 +23,7 @@ import static org.mockito.Mockito.when;
 class DatasetServiceTest {
     @Mock DatasetRecordRepository repository;
     @Mock DataExplorerService explorer;
+    @Mock EntityManager em;
 
     @Test
     void publish_isIdempotentForAnUnchangedTicket() {
@@ -49,7 +51,7 @@ class DatasetServiceTest {
         when(repository.count()).thenReturn(1L);
 
         DatasetService service = new DatasetService(
-                repository, explorer, new ObjectMapper().findAndRegisterModules());
+                repository, explorer, new ObjectMapper().findAndRegisterModules(), em);
 
         DatasetDtos.PublishResult first = service.publish();
         DatasetDtos.PublishResult second = service.publish();
@@ -61,5 +63,6 @@ class DatasetServiceTest {
         assertThat(second.unchanged()).isEqualTo(1);
         assertThat(stored.get().getAttachmentsJson()).contains("file.pdf");
         assertThat(stored.get().getSourceFingerprint()).hasSize(64);
+        assertThat(stored.get().getAttachmentCount()).isEqualTo(1);
     }
 }

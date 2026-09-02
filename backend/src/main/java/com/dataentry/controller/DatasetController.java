@@ -19,4 +19,7 @@ public class DatasetController {
 
     @PostMapping("/publish")
     public DatasetDtos.PublishResult publish() { return service.publish(); }
+
+    @GetMapping("/stats")
+    public DatasetDtos.Stats stats() { return service.stats(); }
 }

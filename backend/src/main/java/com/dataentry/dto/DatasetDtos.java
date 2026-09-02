@@ -36,4 +36,13 @@ public class DatasetDtos {
     public record Page(List<Row> items, Long nextCursor, boolean hasMore, long total) {}
 
     public record PublishResult(int scanned, int inserted, int updated, int unchanged, long total) {}
+
+    public record Stats(
+            long publishedRecords,
+            long pendingRecords,
+            long totalRecords,
+            long publishedFiles,
+            long pendingFiles,
+            long totalFiles
+    ) {}
 }

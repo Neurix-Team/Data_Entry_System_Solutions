@@ -7,6 +7,7 @@ import com.dataentry.repository.DatasetRecordRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityManager;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,13 +28,16 @@ public class DatasetService {
     private final DatasetRecordRepository repository;
     private final DataExplorerService explorer;
     private final ObjectMapper mapper;
+    private final EntityManager em;
 
     public DatasetService(DatasetRecordRepository repository,
                           DataExplorerService explorer,
-                          ObjectMapper mapper) {
+                          ObjectMapper mapper,
+                          EntityManager em) {
         this.repository = repository;
         this.explorer = explorer;
         this.mapper = mapper;
+        this.em = em;
     }
 
     /** Publish all current source rows. One transaction makes the button all-or-nothing. */
@@ -62,7 +66,8 @@ public class DatasetService {
                     target.setSourceTicketId(source.id());
                     target.setPublishedAt(Instant.now());
                     inserted++;
-                } else if (fingerprint.equals(target.getSourceFingerprint())) {
+                } else if (fingerprint.equals(target.getSourceFingerprint())
+                        && Objects.equals(target.getAttachmentCount(), source.documents().size())) {
                     unchanged++;
                     continue;
                 } else {
@@ -94,6 +99,32 @@ public class DatasetService {
         return new DatasetDtos.Page(rows, next, hasMore, repository.count());
     }
 
+    /** Fast counters for the coloured summary cards. Attachment counts come from each
+     * published snapshot, so a file added later appears as pending until Publish runs. */
+    @Transactional(readOnly = true)
+    public DatasetDtos.Stats stats() {
+        long totalRecords = em.createQuery("select count(t) from Ticket t", Long.class)
+                .getSingleResult();
+        long publishedRecords = em.createQuery(
+                        "select count(r) from DatasetRecord r " +
+                                "where r.sourceTicketId in (select t.id from Ticket t)", Long.class)
+                .getSingleResult();
+        long totalFiles = em.createQuery("select count(d) from TicketDocument d", Long.class)
+                .getSingleResult();
+        Long snapshotFiles = em.createQuery(
+                        "select sum(r.attachmentCount) from DatasetRecord r " +
+                                "where r.sourceTicketId in (select t.id from Ticket t)", Long.class)
+                .getSingleResult();
+        long publishedFiles = Math.min(totalFiles, snapshotFiles == null ? 0 : snapshotFiles);
+        return new DatasetDtos.Stats(
+                publishedRecords,
+                Math.max(0, totalRecords - publishedRecords),
+                totalRecords,
+                publishedFiles,
+                Math.max(0, totalFiles - publishedFiles),
+                totalFiles);
+    }
+
     private void copy(DataExplorerDtos.Row s, DatasetRecord t, String attachments,
                       String customFields, String fingerprint) {
         t.setTeamId(s.teamId()); t.setTeamName(s.teamName());
@@ -109,6 +140,7 @@ public class DatasetService {
         t.setWebsiteName(s.websiteName()); t.setWebsiteLink(s.websiteLink());
         t.setStatus(s.status()); t.setSubmittedAt(s.submittedAt());
         t.setAttachmentsJson(attachments); t.setCustomFieldsJson(customFields);
+        t.setAttachmentCount(s.documents().size());
         t.setSourceFingerprint(fingerprint); t.setRefreshedAt(Instant.now());
     }
 

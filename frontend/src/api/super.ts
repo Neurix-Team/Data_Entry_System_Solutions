@@ -219,6 +219,15 @@ export interface DatasetPublishResult {
   total: number;
 }
 
+export interface DatasetStats {
+  publishedRecords: number;
+  pendingRecords: number;
+  totalRecords: number;
+  publishedFiles: number;
+  pendingFiles: number;
+  totalFiles: number;
+}
+
 // ---------- API tokens ----------
 
 export interface ApiTokenRow {
@@ -283,6 +292,8 @@ export const superApi = {
     api.get<DatasetPage>('/super/dataset', { params: { cursor, size } }).then((r) => r.data),
   publishDataset: () =>
     api.post<DatasetPublishResult>('/super/dataset/publish').then((r) => r.data),
+  datasetStats: () =>
+    api.get<DatasetStats>('/super/dataset/stats').then((r) => r.data),
 
   // API tokens
   apiTokens: () =>

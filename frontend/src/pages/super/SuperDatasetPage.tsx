@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { API_BASE, extractError } from '../../api/client';
 import { superApi } from '../../api/super';
-import type { DatasetPublishResult, DatasetRow } from '../../api/super';
+import type { DatasetPublishResult, DatasetRow, DatasetStats } from '../../api/super';
 import { IconCheck, IconDatabase } from '../../components/Icons';
 import { useToast } from '../../components/toast/ToastContext';
 import { useT } from '../../i18n';
@@ -16,16 +16,21 @@ export function SuperDatasetPage() {
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [lastPublish, setLastPublish] = useState<DatasetPublishResult | null>(null);
+  const [stats, setStats] = useState<DatasetStats | null>(null);
   const ar = lang === 'ar';
 
   const load = useCallback(async (next?: number) => {
     setLoading(true);
     try {
-      const page = await superApi.dataset(next, 50);
+      const [page, latestStats] = await Promise.all([
+        superApi.dataset(next, 50),
+        next ? Promise.resolve(null) : superApi.datasetStats(),
+      ]);
       setItems((old) => next ? [...old, ...page.items] : page.items);
       setTotal(page.total);
       setCursor(page.nextCursor);
       setHasMore(page.hasMore);
+      if (latestStats) setStats(latestStats);
     } catch (e) {
       toast.error(extractError(e));
     } finally {
@@ -78,8 +83,28 @@ export function SuperDatasetPage() {
         </div>
       )}
 
-      <div className="card" style={{ padding: '1rem 1.25rem', marginBottom: 16 }}>
-        {ar ? 'إجمالي الصفوف الجاهزة:' : 'Published rows:'} <strong>{total.toLocaleString()}</strong>
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+        gap: 16, marginBottom: 18,
+      }}>
+        <SummaryCard
+          title={ar ? 'تم رفعه على السيرفر' : 'Published to server'}
+          records={stats?.publishedRecords ?? total}
+          files={stats?.publishedFiles ?? 0}
+          ar={ar}
+          background="linear-gradient(135deg, rgba(16,185,129,.18), rgba(34,197,94,.07))"
+          border="rgba(16,185,129,.42)"
+          accent="#059669"
+        />
+        <SummaryCard
+          title={ar ? 'لسه محتاج رفع' : 'Still waiting to publish'}
+          records={stats?.pendingRecords ?? 0}
+          files={stats?.pendingFiles ?? 0}
+          ar={ar}
+          background="linear-gradient(135deg, rgba(245,158,11,.20), rgba(249,115,22,.07))"
+          border="rgba(245,158,11,.48)"
+          accent="#d97706"
+        />
       </div>
 
       {!loading && items.length === 0 ? (
@@ -116,6 +141,32 @@ export function SuperDatasetPage() {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+function SummaryCard({ title, records, files, ar, background, border, accent }: {
+  title: string;
+  records: number;
+  files: number;
+  ar: boolean;
+  background: string;
+  border: string;
+  accent: string;
+}) {
+  return (
+    <div className="card" style={{ padding: '1.15rem 1.3rem', background, borderColor: border }}>
+      <div style={{ color: accent, fontWeight: 700, marginBottom: 10 }}>{title}</div>
+      <div style={{ display: 'flex', gap: 28, alignItems: 'end' }}>
+        <div>
+          <div style={{ fontSize: '1.75rem', lineHeight: 1, fontWeight: 800 }}>{records.toLocaleString()}</div>
+          <div className="muted small" style={{ marginTop: 5 }}>{ar ? 'سجل بيانات' : 'data records'}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: '1.75rem', lineHeight: 1, fontWeight: 800 }}>{files.toLocaleString()}</div>
+          <div className="muted small" style={{ marginTop: 5 }}>{ar ? 'ملف مرفق' : 'attached files'}</div>
+        </div>
+      </div>
     </div>
   );
 }

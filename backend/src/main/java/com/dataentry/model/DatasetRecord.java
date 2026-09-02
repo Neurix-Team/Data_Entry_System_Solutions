@@ -54,6 +54,11 @@ public class DatasetRecord {
     @Builder.Default
     private String attachmentsJson = "[]";
 
+    /** Number of physical attachments represented by this snapshot. Nullable only for
+     * rows created before this counter was introduced; the next publish backfills it. */
+    @Column(name = "attachment_count")
+    private Integer attachmentCount;
+
     @Column(name = "custom_fields_json", nullable = false, columnDefinition = "TEXT")
     @Builder.Default
     private String customFieldsJson = "[]";
