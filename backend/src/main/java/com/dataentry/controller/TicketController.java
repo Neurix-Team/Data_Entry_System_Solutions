@@ -82,6 +82,12 @@ public class TicketController {
         return service.updateStatus(id, "COMPLETED");
     }
 
+    @PostMapping("/admin/tickets/approve-bulk")
+    public TicketDtos.BulkApproveResponse approveBulk(
+            @Valid @RequestBody TicketDtos.BulkApproveRequest req) {
+        return service.approveMany(req.ticketIds());
+    }
+
     @DeleteMapping("/admin/tickets/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         service.delete(id);

@@ -156,6 +156,9 @@ export interface ExplorerRow {
   submittedByUserId: number | null;
   submittedByUsername: string | null;
   submittedByDisplayName: string | null;
+  submittedByEmail: string | null;
+  submittedByPhone: string | null;
+  submittedByRole: string | null;
   title: string | null;
   content: string | null;
   websiteName: string | null;
@@ -189,6 +192,31 @@ export interface ExplorerQuery {
   search?: string;
   cursor?: number;
   size?: number;
+}
+
+// ---------- Published dataset ----------
+
+export interface DatasetRow extends Omit<ExplorerRow, 'id' | 'documents'> {
+  id: number;
+  sourceTicketId: number;
+  attachments: ExplorerDocument[];
+  publishedAt: string;
+  refreshedAt: string;
+}
+
+export interface DatasetPage {
+  items: DatasetRow[];
+  nextCursor: number | null;
+  hasMore: boolean;
+  total: number;
+}
+
+export interface DatasetPublishResult {
+  scanned: number;
+  inserted: number;
+  updated: number;
+  unchanged: number;
+  total: number;
 }
 
 // ---------- API tokens ----------
@@ -250,6 +278,11 @@ export const superApi = {
     api.get<ExplorerPage>('/super/data/tickets', { params: q }).then((r) => r.data),
   explorerTicket: (id: number) =>
     api.get<ExplorerRow>(`/super/data/tickets/${id}`).then((r) => r.data),
+
+  dataset: (cursor?: number, size = 50) =>
+    api.get<DatasetPage>('/super/dataset', { params: { cursor, size } }).then((r) => r.data),
+  publishDataset: () =>
+    api.post<DatasetPublishResult>('/super/dataset/publish').then((r) => r.data),
 
   // API tokens
   apiTokens: () =>

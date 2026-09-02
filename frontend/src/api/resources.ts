@@ -160,6 +160,9 @@ export const ticketsApi = {
   /** Admin-only approve — thin wrapper around the status endpoint that always sets COMPLETED. */
   approve: (id: number) =>
     api.post<Ticket>(`/admin/tickets/${id}/approve`).then(r => r.data),
+  approveMany: (ticketIds: number[]) =>
+    api.post<{ approved: number; tickets: Ticket[] }>('/admin/tickets/approve-bulk', { ticketIds })
+      .then(r => r.data),
 };
 
 // Project Folders — projects rendered as folders that group every ticket branched from them.

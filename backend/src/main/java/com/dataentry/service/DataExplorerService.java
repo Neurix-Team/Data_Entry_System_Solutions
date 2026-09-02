@@ -151,6 +151,8 @@ public class DataExplorerService {
                         "subcategory.id as subcategoryId, subcategory.name as subcategoryName, " +
                         "submitter.id as submitterId, submitter.username as submitterUsername, " +
                         "submitter.displayName as submitterDisplayName, " +
+                        "submitter.email as submitterEmail, submitter.phone as submitterPhone, " +
+                        "submitter.role as submitterRole, " +
                         "t.title as title, t.content as content, " +
                         "t.websiteName as websiteName, t.websiteLink as websiteLink, " +
                         "t.status as status, t.submittedAt as submittedAt " +
@@ -177,6 +179,9 @@ public class DataExplorerService {
                 row.get("submitterId", Long.class),
                 row.get("submitterUsername", String.class),
                 row.get("submitterDisplayName", String.class),
+                row.get("submitterEmail", String.class),
+                row.get("submitterPhone", String.class),
+                row.get("submitterRole", com.dataentry.model.Role.class),
                 row.get("title", String.class),
                 row.get("content", String.class),
                 row.get("websiteName", String.class),
@@ -222,8 +227,8 @@ public class DataExplorerService {
         if (ticketIds.isEmpty()) return out;
         List<TicketFieldValue> vals = em.createQuery(
                         "select v from TicketFieldValue v " +
-                                "join fetch v.field " +
-                                "where v.ticket.id in :ids",
+                        "join fetch v.field " +
+                                "where v.ticket.id in :ids order by v.ticket.id, v.field.id, v.id",
                         TicketFieldValue.class)
                 .setParameter("ids", ticketIds)
                 .getResultList();
@@ -263,6 +268,9 @@ public class DataExplorerService {
                 row.submitterId(),
                 row.submitterUsername(),
                 row.submitterDisplayName(),
+                row.submitterEmail(),
+                row.submitterPhone(),
+                row.submitterRole() != null ? row.submitterRole().name() : null,
                 row.title(),
                 row.content(),
                 row.websiteName(),
@@ -301,6 +309,9 @@ public class DataExplorerService {
             Long submitterId,
             String submitterUsername,
             String submitterDisplayName,
+            String submitterEmail,
+            String submitterPhone,
+            com.dataentry.model.Role submitterRole,
             String title,
             String content,
             String websiteName,

@@ -25,7 +25,7 @@ import { useT } from '../../i18n';
  */
 export function SuperLayout() {
   const { user, logout, refresh } = useAuth();
-  const { t } = useT();
+  const { t, lang } = useT();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -96,6 +96,10 @@ export function SuperLayout() {
         <NavLink to="/super/data" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
           <span className="side-icon"><IconDatabase /></span>
           {t('super.data.nav') || 'Data explorer'}
+        </NavLink>
+        <NavLink to="/super/dataset" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
+          <span className="side-icon"><IconDatabase /></span>
+          {lang === 'ar' ? 'بيانات السيرفر' : 'Server dataset'}
         </NavLink>
         <NavLink to="/super/api-tokens" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
           <span className="side-icon"><IconKey /></span>

@@ -3,6 +3,7 @@ package com.dataentry.dto;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -92,6 +93,15 @@ public class TicketDtos {
             @NotBlank
             @Pattern(regexp = "IN_PROGRESS|REVIEW|COMPLETED")
             String status
+    ) {}
+
+    public record BulkApproveRequest(
+            @NotEmpty @Size(max = 500) List<@NotNull Long> ticketIds
+    ) {}
+
+    public record BulkApproveResponse(
+            int approved,
+            List<TicketResponse> tickets
     ) {}
 
     public record CustomValueResponse(

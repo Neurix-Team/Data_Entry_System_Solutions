@@ -18,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -510,6 +511,29 @@ public class TicketService {
         }
 
         return toDto(saved);
+    }
+
+    /** Approve a caller-selected set atomically. A repeated id is deliberately collapsed,
+     *  and already-completed tickets are returned unchanged instead of producing duplicate
+     *  audit and notification rows. Any invalid/cross-team id rolls the whole batch back. */
+    @Transactional
+    public TicketDtos.BulkApproveResponse approveMany(List<Long> ticketIds) {
+        assertAdminAuthenticated();
+        List<TicketDtos.TicketResponse> approved = new ArrayList<>();
+        int changed = 0;
+        for (Long id : new LinkedHashSet<>(ticketIds)) {
+            Ticket ticket = ticketRepository.findWithDetailsById(id)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                            "Ticket not found: " + id));
+            TenantGuard.assertOwnership(ticket);
+            if (ticket.getStatus() == TicketStatus.COMPLETED) {
+                approved.add(toDto(ticket));
+            } else {
+                approved.add(updateStatus(id, "COMPLETED"));
+                changed++;
+            }
+        }
+        return new TicketDtos.BulkApproveResponse(changed, approved);
     }
 
     private void assertAdminAuthenticated() {
