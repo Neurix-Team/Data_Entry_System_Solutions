@@ -2802,6 +2802,17 @@ html[dir='rtl'] .progress-bar-fill { transform-origin: right center; }
 }
 
 /* Spinner */
+.route-loading {
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.75rem;
+  background: var(--bg-body);
+}
+.route-loading img {
+  object-fit: contain;
+}
 .spinner {
   display: inline-block;
   width: 14px; height: 14px;

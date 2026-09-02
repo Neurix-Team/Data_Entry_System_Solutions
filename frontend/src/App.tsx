@@ -1,33 +1,50 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { Layout } from './components/Layout';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { useAuth } from './context/AuthContext';
-import { LoginPage } from './pages/LoginPage';
-import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
-import { AdminUsersPage } from './pages/admin/AdminUsersPage';
-import { AdminDepartmentsPage } from './pages/admin/AdminDepartmentsPage';
-import { AdminSubcategoriesPage } from './pages/admin/AdminSubcategoriesPage';
-import { AdminTicketsPage } from './pages/admin/AdminTicketsPage';
-import { AdminProjectsPage } from './pages/admin/AdminProjectsPage';
-import { AdminReportsPage } from './pages/admin/AdminReportsPage';
-import { AdminUserActivityPage } from './pages/admin/AdminUserActivityPage';
-import { SubmitTicketPage } from './pages/user/SubmitTicketPage';
-import { MyTicketsPage } from './pages/user/MyTicketsPage';
-import { UserDashboardPage } from './pages/user/UserDashboardPage';
-import { ProfilePage } from './pages/ProfilePage';
-import { ProjectFoldersPage } from './pages/project-folders/ProjectFoldersPage';
-import { ProjectFolderDetailPage } from './pages/project-folders/ProjectFolderDetailPage';
-import { SuperLayout } from './pages/super/SuperLayout';
-import { SuperOverviewPage } from './pages/super/SuperOverviewPage';
-import { SuperTeamsPage } from './pages/super/SuperTeamsPage';
-import { SuperAdminsPage } from './pages/super/SuperAdminsPage';
-import { SuperProjectsPage } from './pages/super/SuperProjectsPage';
-import { SuperDataPage } from './pages/super/SuperDataPage';
-import { SuperApiTokensPage } from './pages/super/SuperApiTokensPage';
+
+// Every screen used to be bundled into the first JavaScript download, including all admin
+// and super-admin pages that most users never visit. Route-level imports keep the login and
+// initial shell small; Vite downloads each screen only when the user navigates to it.
+const Layout = lazy(() => import('./components/Layout').then((m) => ({ default: m.Layout })));
+const LoginPage = lazy(() => import('./pages/LoginPage').then((m) => ({ default: m.LoginPage })));
+const ProfilePage = lazy(() => import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })));
+const ProjectFoldersPage = lazy(() => import('./pages/project-folders/ProjectFoldersPage').then((m) => ({ default: m.ProjectFoldersPage })));
+const ProjectFolderDetailPage = lazy(() => import('./pages/project-folders/ProjectFolderDetailPage').then((m) => ({ default: m.ProjectFolderDetailPage })));
+
+const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage })));
+const AdminUsersPage = lazy(() => import('./pages/admin/AdminUsersPage').then((m) => ({ default: m.AdminUsersPage })));
+const AdminDepartmentsPage = lazy(() => import('./pages/admin/AdminDepartmentsPage').then((m) => ({ default: m.AdminDepartmentsPage })));
+const AdminSubcategoriesPage = lazy(() => import('./pages/admin/AdminSubcategoriesPage').then((m) => ({ default: m.AdminSubcategoriesPage })));
+const AdminTicketsPage = lazy(() => import('./pages/admin/AdminTicketsPage').then((m) => ({ default: m.AdminTicketsPage })));
+const AdminProjectsPage = lazy(() => import('./pages/admin/AdminProjectsPage').then((m) => ({ default: m.AdminProjectsPage })));
+const AdminReportsPage = lazy(() => import('./pages/admin/AdminReportsPage').then((m) => ({ default: m.AdminReportsPage })));
+const AdminUserActivityPage = lazy(() => import('./pages/admin/AdminUserActivityPage').then((m) => ({ default: m.AdminUserActivityPage })));
+
+const SubmitTicketPage = lazy(() => import('./pages/user/SubmitTicketPage').then((m) => ({ default: m.SubmitTicketPage })));
+const MyTicketsPage = lazy(() => import('./pages/user/MyTicketsPage').then((m) => ({ default: m.MyTicketsPage })));
+const UserDashboardPage = lazy(() => import('./pages/user/UserDashboardPage').then((m) => ({ default: m.UserDashboardPage })));
+
+const SuperLayout = lazy(() => import('./pages/super/SuperLayout').then((m) => ({ default: m.SuperLayout })));
+const SuperOverviewPage = lazy(() => import('./pages/super/SuperOverviewPage').then((m) => ({ default: m.SuperOverviewPage })));
+const SuperTeamsPage = lazy(() => import('./pages/super/SuperTeamsPage').then((m) => ({ default: m.SuperTeamsPage })));
+const SuperAdminsPage = lazy(() => import('./pages/super/SuperAdminsPage').then((m) => ({ default: m.SuperAdminsPage })));
+const SuperProjectsPage = lazy(() => import('./pages/super/SuperProjectsPage').then((m) => ({ default: m.SuperProjectsPage })));
+const SuperDataPage = lazy(() => import('./pages/super/SuperDataPage').then((m) => ({ default: m.SuperDataPage })));
+const SuperApiTokensPage = lazy(() => import('./pages/super/SuperApiTokensPage').then((m) => ({ default: m.SuperApiTokensPage })));
+
+function RouteLoading() {
+  return (
+    <div className="route-loading" role="status" aria-label="Loading">
+      <img src="/neurix-mark.png" alt="" width={42} height={42} aria-hidden="true" />
+      <span className="spinner dark" aria-hidden="true" />
+    </div>
+  );
+}
 
 function RootRedirect() {
   const { user, loading } = useAuth();
-  if (loading) return null;
+  if (loading) return <RouteLoading />;
   if (!user) return <Navigate to="/login" replace />;
   if (user.role === 'SUPER_ADMIN') return <Navigate to="/super" replace />;
   return <Navigate to={user.role === 'ADMIN' ? '/admin' : '/dashboard'} replace />;
@@ -35,8 +52,9 @@ function RootRedirect() {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
+    <Suspense fallback={<RouteLoading />}>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
 
       {/* Super admin shell — its own layout so the sidebar clearly signals cross-team scope. */}
       <Route
@@ -86,8 +104,9 @@ export default function App() {
         <Route path="/profile" element={<ProfilePage />} />
       </Route>
 
-      <Route path="/" element={<RootRedirect />} />
-      <Route path="*" element={<RootRedirect />} />
-    </Routes>
+        <Route path="/" element={<RootRedirect />} />
+        <Route path="*" element={<RootRedirect />} />
+      </Routes>
+    </Suspense>
   );
 }
