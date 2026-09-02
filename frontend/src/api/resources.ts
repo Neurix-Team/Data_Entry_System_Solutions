@@ -185,6 +185,7 @@ export const projectFoldersApi = {
     entries: Array<{ file: File; title: string }>,
     departmentId?: number | null,
     signal?: AbortSignal,
+    onProgress?: (fraction: number) => void,
   ) => {
     const form = new FormData();
     for (const e of entries) form.append('files', e.file, e.file.name);
@@ -192,6 +193,9 @@ export const projectFoldersApi = {
     if (departmentId != null) form.append('departmentId', String(departmentId));
     return api.post<QuickUploadResult>(`/project-folders/${projectId}/quick-upload`, form, {
       signal,
+      onUploadProgress: onProgress
+        ? (e) => { if (e.total) onProgress(e.loaded / e.total); }
+        : undefined,
     }).then(r => r.data);
   },
 };

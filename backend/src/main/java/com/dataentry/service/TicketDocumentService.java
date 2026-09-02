@@ -19,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.io.ByteArrayInputStream;
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
@@ -38,9 +38,6 @@ import java.util.UUID;
 public class TicketDocumentService {
 
     private static final Logger log = LoggerFactory.getLogger(TicketDocumentService.class);
-
-    /** Per-file cap. Anything larger is rejected before we start streaming to disk. */
-    private static final long MAX_FILE_BYTES = 50L * 1024 * 1024; // 50 MB
 
     /** Extensions we explicitly refuse — executables, scripts, and other risky types.
      *  Compared case-insensitively against the trailing suffix of the original filename. */
@@ -91,11 +88,16 @@ public class TicketDocumentService {
     private final ExtractionStagingService staging;
     private final Path baseDir;
 
+    /** Per-file cap. The payload never sits in memory, so this bounds disk, not RAM. */
+    private final long maxFileBytes;
+
     public TicketDocumentService(TicketRepository ticketRepository,
                                  TicketDocumentRepository documentRepository,
                                  UploadQuotaService quota,
                                  ExtractionStagingService staging,
-                                 @Value("${app.attachments.dir:./data/attachments}") String baseDir) {
+                                 @Value("${app.attachments.dir:./data/attachments}") String baseDir,
+                                 @Value("${app.attachments.max-file-bytes:524288000}") long maxFileBytes) {
+        this.maxFileBytes = maxFileBytes;
         this.ticketRepository = ticketRepository;
         this.documentRepository = documentRepository;
         this.quota = quota;
@@ -113,9 +115,9 @@ public class TicketDocumentService {
         if (file == null || file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File is required");
         }
-        if (file.getSize() > MAX_FILE_BYTES) {
+        if (file.getSize() > maxFileBytes) {
             throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE,
-                    "File exceeds " + (MAX_FILE_BYTES / (1024 * 1024)) + " MB limit");
+                    "File exceeds " + (maxFileBytes / (1024 * 1024)) + " MB limit");
         }
         Ticket ticket = ticketRepository.findById(ticketId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ticket not found"));
@@ -137,42 +139,6 @@ public class TicketDocumentService {
                     "File type '." + ext + "' is not allowed");
         }
 
-        // Read the whole payload once and reuse for MIME sniff, hash, and disk write.
-        // MAX_FILE_BYTES caps this at 50 MB so a byte[] copy is bounded and predictable —
-        // and we avoid re-reading Spring's temp file three times (MIME, hash, transfer).
-        byte[] bytes;
-        try (InputStream in = file.getInputStream()) {
-            bytes = in.readAllBytes();
-        } catch (IOException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Could not read file");
-        }
-
-        // Sniff the real MIME by content, not the header the browser sent. This is what
-        // catches a `.jpg`-renamed HTML payload that would otherwise be served as an image.
-        String detectedMime;
-        try (InputStream sniff = new ByteArrayInputStream(bytes)) {
-            detectedMime = TIKA.detect(sniff, originalFilename).toLowerCase(Locale.ROOT);
-        } catch (IOException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Could not read file");
-        }
-        if (!ALLOWED_MIME_TYPES.contains(detectedMime)) {
-            throw new ResponseStatusException(HttpStatus.UNSUPPORTED_MEDIA_TYPE,
-                    "File type '" + detectedMime + "' is not allowed");
-        }
-
-        // Content-based duplicate detection — SHA-256 of the raw bytes. Catches both an
-        // exact re-upload (same file name) and a rename (same content, different name).
-        // Scope is per-project (all tickets sharing the project). Ticket has no project?
-        // Fall back to per-team so at least the caller's workspace still de-dupes.
-        String contentHash = sha256Hex(bytes);
-        TicketDocument duplicate = findDuplicate(ticket, contentHash);
-        if (duplicate != null) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    describeDuplicate(duplicate));
-        }
-
-        quota.chargeOrThrow(currentUser.getId(), file.getSize());
-
         Path ticketDir = baseDir.resolve(String.valueOf(ticketId));
         try {
             Files.createDirectories(ticketDir);
@@ -180,32 +146,91 @@ public class TicketDocumentService {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not prepare storage");
         }
 
-        String storedName = UUID.randomUUID().toString() + suffixOf(originalFilename);
-        Path target = ticketDir.resolve(storedName);
+        // Land the payload next to its final location first. The servlet container already
+        // parked anything over the multipart threshold on disk, so transferTo is usually a
+        // rename — the bytes never pass through the JVM heap regardless of file size.
+        Path temp = ticketDir.resolve(UUID.randomUUID() + ".part");
         try {
-            Files.write(target, bytes);
-        } catch (IOException e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not save file");
+            try {
+                file.transferTo(temp);
+            } catch (IOException | IllegalStateException e) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Could not read file");
+            }
+
+            // Trust the bytes on disk, not the Content-Length the client declared.
+            long actualSize;
+            try {
+                actualSize = Files.size(temp);
+            } catch (IOException e) {
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not save file");
+            }
+            if (actualSize > maxFileBytes) {
+                throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE,
+                        "File exceeds " + (maxFileBytes / (1024 * 1024)) + " MB limit");
+            }
+
+            // Sniff the real MIME by content, not the header the browser sent. This is what
+            // catches a `.jpg`-renamed HTML payload that would otherwise be served as an image.
+            // Tika only reads the head of the stream, so this doesn't rescan the whole file.
+            String detectedMime;
+            try (InputStream sniff = new BufferedInputStream(Files.newInputStream(temp))) {
+                detectedMime = TIKA.detect(sniff, originalFilename).toLowerCase(Locale.ROOT);
+            } catch (IOException e) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Could not read file");
+            }
+            if (!ALLOWED_MIME_TYPES.contains(detectedMime)) {
+                throw new ResponseStatusException(HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                        "File type '" + detectedMime + "' is not allowed");
+            }
+
+            // Content-based duplicate detection — SHA-256 of the raw bytes. Catches both an
+            // exact re-upload (same file name) and a rename (same content, different name).
+            // Scope is per-project (all tickets sharing the project). Ticket has no project?
+            // Fall back to per-team so at least the caller's workspace still de-dupes.
+            String contentHash = sha256HexOf(temp);
+            TicketDocument duplicate = findDuplicate(ticket, contentHash);
+            if (duplicate != null) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        describeDuplicate(duplicate));
+            }
+
+            quota.chargeOrThrow(currentUser.getId(), actualSize);
+
+            String storedName = UUID.randomUUID().toString() + suffixOf(originalFilename);
+            Path target = ticketDir.resolve(storedName);
+            try {
+                Files.move(temp, target);
+            } catch (IOException e) {
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not save file");
+            }
+
+            TicketDocument doc = TicketDocument.builder()
+                    .ticket(ticket)
+                    .name(safeName)
+                    .originalFilename(originalFilename)
+                    // Store the *detected* type, not the client-supplied one. This is what the
+                    // download endpoint replays, so it must reflect what's really on disk.
+                    .contentType(detectedMime)
+                    .sizeBytes(actualSize)
+                    .storagePath(ticketId + "/" + storedName)
+                    .contentHash(contentHash)
+                    .uploadedAt(Instant.now())
+                    .build();
+            documentRepository.save(doc);
+
+            return new TicketDtos.DocumentResponse(
+                    doc.getId(), doc.getName(), doc.getOriginalFilename(),
+                    doc.getContentType(), doc.getSizeBytes(), doc.getUploadedAt()
+            );
+        } finally {
+            // No-op on success (the temp was moved away); on any rejection above it removes
+            // the half-landed payload so aborted uploads can't fill the disk.
+            try {
+                Files.deleteIfExists(temp);
+            } catch (IOException e) {
+                log.warn("Could not remove temp upload {}: {}", temp, e.getMessage());
+            }
         }
-
-        TicketDocument doc = TicketDocument.builder()
-                .ticket(ticket)
-                .name(safeName)
-                .originalFilename(originalFilename)
-                // Store the *detected* type, not the client-supplied one. This is what the
-                // download endpoint replays, so it must reflect what's really on disk.
-                .contentType(detectedMime)
-                .sizeBytes(file.getSize())
-                .storagePath(ticketId + "/" + storedName)
-                .contentHash(contentHash)
-                .uploadedAt(Instant.now())
-                .build();
-        documentRepository.save(doc);
-
-        return new TicketDtos.DocumentResponse(
-                doc.getId(), doc.getName(), doc.getOriginalFilename(),
-                doc.getContentType(), doc.getSizeBytes(), doc.getUploadedAt()
-        );
     }
 
     @Transactional(readOnly = true)
@@ -330,24 +355,46 @@ public class TicketDocumentService {
     }
 
     /**
+     * SHA-256 hex of a file on disk, streamed through a fixed 64 KB buffer — a 500 MB
+     * book costs the same heap as a 1 KB note.
+     */
+    private static String sha256HexOf(Path path) {
+        try (InputStream in = Files.newInputStream(path)) {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] buf = new byte[64 * 1024];
+            int read;
+            while ((read = in.read(buf)) != -1) {
+                md.update(buf, 0, read);
+            }
+            return toHex(md.digest());
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not save file");
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
+        }
+    }
+
+    /**
      * SHA-256 hex of arbitrary bytes. Same bytes always produce the same 64-char string,
      * so this is the single source of truth for "is this the same file we already have?"
      */
     private static String sha256Hex(byte[] bytes) {
         try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] hash = md.digest(bytes);
-            StringBuilder sb = new StringBuilder(hash.length * 2);
-            for (byte b : hash) {
-                sb.append(Character.forDigit((b >> 4) & 0xF, 16));
-                sb.append(Character.forDigit(b & 0xF, 16));
-            }
-            return sb.toString();
+            return toHex(MessageDigest.getInstance("SHA-256").digest(bytes));
         } catch (NoSuchAlgorithmException e) {
             // SHA-256 is mandated by JLS §6.3 of the JCE spec — this is unreachable on any
             // conforming JDK. Rethrowing as unchecked keeps the upload method signature clean.
             throw new IllegalStateException("SHA-256 unavailable", e);
         }
+    }
+
+    private static String toHex(byte[] hash) {
+        StringBuilder sb = new StringBuilder(hash.length * 2);
+        for (byte b : hash) {
+            sb.append(Character.forDigit((b >> 4) & 0xF, 16));
+            sb.append(Character.forDigit(b & 0xF, 16));
+        }
+        return sb.toString();
     }
 
     /**

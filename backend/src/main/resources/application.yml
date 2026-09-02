@@ -50,8 +50,13 @@ spring:
     open-in-view: false
   servlet:
     multipart:
-      max-file-size: 60MB
-      max-request-size: 60MB
+      # Sized for scanned books (a 1500-page scan runs to hundreds of MB). Files above
+      # file-size-threshold spool to the container's temp dir, never the heap, and the
+      # upload path streams from there to attachment storage — so these caps bound disk,
+      # not memory. Keep in sync with client_max_body_size in frontend/nginx.conf and
+      # app.attachments.max-file-bytes below.
+      max-file-size: 500MB
+      max-request-size: 520MB
       file-size-threshold: 2MB
 
 app:
@@ -69,8 +74,13 @@ app:
     # send Secure cookies over HTTP, so login would silently break.  Docker/prod: leave true.
     cookie-secure: ${APP_AUTH_COOKIE_SECURE:true}
   uploads:
-    # Per-user rolling 24h upload byte cap. Prevents any one agent from filling the OCR queue.
-    per-user-daily-bytes: ${APP_UPLOADS_PER_USER_DAILY_BYTES:524288000}
+    # Per-user rolling 24h upload byte cap. Prevents any one agent from filling the disk.
+    # 5 GB ≈ a dozen scanned books a day; a single book scan can run 300–500 MB.
+    per-user-daily-bytes: ${APP_UPLOADS_PER_USER_DAILY_BYTES:5368709120}
+  attachments:
+    # Hard per-file cap enforced in TicketDocumentService. The upload path streams to
+    # disk, so this bounds storage, not heap. Keep it ≤ multipart max-file-size above.
+    max-file-bytes: ${APP_ATTACHMENTS_MAX_FILE_BYTES:524288000}
   security:
     login-rate:
       # Persist counters in PostgreSQL so restart/scale-out cannot reset brute-force protection.

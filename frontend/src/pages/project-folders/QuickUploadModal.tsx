@@ -30,15 +30,22 @@ function extractTitleFromFilename(name: string): string {
   return cleaned || name;
 }
 
+/** How many files travel in parallel. Enough to fill the pipe on high-latency links
+ *  without starving the rest of the app's requests behind the browser's per-host cap. */
+const UPLOAD_CONCURRENCY = 3;
+
+type RowStatus = 'uploading' | 'done' | 'failed';
+
 /**
  * Multi-file quick-upload. Every file becomes its own ticket in the current project
  * with the title auto-extracted from the filename. Titles are still editable so a
  * mis-guessed name can be corrected inline before send.
  *
- * <p>Uses a single atomic backend call — the server creates the ticket and attaches
- * the file in one transaction, rolls back any half-written ticket if the attach fails,
- * and returns a per-file success/failure list so partial success is visible instead of
- * being hidden behind a generic error.
+ * <p>Each file goes up as its own request ({@link UPLOAD_CONCURRENCY} in flight at a
+ * time), so a batch of scanned books shows live per-file progress, one failed or
+ * oversized file can't sink the rest, and no single request has to carry the whole
+ * batch under the server's request-size cap. Per-file atomicity is unchanged — the
+ * server still creates the ticket and attaches the file in one transaction.
  */
 export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props) {
   const { lang, t } = useT();
@@ -47,6 +54,9 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [failures, setFailures] = useState<Array<{ filename: string; reason: string }>>([]);
+  /** Per-row upload fraction (0..1), keyed by Row.id. Only rows in flight have entries. */
+  const [progress, setProgress] = useState<Record<number, number>>({});
+  const [rowStatus, setRowStatus] = useState<Record<number, RowStatus>>({});
   const [dragActive, setDragActive] = useState(false);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [departmentsLoading, setDepartmentsLoading] = useState(false);
@@ -60,6 +70,8 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
       setError(null);
       setFailures([]);
       setSubmitting(false);
+      setProgress({});
+      setRowStatus({});
       setDepartments([]);
       setDepartmentId('');
       return;
@@ -134,42 +146,79 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
     }
 
     setSubmitting(true);
-    try {
-      const result = await projectFoldersApi.quickUpload(
-        projectId,
-        rows.map((r) => ({ file: r.file, title: r.title.trim() })),
-        departmentId === '' ? null : departmentId,
-      );
+    setProgress({});
+    setRowStatus({});
 
-      if (result.created > 0) {
-        toast.success(
-          lang === 'ar'
-            ? `تم رفع ${result.created} ملف بنجاح`
-            : `Uploaded ${result.created} file${result.created === 1 ? '' : 's'}`,
+    // One request per file, UPLOAD_CONCURRENCY in flight. The queue is a shared array the
+    // workers shift() from — single-threaded JS makes that race-free between awaits.
+    const queue = [...rows];
+    const dept = departmentId === '' ? null : departmentId;
+    let created = 0;
+    const newFailures: Array<{ filename: string; reason: string }> = [];
+    const failedRowIds = new Set<number>();
+
+    async function uploadOne(row: Row) {
+      setRowStatus((s) => ({ ...s, [row.id]: 'uploading' }));
+      try {
+        const result = await projectFoldersApi.quickUpload(
+          projectId,
+          [{ file: row.file, title: row.title.trim() }],
+          dept,
+          undefined,
+          (fraction) => setProgress((p) => ({ ...p, [row.id]: fraction })),
         );
+        created += result.created;
+        if (result.failed > 0) {
+          newFailures.push(...result.failures);
+          failedRowIds.add(row.id);
+          setRowStatus((s) => ({ ...s, [row.id]: 'failed' }));
+        } else {
+          setRowStatus((s) => ({ ...s, [row.id]: 'done' }));
+        }
+      } catch (err) {
+        newFailures.push({
+          filename: row.file.name,
+          reason: extractError(err, lang === 'ar' ? 'فشل الرفع' : 'Upload failed'),
+        });
+        failedRowIds.add(row.id);
+        setRowStatus((s) => ({ ...s, [row.id]: 'failed' }));
       }
-
-      if (result.failed > 0) {
-        setFailures(result.failures);
-        // Also toast so the user notices even if they miss the inline list.
-        toast.warning(
-          lang === 'ar'
-            ? `فشل رفع ${result.failed} ملف — راجع القائمة`
-            : `${result.failed} file${result.failed === 1 ? '' : 's'} failed — check the list below`,
-        );
-        // Keep the modal open when there were failures so the user can retry only the
-        // ones that failed (currently by re-picking them; a per-row retry could be added).
-        // Trim successful rows so the visible list matches what still needs attention.
-        const failedFilenames = new Set(result.failures.map((f) => f.filename));
-        setRows((prev) => prev.filter((r) => failedFilenames.has(r.file.name)));
-      }
-
-      onCreated({ created: result.created, failed: result.failed });
-    } catch (err) {
-      setError(extractError(err, lang === 'ar' ? 'فشل الرفع' : 'Upload failed'));
-    } finally {
-      setSubmitting(false);
     }
+
+    const workers = Array.from(
+      { length: Math.min(UPLOAD_CONCURRENCY, queue.length) },
+      async () => {
+        for (let row = queue.shift(); row; row = queue.shift()) {
+          await uploadOne(row);
+        }
+      },
+    );
+    await Promise.all(workers);
+
+    if (created > 0) {
+      toast.success(
+        lang === 'ar'
+          ? `تم رفع ${created} ملف بنجاح`
+          : `Uploaded ${created} file${created === 1 ? '' : 's'}`,
+      );
+    }
+
+    if (newFailures.length > 0) {
+      setFailures(newFailures);
+      // Also toast so the user notices even if they miss the inline list.
+      toast.warning(
+        lang === 'ar'
+          ? `فشل رفع ${newFailures.length} ملف — راجع القائمة`
+          : `${newFailures.length} file${newFailures.length === 1 ? '' : 's'} failed — check the list below`,
+      );
+      // Keep the modal open when there were failures so the user can retry only the
+      // ones that failed (currently by re-picking them; a per-row retry could be added).
+      // Trim successful rows so the visible list matches what still needs attention.
+      setRows((prev) => prev.filter((r) => failedRowIds.has(r.id)));
+    }
+
+    setSubmitting(false);
+    onCreated({ created, failed: newFailures.length });
   }
 
   return (
@@ -194,7 +243,9 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
             disabled={submitting || rows.length === 0}
           >
             {submitting
-              ? (lang === 'ar' ? 'جاري الرفع…' : 'Uploading…')
+              ? (lang === 'ar'
+                ? `جاري الرفع… ${Object.values(rowStatus).filter((s) => s !== 'uploading').length}/${rows.length}`
+                : `Uploading… ${Object.values(rowStatus).filter((s) => s !== 'uploading').length}/${rows.length}`)
               : (lang === 'ar'
                 ? `رفع ${rows.length} ${rows.length === 1 ? 'ملف' : 'ملفات'}`
                 : `Upload ${rows.length} file${rows.length === 1 ? '' : 's'}`)}
@@ -341,6 +392,54 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
                 <div className="muted small" style={{ wordBreak: 'break-all' }}>
                   {r.file.name} · {formatBytes(r.file.size)}
                 </div>
+                {rowStatus[r.id] && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div
+                      role="progressbar"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={Math.round((progress[r.id] ?? 0) * 100)}
+                      style={{
+                        flex: 1,
+                        height: 4,
+                        borderRadius: 2,
+                        background: 'var(--border)',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: '100%',
+                          width: '100%',
+                          borderRadius: 2,
+                          background: rowStatus[r.id] === 'failed' ? 'var(--danger)' : 'var(--success)',
+                          // Fill via transform, not width — keeps progress updates off the
+                          // layout path. Origin follows text direction so RTL fills from
+                          // the right.
+                          transform: `scaleX(${rowStatus[r.id] === 'done' ? 1 : progress[r.id] ?? 0})`,
+                          transformOrigin: lang === 'ar' ? 'right' : 'left',
+                          transition: 'transform 0.2s ease',
+                        }}
+                      />
+                    </div>
+                    <span
+                      className="small"
+                      style={{
+                        minWidth: '3.5rem',
+                        textAlign: 'end',
+                        color: rowStatus[r.id] === 'failed'
+                          ? 'var(--danger)'
+                          : rowStatus[r.id] === 'done' ? 'var(--success)' : 'var(--text-tertiary)',
+                      }}
+                    >
+                      {rowStatus[r.id] === 'done'
+                        ? (lang === 'ar' ? 'تم ✓' : 'Done ✓')
+                        : rowStatus[r.id] === 'failed'
+                          ? (lang === 'ar' ? 'فشل' : 'Failed')
+                          : `${Math.round((progress[r.id] ?? 0) * 100)}%`}
+                    </span>
+                  </div>
+                )}
               </div>
               <button
                 type="button"

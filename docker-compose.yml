@@ -66,7 +66,7 @@ services:
       # Persist brute-force counters so restarts and multiple backend replicas share state.
       APP_LOGIN_RATE_STORAGE: "${APP_LOGIN_RATE_STORAGE:-database}"
       # Rolling 24h upload cap per user (bytes). 500 MB default.
-      APP_UPLOADS_PER_USER_DAILY_BYTES: "${APP_UPLOADS_PER_USER_DAILY_BYTES:-524288000}"
+      APP_UPLOADS_PER_USER_DAILY_BYTES: "${APP_UPLOADS_PER_USER_DAILY_BYTES:-5368709120}"
       # Point at the self-hosted LibreTranslate service below (no API key, no rate limit).
       # Override with TRANSLATION_BASE_URL if you swap in a paid endpoint later.
       TRANSLATION_BASE_URL: "${TRANSLATION_BASE_URL:-http://libretranslate:5000}"
