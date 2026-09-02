@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { extractError } from '../../api/client';
 import { departmentsApi, projectsApi, usersApi } from '../../api/resources';
+import { SkeletonRows } from '../../components/SkeletonRows';
 import type {
   AdminUser, Department, Project, ProjectStatus,
 } from '../../api/types';
@@ -306,7 +307,7 @@ export function AdminProjectsPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} className="empty-state">{t('common.loading')}</td></tr>
+              <SkeletonRows cols={8} />
             ) : filtered.length === 0 ? (
               <tr><td colSpan={8} className="empty-state">{t('projects.empty')}</td></tr>
             ) : filtered.map((p) => {

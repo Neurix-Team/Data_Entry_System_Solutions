@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { extractError } from '../../api/client';
 import { ticketsApi } from '../../api/resources';
+import { SkeletonRows } from '../../components/SkeletonRows';
 import type { Ticket, TicketPage } from '../../api/types';
 import { IconClose } from '../../components/Icons';
 import { Modal } from '../../components/Modal';
@@ -112,7 +113,7 @@ export function MyTicketsPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={5} className="empty-state">{t('common.loading')}</td></tr>
+              <SkeletonRows cols={5} />
             ) : filtered.length === 0 ? (
               <tr><td colSpan={5} className="empty-state">
                 {q ? t('admin.tickets.noMatches') : t('user.myTickets.empty')}

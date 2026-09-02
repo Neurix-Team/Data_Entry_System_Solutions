@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { extractError } from '../../api/client';
 import { departmentsApi, ticketsApi } from '../../api/resources';
+import { SkeletonRows } from '../../components/SkeletonRows';
 import type { AdminStats, Department, Ticket, TicketPage, TicketStatus } from '../../api/types';
 import { Avatar } from '../../components/Avatar';
 import { IconAlert, IconCheck, IconClock, IconClose, IconPlus } from '../../components/Icons';
@@ -306,7 +307,7 @@ export function AdminTicketsPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} className="empty-state">{t('common.loading')}</td></tr>
+              <SkeletonRows cols={8} />
             ) : filtered.length === 0 ? (
               <tr><td colSpan={8} className="empty-state">
                 {hasFilters ? t('admin.tickets.noMatches') : t('admin.tickets.empty')}

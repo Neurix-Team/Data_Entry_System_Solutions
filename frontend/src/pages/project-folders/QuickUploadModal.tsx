@@ -401,6 +401,7 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
                       aria-valuenow={Math.round((progress[r.id] ?? 0) * 100)}
                       style={{
                         flex: 1,
+                        position: 'relative',
                         height: 4,
                         borderRadius: 2,
                         background: 'var(--border)',
@@ -412,31 +413,45 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
                           height: '100%',
                           width: '100%',
                           borderRadius: 2,
-                          background: rowStatus[r.id] === 'failed' ? 'var(--danger)' : 'var(--success)',
+                          background: rowStatus[r.id] === 'failed'
+                            ? 'var(--danger)'
+                            : rowStatus[r.id] === 'done'
+                              ? 'var(--success)'
+                              : `linear-gradient(${lang === 'ar' ? '270deg' : '90deg'}, var(--brand), var(--accent-cyan))`,
                           // Fill via transform, not width — keeps progress updates off the
                           // layout path. Origin follows text direction so RTL fills from
                           // the right.
                           transform: `scaleX(${rowStatus[r.id] === 'done' ? 1 : progress[r.id] ?? 0})`,
                           transformOrigin: lang === 'ar' ? 'right' : 'left',
-                          transition: 'transform 0.2s ease',
+                          transition: 'transform 0.2s ease, background 0.2s ease',
                         }}
                       />
+                      {rowStatus[r.id] === 'uploading' && <span className="upload-shimmer" />}
                     </div>
                     <span
                       className="small"
                       style={{
                         minWidth: '3.5rem',
-                        textAlign: 'end',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'flex-end',
+                        gap: '0.3rem',
                         color: rowStatus[r.id] === 'failed'
                           ? 'var(--danger)'
                           : rowStatus[r.id] === 'done' ? 'var(--success)' : 'var(--text-tertiary)',
                       }}
                     >
-                      {rowStatus[r.id] === 'done'
-                        ? (lang === 'ar' ? 'تم ✓' : 'Done ✓')
-                        : rowStatus[r.id] === 'failed'
-                          ? (lang === 'ar' ? 'فشل' : 'Failed')
-                          : `${Math.round((progress[r.id] ?? 0) * 100)}%`}
+                      {rowStatus[r.id] === 'done' ? (
+                        <>
+                          <svg className="upload-check" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                            <circle cx="7" cy="7" r="6.4" fill="var(--success)" />
+                            <path d="M4 7.3l2.1 2.1L10.2 5" stroke="var(--bg-surface)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                          {lang === 'ar' ? 'تم' : 'Done'}
+                        </>
+                      ) : rowStatus[r.id] === 'failed'
+                        ? (lang === 'ar' ? 'فشل' : 'Failed')
+                        : `${Math.round((progress[r.id] ?? 0) * 100)}%`}
                     </span>
                   </div>
                 )}

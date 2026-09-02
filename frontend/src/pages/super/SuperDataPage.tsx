@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { API_BASE, extractError } from '../../api/client';
+import { SkeletonRows } from '../../components/SkeletonRows';
 import {
   superApi, type ExplorerFacets, type ExplorerPage, type ExplorerQuery, type ExplorerRow,
 } from '../../api/super';
@@ -198,7 +199,15 @@ export function SuperDataPage() {
         </div>
       </div>
 
-      {reloading && <div className="muted" style={{ padding: 16 }}>{t('common.loading')}</div>}
+      {reloading && (
+        <div className="table-wrap">
+          <table className="data">
+            <tbody>
+              <SkeletonRows cols={8} rows={8} />
+            </tbody>
+          </table>
+        </div>
+      )}
       {!reloading && items.length === 0 && (
         <div className="empty-state">
           {t('super.data.empty') || 'No tickets match these filters.'}

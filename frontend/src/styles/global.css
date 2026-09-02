@@ -4110,6 +4110,7 @@ html[dir='rtl'] .sidebar-brand .super-tag {
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
@@ -4125,3 +4126,158 @@ html[dir='rtl'] .sidebar-brand .super-tag {
     animation-iteration-count: infinite !important;
   }
 }
+
+/* ============================================================
+   Motion pack — dashboard entrances, card border beam, table
+   row entrances and loading skeletons. Every duration/easing
+   comes from the motion tokens above; the reduced-motion floor
+   at the end of this file guards all of it automatically.
+   ============================================================ */
+
+/* --- Dashboard entrance: cards and panels rise in, staggered. ---
+   `backwards` (not `both`) so the finished animation releases the element back to
+   its normal styles — a `forwards` fill would pin transform/opacity and silently
+   kill the hover lift these cards already have. */
+@keyframes cardRiseIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.udash-kpi, .udash-panel, .stat-card {
+  animation: cardRiseIn var(--dur-slow) var(--ease-expo) backwards;
+  animation-delay: calc(var(--rise-i, 0) * 70ms);
+}
+.udash-kpi-grid > *:nth-child(2), .stat-grid > *:nth-child(2) { --rise-i: 1; }
+.udash-kpi-grid > *:nth-child(3), .stat-grid > *:nth-child(3) { --rise-i: 2; }
+.udash-kpi-grid > *:nth-child(4), .stat-grid > *:nth-child(4) { --rise-i: 3; }
+.udash-kpi-grid > *:nth-child(5), .stat-grid > *:nth-child(5) { --rise-i: 4; }
+/* Panels below the KPI row arrive just after it. */
+.udash-grid-2 > .udash-panel { --rise-i: 5; }
+.udash-grid-2-alt > .udash-panel { --rise-i: 6; }
+
+/* --- Border beam: a colored line that travels around the card edge. ---
+   A conic-gradient "comet" (cyan head fading through brand blue) painted into a
+   1.5px ring via mask-composite, rotated by animating a registered custom
+   property. Browsers without @property show a static gradient ring instead.
+   The ring sits at inset 0 (inside the card border) because these cards clip
+   overflow. Runs on the dashboard KPI/stat cards only — it is the signature
+   flourish, not a default card style. */
+@property --beam-a {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes beamSpin { to { --beam-a: 360deg; } }
+.udash-kpi::after, .stat-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(from var(--beam-a),
+    transparent 0deg 250deg,
+    color-mix(in srgb, var(--accent-cyan) 45%, transparent) 300deg,
+    var(--accent-cyan) 330deg,
+    var(--brand) 352deg,
+    transparent 360deg);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  animation: beamSpin 4.2s linear infinite;
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+.udash-kpi:hover::after, .stat-card:hover::after { opacity: 1; }
+/* Stagger the beams so five cards don't sweep in lockstep. */
+.udash-kpi-grid > *:nth-child(2)::after, .stat-grid > *:nth-child(2)::after { animation-delay: -1.1s; }
+.udash-kpi-grid > *:nth-child(3)::after, .stat-grid > *:nth-child(3)::after { animation-delay: -2.2s; }
+.udash-kpi-grid > *:nth-child(4)::after, .stat-grid > *:nth-child(4)::after { animation-delay: -3.3s; }
+.udash-kpi-grid > *:nth-child(5)::after, .stat-grid > *:nth-child(5)::after { animation-delay: -0.6s; }
+
+/* --- Trend chart: the "today" bar breathes a soft cyan glow. --- */
+@keyframes todayGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 195, 217, 0); }
+  50% { box-shadow: 0 0 14px 2px rgba(34, 195, 217, 0.4); }
+}
+.udash-trend-bar.today { animation: todayGlow 3s ease-in-out infinite; }
+.udash-trend.has-active .udash-trend-bar.today { animation: none; }
+
+/* --- Table row entrance: every `table.data` gets it for free. ---
+   One short rise per row on mount; only the first eight rows stagger so a
+   100-row page never waits on a cascade. Replays on sort/filter/pagination,
+   which reads as the table responding to the change. */
+@keyframes rowIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+table.data > tbody > tr { animation: rowIn var(--dur-base) var(--ease-out) backwards; }
+table.data > tbody > tr:nth-child(2) { animation-delay: 30ms; }
+table.data > tbody > tr:nth-child(3) { animation-delay: 60ms; }
+table.data > tbody > tr:nth-child(4) { animation-delay: 90ms; }
+table.data > tbody > tr:nth-child(5) { animation-delay: 120ms; }
+table.data > tbody > tr:nth-child(6) { animation-delay: 150ms; }
+table.data > tbody > tr:nth-child(7) { animation-delay: 180ms; }
+table.data > tbody > tr:nth-child(8) { animation-delay: 210ms; }
+
+/* --- Loading skeletons (SkeletonRows component). ---
+   Shimmer is a transform-only sweep over a token-colored band, so it costs
+   nothing on the layout path and follows the theme in dark mode. */
+.skel-band {
+  display: inline-block;
+  height: 12px;
+  max-width: 100%;
+  border-radius: 6px;
+  background: var(--bg-hover);
+  position: relative;
+  overflow: hidden;
+  vertical-align: middle;
+}
+@keyframes skelSweep { to { transform: translateX(220%); } }
+@keyframes skelSweepRtl { to { transform: translateX(-220%); } }
+.skel-band::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-220%);
+  background: linear-gradient(90deg,
+    transparent,
+    color-mix(in srgb, var(--bg-surface) 75%, transparent),
+    transparent);
+  animation: skelSweep 1.3s var(--ease-out) infinite;
+}
+html[dir='rtl'] .skel-band::after {
+  transform: translateX(220%);
+  animation-name: skelSweepRtl;
+}
+
+/* --- Upload progress: shimmer while moving, a check that draws itself when done. --- */
+@keyframes uploadShimmer {
+  from { transform: translateX(-160%); }
+  to { transform: translateX(160%); }
+}
+@keyframes uploadShimmerRtl {
+  from { transform: translateX(160%); }
+  to { transform: translateX(-160%); }
+}
+.upload-shimmer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.5) 50%, transparent 65%);
+  animation: uploadShimmer 1.4s var(--ease-out) infinite;
+}
+html[dir='rtl'] .upload-shimmer { animation-name: uploadShimmerRtl; }
+@keyframes uploadCheckPop {
+  from { transform: scale(0.5); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.upload-check {
+  animation: uploadCheckPop var(--dur-base) var(--ease-expo) backwards;
+}
+.upload-check path {
+  stroke-dasharray: 20;
+  stroke-dashoffset: 20;
+  animation: uploadCheckDraw var(--dur-base) var(--ease-expo) 80ms forwards;
+}
+@keyframes uploadCheckDraw { to { stroke-dashoffset: 0; } }

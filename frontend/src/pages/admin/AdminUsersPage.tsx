@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { extractError } from '../../api/client';
 import { ticketsApi, usersApi } from '../../api/resources';
+import { SkeletonRows } from '../../components/SkeletonRows';
 import type { AdminStats, AdminUser, Role, Ticket } from '../../api/types';
 import { Avatar } from '../../components/Avatar';
 import { IconCamera, IconChart, IconFolder, IconMembers } from '../../components/Icons';
@@ -262,7 +263,7 @@ export function AdminUsersPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} className="empty-state">{t('common.loading')}</td></tr>
+              <SkeletonRows cols={8} />
             ) : users.length === 0 ? (
               <tr><td colSpan={8} className="empty-state">{t('admin.users.empty')}</td></tr>
             ) : users.map((u) => (
