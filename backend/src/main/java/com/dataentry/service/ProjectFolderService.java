@@ -158,6 +158,7 @@ public class ProjectFolderService {
      * we want the response to carry.
      */
     public ProjectFolderDtos.QuickUploadResult quickUpload(Long projectId,
+                                                           Long departmentId,
                                                            User currentUser,
                                                            List<MultipartFile> files,
                                                            List<String> titles) {
@@ -193,7 +194,7 @@ public class ProjectFolderService {
                     ? titleFromFilename(file.getOriginalFilename())
                     : requestedTitle.trim();
 
-            processOneFile(projectId, currentUser, title, file, ok, failed);
+            processOneFile(projectId, departmentId, currentUser, title, file, ok, failed);
         }
 
         return new ProjectFolderDtos.QuickUploadResult(ok.size(), failed.size(), ok, failed);
@@ -205,13 +206,13 @@ public class ProjectFolderService {
      * — the outer batch loop keeps running and the response records both what landed and
      * what failed.
      */
-    private void processOneFile(Long projectId, User currentUser, String title,
+    private void processOneFile(Long projectId, Long departmentId, User currentUser, String title,
                                 MultipartFile file,
                                 List<TicketDtos.TicketResponse> ok,
                                 List<ProjectFolderDtos.QuickUploadFailure> failed) {
         Long ticketId;
         try {
-            ticketId = ticketService.createAttachmentTicket(currentUser, projectId, title).getId();
+            ticketId = ticketService.createAttachmentTicket(currentUser, projectId, departmentId, title).getId();
         } catch (ResponseStatusException rse) {
             failed.add(new ProjectFolderDtos.QuickUploadFailure(
                     safeFilename(file.getOriginalFilename()),

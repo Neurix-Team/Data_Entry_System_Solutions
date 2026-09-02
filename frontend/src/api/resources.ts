@@ -172,11 +172,21 @@ export const projectFoldersApi = {
    * parts — the backend zips them by index. Blank/missing titles fall back to a
    * filename-derived title server-side, so the client can also just skip the titles
    * field entirely for a "no rename needed" case.
+   *
+   * <p>{@code departmentId} is optional: when the caller picked a specific department in
+   * the modal, every ticket in this batch lands under it; when null, the server picks
+   * the project's default department (auto-creating one if the project is brand-new).
    */
-  quickUpload: (projectId: number, entries: Array<{ file: File; title: string }>, signal?: AbortSignal) => {
+  quickUpload: (
+    projectId: number,
+    entries: Array<{ file: File; title: string }>,
+    departmentId?: number | null,
+    signal?: AbortSignal,
+  ) => {
     const form = new FormData();
     for (const e of entries) form.append('files', e.file, e.file.name);
     for (const e of entries) form.append('titles', e.title);
+    if (departmentId != null) form.append('departmentId', String(departmentId));
     return api.post<QuickUploadResult>(`/project-folders/${projectId}/quick-upload`, form, {
       signal,
     }).then(r => r.data);

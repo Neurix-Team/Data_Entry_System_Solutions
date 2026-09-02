@@ -216,7 +216,7 @@ class TicketServiceTest {
             return t;
         });
 
-        Ticket saved = ticketService.createAttachmentTicket(agent, 50L, "report.pdf");
+        Ticket saved = ticketService.createAttachmentTicket(agent, 50L, null, "report.pdf");
 
         assertThat(saved.getId()).isEqualTo(777L);
         assertThat(saved.getDepartment().getName()).isEqualTo("Fresh Project");

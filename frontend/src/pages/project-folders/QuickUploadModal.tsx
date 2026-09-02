@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { extractError } from '../../api/client';
-import { projectFoldersApi } from '../../api/resources';
+import { departmentsApi, projectFoldersApi } from '../../api/resources';
+import type { Department } from '../../api/types';
 import { IconClose, IconPlus } from '../../components/Icons';
 import { Modal } from '../../components/Modal';
 import { useToast } from '../../components/toast/ToastContext';
 import { useT } from '../../i18n';
+import { pickLocalized } from '../../i18n/localized';
 
 interface Props {
   open: boolean;
@@ -46,6 +48,9 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
   const [error, setError] = useState<string | null>(null);
   const [failures, setFailures] = useState<Array<{ filename: string; reason: string }>>([]);
   const [dragActive, setDragActive] = useState(false);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [departmentsLoading, setDepartmentsLoading] = useState(false);
+  const [departmentId, setDepartmentId] = useState<number | ''>('');
   const inputRef = useRef<HTMLInputElement | null>(null);
   const nextId = useRef(1);
 
@@ -55,8 +60,28 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
       setError(null);
       setFailures([]);
       setSubmitting(false);
+      setDepartments([]);
+      setDepartmentId('');
+      return;
     }
-  }, [open]);
+    // Pull the department list the moment the modal opens. Scoped per-project by the
+    // server (USER only sees their member-project departments; ADMIN sees all). No
+    // auto-select — we force the caller to pick explicitly so batches don't silently
+    // land in the wrong section, which was the whole point of adding this picker.
+    const ctrl = new AbortController();
+    setDepartmentsLoading(true);
+    departmentsApi.userList(projectId, ctrl.signal)
+      .then((list) => {
+        setDepartments(list);
+      })
+      .catch((err) => {
+        if (err?.name !== 'CanceledError' && err?.code !== 'ERR_CANCELED') {
+          setError(extractError(err));
+        }
+      })
+      .finally(() => setDepartmentsLoading(false));
+    return () => ctrl.abort();
+  }, [open, projectId]);
 
   const addFiles = useCallback((files: FileList | File[]) => {
     const list = Array.from(files);
@@ -100,12 +125,20 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
       setError(lang === 'ar' ? 'اختر ملف واحد على الأقل' : 'Pick at least one file');
       return;
     }
+    // Force explicit picking whenever the project actually has departments to choose
+    // from. The empty-project case (server auto-creates a default) is the only path
+    // where we let this stay unset.
+    if (departments.length > 0 && departmentId === '') {
+      setError(lang === 'ar' ? 'اختر القسم أولاً' : 'Pick a department first');
+      return;
+    }
 
     setSubmitting(true);
     try {
       const result = await projectFoldersApi.quickUpload(
         projectId,
         rows.map((r) => ({ file: r.file, title: r.title.trim() })),
+        departmentId === '' ? null : departmentId,
       );
 
       if (result.created > 0) {
@@ -174,6 +207,48 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
           ? 'اختار كل الملفات دفعة واحدة. هيتعمل تذكرة لكل ملف والعنوان هيتعبى تلقائياً من اسم الملف — وتقدر تعدله قبل الرفع.'
           : 'Pick every file in one go. Each file becomes its own ticket, with the title auto-filled from the filename — you can edit each title before sending.'}
       </p>
+
+      <div className="field" style={{ marginBottom: '1rem' }}>
+        <label className="field-label" htmlFor="quick-upload-dept" style={{ marginBottom: '0.4rem' }}>
+          {lang === 'ar' ? 'القسم' : 'Department'}
+          {departments.length > 0 && (
+            <span style={{ color: 'var(--danger)', marginInlineStart: '0.25rem' }}>*</span>
+          )}
+        </label>
+        {departmentsLoading ? (
+          <div className="muted small">
+            {lang === 'ar' ? 'جارٍ تحميل الأقسام…' : 'Loading departments…'}
+          </div>
+        ) : departments.length === 0 ? (
+          <div className="muted small">
+            {lang === 'ar'
+              ? 'المشروع مالوش أقسام لسه — هيتعمل قسم افتراضي تلقائياً.'
+              : 'This project has no departments yet — a default one will be created automatically.'}
+          </div>
+        ) : (
+          <select
+            id="quick-upload-dept"
+            className="input"
+            value={departmentId}
+            onChange={(e) => setDepartmentId(e.target.value === '' ? '' : Number(e.target.value))}
+            disabled={submitting}
+          >
+            <option value="">
+              {lang === 'ar' ? '— اختر قسم —' : '— Pick a department —'}
+            </option>
+            {departments.map((d) => (
+              <option key={d.id} value={d.id}>
+                {pickLocalized(d, 'name', lang) || d.name}
+              </option>
+            ))}
+          </select>
+        )}
+        <p className="muted small" style={{ marginTop: '0.35rem' }}>
+          {lang === 'ar'
+            ? 'كل الملفات في الدفعة دي هتترفع تحت القسم ده.'
+            : 'Every file in this batch will be filed under this department.'}
+        </p>
+      </div>
 
       <div
         className="quick-upload-drop"

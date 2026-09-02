@@ -109,11 +109,17 @@ public class TicketService {
      * failures in a batch don't taint the caller's outer transaction with rollback-only.
      */
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
-    public Ticket createAttachmentTicket(User currentUser, Long projectId, String title) {
+    public Ticket createAttachmentTicket(User currentUser, Long projectId, Long departmentId, String title) {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Project not found"));
         TenantGuard.assertOwnership(project);
-        Department dept = resolveDepartmentForQuickUpload(project);
+        // When the caller picks a specific department in the quick-upload UI, honour it —
+        // that's how a user files a batch under the right section instead of dumping every
+        // file into a catch-all General. Null falls back to the auto-resolve path so an
+        // empty-project first-upload still works.
+        Department dept = (departmentId != null)
+                ? resolveRequestedDepartment(project, departmentId)
+                : resolveDepartmentForQuickUpload(project);
         String cleanTitle = title == null ? "" : title.trim();
         Ticket t = Ticket.builder()
                 .submittedBy(currentUser)
@@ -142,6 +148,25 @@ public class TicketService {
         if (ticketRepository.existsById(ticketId)) {
             ticketRepository.deleteById(ticketId);
         }
+    }
+
+    /**
+     * Resolve a caller-picked department. Rejects (400) any department that either isn't
+     * in this team or isn't attached to this project — that guards against a stale UI
+     * sending the id of a department the user isn't supposed to see, and against a
+     * cross-project id sneaking in through the multipart form.
+     */
+    private Department resolveRequestedDepartment(Project project, Long departmentId) {
+        Department dept = departmentRepository.findById(departmentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Department not found"));
+        TenantGuard.assertOwnership(dept);
+        Long deptProjectId = dept.getProject() != null ? dept.getProject().getId() : null;
+        if (deptProjectId == null || !deptProjectId.equals(project.getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "That department does not belong to this project.");
+        }
+        return dept;
     }
 
     /** Pick any usable department for the project, preferring the legacy pointer, then

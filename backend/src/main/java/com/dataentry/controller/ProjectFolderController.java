@@ -63,7 +63,10 @@ public class ProjectFolderController {
             // form input works regardless of Content-Type — using @RequestPart on List<String>
             // rejects text/plain parts with 415 "Content-Type is not supported".
             @RequestParam(value = "titles", required = false) List<String> titles,
+            // Optional: id of the department the caller picked in the modal so every ticket
+            // in this batch lands in the right section instead of the auto-picked default.
+            @RequestParam(value = "departmentId", required = false) Long departmentId,
             @AuthenticationPrincipal User current) {
-        return service.quickUpload(projectId, current, files, titles);
+        return service.quickUpload(projectId, departmentId, current, files, titles);
     }
 }

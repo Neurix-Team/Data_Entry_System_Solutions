@@ -209,6 +209,8 @@ export function ProjectFolderDetailPage() {
               freshlyApproved={freshlyApproved}
               onApprove={onApprove}
               onView={setSelected}
+              deletingDocId={deletingDocId}
+              onDeleteDocument={onDeleteDocument}
             />
           ))}
         </div>
@@ -270,6 +272,7 @@ export function ProjectFolderDetailPage() {
 
 function AuthorSection({
   group, isAdmin, approving, freshlyApproved, onApprove, onView,
+  deletingDocId, onDeleteDocument,
 }: {
   group: AuthorGroup;
   isAdmin: boolean;
@@ -277,6 +280,8 @@ function AuthorSection({
   freshlyApproved: Set<number>;
   onApprove: (ticket: Ticket) => void;
   onView: (ticket: Ticket) => void;
+  deletingDocId: number | null;
+  onDeleteDocument: (ticketId: number, docId: number) => void;
 }) {
   const { lang, t } = useT();
   const pendingCount = group.tickets.filter((tk) => tk.status !== 'COMPLETED').length;
@@ -307,7 +312,7 @@ function AuthorSection({
           <thead>
             <tr>
               <th>{t('admin.tickets.colContent')}</th>
-              <th style={{ width: 140 }}>{lang === 'ar' ? 'ملفات' : 'Files'}</th>
+              <th style={{ width: 320 }}>{lang === 'ar' ? 'ملفات' : 'Files'}</th>
               <th style={{ width: 120 }}>{t('common.status')}</th>
               <th style={{ width: 170 }}>{t('admin.tickets.colWhen')}</th>
               <th style={{ textAlign: 'end', width: 180 }}>{t('common.actions')}</th>
@@ -316,6 +321,7 @@ function AuthorSection({
           <tbody>
             {group.tickets.map((tk) => {
               const justApproved = freshlyApproved.has(tk.id);
+              const docs = tk.documents ?? [];
               return (
                 <tr key={tk.id} style={justApproved ? { background: 'rgba(34, 197, 94, 0.06)' } : undefined}>
                   <td>
@@ -327,10 +333,50 @@ function AuthorSection({
                     )}
                   </td>
                   <td>
-                    <span className="muted small">
-                      {tk.documents?.length ?? 0}{' '}
-                      {lang === 'ar' ? 'ملف' : (tk.documents?.length === 1 ? 'file' : 'files')}
-                    </span>
+                    {docs.length === 0 ? (
+                      <span className="muted small">
+                        {lang === 'ar' ? 'مفيش ملفات' : 'No files'}
+                      </span>
+                    ) : (
+                      <ul className="inline-list-flush" style={{ margin: 0, padding: 0 }}>
+                        {docs.map((d) => (
+                          <li
+                            key={d.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.4rem',
+                              padding: '0.2rem 0',
+                            }}
+                          >
+                            <a
+                              href={ticketsApi.documentDownloadUrl(tk.id, d.id)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="truncate"
+                              style={{ flex: 1, minWidth: 0 }}
+                              title={d.name || d.originalFilename}
+                            >
+                              {d.name || d.originalFilename}
+                            </a>
+                            <span className="muted small" style={{ flexShrink: 0 }}>
+                              {formatBytes(d.sizeBytes)}
+                            </span>
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => onDeleteDocument(tk.id, d.id)}
+                              disabled={deletingDocId === d.id}
+                              title={t('ticket.deleteDocument')}
+                              aria-label={t('ticket.deleteDocument')}
+                              style={{ flexShrink: 0 }}
+                            >
+                              <IconClose size={12} />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </td>
                   <td>
                     <StatusPill status={tk.status} />
