@@ -1045,6 +1045,100 @@ html[dir='rtl'] .user-chip-info { align-items: flex-start; }
 }
 .profile-error { text-align: start; margin: 0 0 1rem; }
 
+/* -------- Profile page (/profile) -------- */
+.profile-page { padding: 2rem; max-width: 1080px; margin: 0 auto; }
+.profile-page-hero {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  border-radius: 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  margin-bottom: 1.75rem;
+}
+.profile-page-hero .avatar { --sz: 88px; box-shadow: 0 6px 24px -10px rgba(15, 95, 209, 0.25); }
+.profile-hero-text { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.profile-hero-name { font-size: 1.35rem; font-weight: 700; color: var(--text-primary); }
+.profile-hero-handle { font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-tertiary); }
+.profile-hero-meta { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.4rem; }
+.profile-hero-chip {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem; font-weight: 600;
+  background: var(--bg-subtle); color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+.profile-hero-chip[data-role="ADMIN"] { background: rgba(15, 95, 209, 0.08); color: var(--brand); border-color: rgba(15, 95, 209, 0.2); }
+.profile-hero-chip[data-role="SUPER_ADMIN"] { background: rgba(220, 38, 38, 0.08); color: #b91c1c; border-color: rgba(220, 38, 38, 0.2); }
+.profile-hero-chip[data-role="USER"] { background: rgba(16, 185, 129, 0.08); color: #047857; border-color: rgba(16, 185, 129, 0.2); }
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+}
+@media (min-width: 900px) {
+  .profile-grid { grid-template-columns: 1.35fr 1fr; }
+}
+
+.profile-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  padding: 1.25rem 1.4rem;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+.profile-card h3 { margin: 0 0 0.35rem; font-size: 1.05rem; }
+.profile-card .card-hint { font-size: 0.85rem; color: var(--text-tertiary); margin: 0 0 1rem; }
+
+.profile-field-grid { display: grid; grid-template-columns: 1fr; gap: 0.85rem; }
+@media (min-width: 600px) {
+  .profile-field-grid { grid-template-columns: 1fr 1fr; }
+  .profile-field-grid .full { grid-column: 1 / -1; }
+}
+.profile-field-grid label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); }
+.profile-field-grid input {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-input, var(--bg-subtle));
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 400;
+  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
+}
+.profile-field-grid input:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-soft, rgba(15, 95, 209, 0.15));
+}
+.profile-field-grid input[readonly] {
+  background: var(--bg-subtle);
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+}
+
+.profile-meta-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+.profile-meta-list li { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.9rem; }
+.profile-meta-list dt { color: var(--text-tertiary); }
+.profile-meta-list dd { color: var(--text-primary); margin: 0; font-weight: 600; text-align: end; word-break: break-word; }
+
+.profile-actions-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--border-subtle);
+}
+.profile-photo-block { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.profile-photo-block .avatar { --sz: 72px; }
+.profile-photo-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
 
 /* Main content area */
 .main-content { display: flex; flex-direction: column; min-width: 0; }

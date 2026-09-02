@@ -68,6 +68,32 @@ public class AuthController {
         return ResponseEntity.ok(AuthService.toDto(user, TenantContext.isImpersonating()));
     }
 
+    /**
+     * Self-service profile update — display name / email / phone. Anything more
+     * consequential (role, team, active) still requires an admin flow.
+     */
+    @PatchMapping("/me")
+    public ResponseEntity<AuthDtos.UserDto> updateMe(
+            @AuthenticationPrincipal User user,
+            @Valid @RequestBody AuthDtos.UpdateProfileRequest req) {
+        if (user == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not signed in.");
+        }
+        return ResponseEntity.ok(
+                authService.updateProfile(user, req, TenantContext.isImpersonating()));
+    }
+
+    @PostMapping("/me/password")
+    public ResponseEntity<Void> changePassword(
+            @AuthenticationPrincipal User user,
+            @Valid @RequestBody AuthDtos.ChangePasswordRequest req) {
+        if (user == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not signed in.");
+        }
+        authService.changePassword(user, req);
+        return ResponseEntity.noContent().build();
+    }
+
     private ResponseCookie buildAuthCookie(String value, Duration maxAge) {
         return ResponseCookie.from(JwtAuthFilter.AUTH_COOKIE, value)
                 .httpOnly(true)             // JS cannot read this cookie — XSS can't steal it

@@ -189,16 +189,67 @@ public class SuperAdminService {
         return toSummary(team, counts, 0);
     }
 
+    /**
+     * Delete a team. Refuses when the team still holds any live business data (users,
+     * projects, departments, subcategories, tickets, custom fields) so history isn't
+     * silently vaporised — the operator is told to deactivate instead. When the team is
+     * empty of business data, this cleans up its {@code audit_logs} rows (their FK is
+     * nullable — history is kept but detached from the deleted team) so the DELETE never
+     * trips the FK constraint that used to surface as an opaque 500.
+     */
     @Transactional
     public void deleteTeam(Long id) {
         Team team = teamRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found"));
-        long users = jdbc.queryForObject("SELECT COUNT(*) FROM users WHERE team_id = ?", Long.class, id);
-        if (users > 0) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Team has " + users + " user(s). Deactivate instead, or move users to another team first.");
+
+        String[][] blockers = {
+                {"users", "user"},
+                {"projects", "project"},
+                {"departments", "department"},
+                {"subcategories", "subcategory"},
+                {"tickets", "ticket"},
+                {"custom_fields", "custom field"},
+        };
+        StringBuilder message = null;
+        for (String[] b : blockers) {
+            Long count = null;
+            try {
+                count = jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM " + b[0] + " WHERE team_id = ?", Long.class, id);
+            } catch (Exception ignored) {
+                // Missing/legacy table — skip rather than fail the whole delete on a schema quirk.
+            }
+            if (count != null && count > 0) {
+                if (message == null) {
+                    message = new StringBuilder("Team still holds ");
+                } else {
+                    message.append(", ");
+                }
+                message.append(count).append(' ').append(b[1]).append(count == 1 ? "" : "s");
+            }
         }
+        if (message != null) {
+            message.append(". Deactivate the team instead, or move the data to another team first.");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, message.toString());
+        }
+
+        // audit_logs.team_id is nullable by design (SUPER_ADMIN actions have no team) —
+        // detach the historical rows so they survive the team delete instead of blocking it.
+        try {
+            int detached = jdbc.update("UPDATE audit_logs SET team_id = NULL WHERE team_id = ?", id);
+            if (detached > 0) {
+                org.slf4j.LoggerFactory.getLogger(SuperAdminService.class)
+                        .info("Detached {} audit_log row(s) from team {} before delete.", detached, id);
+            }
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(SuperAdminService.class)
+                    .warn("audit_logs detach on team delete skipped: {}", e.getMessage());
+        }
+
         teamRepository.delete(team);
+        // Team is gone — any cached auth pointing at it is stale (super admin impersonation
+        // header for this id would silently fall back to no-team on the next request).
+        jwtAuthFilter.clearAuthCache();
     }
 
     // ---------- super-admin management ----------
@@ -357,6 +408,11 @@ public class SuperAdminService {
      * Seed an ADMIN account directly inside a target team. Equivalent to what a super admin
      * would do by impersonating the team and hitting {@code POST /api/admin/users}, but as a
      * single call so the "onboard a team" flow reads as one action on the super surface.
+     *
+     * <p>Every team is a single admin's isolated workspace — the tenant filter scopes all
+     * writes and reads by {@code team_id}, and admins never share a workspace. A second
+     * ADMIN into the same team is rejected here so operators fall into the one-shot
+     * {@link #createAdminWithNewTeam(SuperAdminDtos.CreateAdminWithTeamRequest)} flow.
      */
     @Transactional
     public SuperAdminDtos.TeamAdminRow createTeamAdmin(Long teamId, SuperAdminDtos.CreateTeamAdminRequest req) {
@@ -365,6 +421,11 @@ public class SuperAdminService {
         if (!team.isActive()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Team is deactivated. Re-activate before creating members inside it.");
+        }
+        if (userRepository.existsByTeamIdAndRole(teamId, Role.ADMIN)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "This team already has an admin. Each admin owns a separate team — "
+                            + "create a new team for the new admin instead.");
         }
         if (userRepository.existsByUsername(req.username())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already exists.");
@@ -388,6 +449,85 @@ public class SuperAdminService {
         return new SuperAdminDtos.TeamAdminRow(
                 saved.getId(), saved.getUsername(), saved.getDisplayName(), saved.getEmail(),
                 saved.getRole().name(), saved.isActive(), saved.getCreatedAt());
+    }
+
+    /**
+     * One-shot: spin up a fresh team + drop a new ADMIN into it. This is the canonical way
+     * to onboard an admin now that every admin runs their own isolated workspace. The
+     * generated slug is derived from the admin's username so it's stable and readable in URLs.
+     */
+    @Transactional
+    public SuperAdminDtos.AdminWithTeamResponse createAdminWithNewTeam(
+            SuperAdminDtos.CreateAdminWithTeamRequest req) {
+        if (userRepository.existsByUsername(req.username())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already exists.");
+        }
+        String desiredSlug = (req.teamSlug() != null && !req.teamSlug().isBlank())
+                ? req.teamSlug().toLowerCase()
+                : deriveSlug(req.username());
+        String slug = ensureUniqueSlug(desiredSlug);
+        String teamName = (req.teamName() != null && !req.teamName().isBlank())
+                ? req.teamName()
+                : defaultWorkspaceName(req.displayName(), req.username());
+        TranslationService.Bilingual teamBi = translator.toBoth(teamName);
+        Team team = teamRepository.save(Team.builder()
+                .slug(slug)
+                .name(teamName)
+                .nameEn(teamBi.en())
+                .nameAr(teamBi.ar())
+                .description(req.teamDescription())
+                .color(req.teamColor() != null ? req.teamColor() : "#6366f1")
+                .createdById(TenantContext.getUserId())
+                .active(true)
+                .build());
+
+        String display = (req.displayName() == null || req.displayName().isBlank())
+                ? req.username() : req.displayName();
+        TranslationService.Bilingual userBi = translator.toBoth(display);
+        User admin = userRepository.save(User.builder()
+                .username(req.username())
+                .passwordHash(passwordEncoder.encode(req.password()))
+                .displayName(display)
+                .displayNameEn(userBi.en())
+                .displayNameAr(userBi.ar())
+                .email(req.email())
+                .role(Role.ADMIN)
+                .team(team)
+                .active(true)
+                .build());
+
+        return new SuperAdminDtos.AdminWithTeamResponse(
+                toSummary(team, new long[5], 0),
+                new SuperAdminDtos.TeamAdminRow(
+                        admin.getId(), admin.getUsername(), admin.getDisplayName(), admin.getEmail(),
+                        admin.getRole().name(), admin.isActive(), admin.getCreatedAt())
+        );
+    }
+
+    private String deriveSlug(String username) {
+        String base = username == null ? "team" : username.trim().toLowerCase();
+        String cleaned = base.replaceAll("[^a-z0-9]+", "-").replaceAll("(^-+|-+$)", "");
+        return cleaned.isEmpty() ? "team" : cleaned;
+    }
+
+    private String ensureUniqueSlug(String desired) {
+        String candidate = desired;
+        int i = 2;
+        while (teamRepository.existsBySlugIgnoreCase(candidate)) {
+            candidate = desired + "-" + i++;
+            if (i > 500) {
+                // Extremely unlikely in practice; break rather than loop forever if slugs
+                // somehow saturate under an odd naming convention.
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "Could not derive a free team slug from '" + desired + "'.");
+            }
+        }
+        return candidate;
+    }
+
+    private String defaultWorkspaceName(String displayName, String username) {
+        String base = (displayName != null && !displayName.isBlank()) ? displayName : username;
+        return base + "'s workspace";
     }
 
     /** List all members of a specific team — useful on the Teams page for a quick roster peek. */

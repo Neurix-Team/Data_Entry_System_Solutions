@@ -18,6 +18,17 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findAllByTeamIdOrderByCreatedAtDesc(Long teamId);
 
     /**
+     * Presence of an admin inside a team. Used to enforce the "one admin per team" invariant
+     * — every team is a single admin's isolated workspace, so a second ADMIN can't be added
+     * to a team that already has one.
+     */
+    boolean existsByTeamIdAndRole(Long teamId, Role role);
+
+    /** Every admin in a given team, oldest-first — used by the split migration for teams
+     *  that historically ended up with more than one ADMIN. */
+    List<User> findAllByTeamIdAndRoleOrderByCreatedAtAsc(Long teamId, Role role);
+
+    /**
      * Members of a project that also belong to the given team. Used by the admin projects
      * view — the raw {@code project.members} collection can contain cross-team users
      * from legacy data, and lazy-loading it trips the {@link com.dataentry.model.TenantEntityListener}

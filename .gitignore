@@ -62,3 +62,6 @@ ehthumbs.db
 *.swp
 *.swo
 *~
+
+# Database dumps produced by scripts/migrate-db-to-container.sh — real production data.
+scripts/.migration/

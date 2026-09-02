@@ -73,19 +73,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         this.teamRepository = teamRepository;
     }
 
-    /**
-     * Force-invalidate all cached principals (invoked from admin flows that mutate a user's
-     * team/role/active state — see {@link #evictUser(Long)} for a targeted variant).
-     */
+    
     public void clearAuthCache() {
         authCache.clear();
     }
 
-    /**
-     * Drop every cache entry for the given user id. Called when an admin/super admin
-     * changes a user's role, team, or active flag so the next request re-reads the DB
-     * instead of honoring stale cached authorities.
-     */
+ 
     public void evictUser(Long userId) {
         if (userId == null) return;
         authCache.values().removeIf(e -> userId.equals(e.user().getId()));

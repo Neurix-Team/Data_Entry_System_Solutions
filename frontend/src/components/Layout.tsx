@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useT } from '../i18n';
 import { Avatar } from './Avatar';
@@ -9,7 +9,6 @@ import {
 } from './Icons';
 import { NotificationBell } from './NotificationBell';
 import { PreferencesToggle } from './PreferencesToggle';
-import { ProfileModal } from './ProfileModal';
 import { avatarUrl } from '../api/profile';
 import { ChatWidget } from './chat/ChatWidget';
 import { ImpersonationBanner } from './ImpersonationBanner';
@@ -18,8 +17,8 @@ export function Layout() {
   const { user, logout } = useAuth();
   const { t } = useT();
   const location = useLocation();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
   const myAvatar = user ? avatarUrl(user.id, user.avatarUpdatedAt) : null;
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   // Super admin drives admin views (both cross-team and scoped-via-impersonation), so treat
@@ -176,7 +175,7 @@ export function Layout() {
             <button
               type="button"
               className="user-chip is-button"
-              onClick={() => setProfileOpen(true)}
+              onClick={() => navigate('/profile')}
               aria-label={t('common.profile') || 'Profile'}
             >
               <div className="user-chip-info">
@@ -202,8 +201,6 @@ export function Layout() {
       </div>
 
       <ChatWidget />
-
-      {profileOpen && <ProfileModal onClose={() => setProfileOpen(false)} />}
     </div>
   );
 }

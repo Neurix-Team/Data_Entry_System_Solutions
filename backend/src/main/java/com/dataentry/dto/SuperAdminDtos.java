@@ -113,6 +113,31 @@ public class SuperAdminDtos {
             Instant createdAt
     ) {}
 
+    /**
+     * One-shot payload for the "create an admin with their own fresh workspace" flow — the
+     * canonical way to onboard an admin now that every admin runs an isolated team. Team
+     * slug/name/color are optional; sensible defaults are derived from the admin's username.
+     */
+    public record CreateAdminWithTeamRequest(
+            @NotBlank @Size(max = 100) String username,
+            @NotBlank @Size(min = 8, max = 200) String password,
+            @Size(max = 150) String displayName,
+            @Size(max = 200) String email,
+            @Size(max = 150) String teamName,
+            @Size(max = 300) String teamDescription,
+            @Size(max = 60)
+            @Pattern(regexp = "^[a-z0-9][a-z0-9-]{1,58}[a-z0-9]$",
+                    message = "team slug must be lowercase alphanumeric with dashes (2-60 chars)")
+            String teamSlug,
+            @Pattern(regexp = "^#[0-9a-fA-F]{6}$", message = "color must be a #RRGGBB hex value")
+            String teamColor
+    ) {}
+
+    public record AdminWithTeamResponse(
+            TeamSummary team,
+            TeamAdminRow admin
+    ) {}
+
     // ---------- per-project analytics ----------
 
     public record PersonRef(

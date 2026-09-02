@@ -80,14 +80,26 @@ public class SuperAdminController {
 
     /**
      * One-shot: create an ADMIN account inside {@code teamId} without needing the caller
-     * to switch into impersonation first. Powers the "Create team admin" button on the
-     * super Teams page.
+     * to switch into impersonation first. Rejects if the team already has an admin (see
+     * {@link SuperAdminService#createTeamAdmin} — every admin runs their own team).
      */
     @PostMapping("/teams/{id}/admins")
     public ResponseEntity<SuperAdminDtos.TeamAdminRow> createTeamAdmin(
             @PathVariable Long id,
             @Valid @RequestBody SuperAdminDtos.CreateTeamAdminRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.createTeamAdmin(id, req));
+    }
+
+    /**
+     * Canonical admin onboarding: creates a fresh team and drops the new admin into it in
+     * one call. Since every admin is a solo workspace, this is what the super admin UI
+     * should call whenever a new person needs an admin role.
+     */
+    @PostMapping("/admins-with-team")
+    public ResponseEntity<SuperAdminDtos.AdminWithTeamResponse> createAdminWithNewTeam(
+            @Valid @RequestBody SuperAdminDtos.CreateAdminWithTeamRequest req) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(service.createAdminWithNewTeam(req));
     }
 
     /**

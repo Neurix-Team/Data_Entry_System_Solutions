@@ -88,6 +88,81 @@ public class DataSeeder implements CommandLineRunner {
         seedCustomFields(defaultTeam);
         backfillLegacyRows();
         backfillTranslations();
+        splitMultiAdminTeams();
+    }
+
+    /**
+     * Enforces the "one admin per team" invariant on legacy data. Every admin runs their own
+     * isolated workspace, so a team that historically ended up with more than one ADMIN gets
+     * split: the oldest admin (by createdAt) keeps the current team + all its projects,
+     * departments, tickets, and non-admin users, while every other admin is moved into a
+     * fresh empty team named after them. Idempotent — subsequent boots find no violations
+     * and do nothing.
+     */
+    private void splitMultiAdminTeams() {
+        List<Long> teamsWithMultipleAdmins;
+        try {
+            teamsWithMultipleAdmins = jdbc.queryForList(
+                    "SELECT team_id FROM users " +
+                    "WHERE role = 'ADMIN' AND team_id IS NOT NULL " +
+                    "GROUP BY team_id HAVING COUNT(*) > 1",
+                    Long.class);
+        } catch (Exception e) {
+            log.warn("multi-admin scan skipped: {}", e.getMessage());
+            return;
+        }
+        if (teamsWithMultipleAdmins.isEmpty()) return;
+
+        log.info("Found {} team(s) with more than one ADMIN — splitting so each admin owns "
+                + "their own team.", teamsWithMultipleAdmins.size());
+
+        for (Long teamId : teamsWithMultipleAdmins) {
+            List<Map<String, Object>> admins = jdbc.queryForList(
+                    "SELECT id, username, COALESCE(display_name, username) AS display " +
+                    "FROM users WHERE team_id = ? AND role = 'ADMIN' " +
+                    "ORDER BY created_at ASC, id ASC",
+                    teamId);
+            // Keep the first admin (oldest) with the existing team + all its data. Move
+            // every subsequent admin to a fresh team.
+            for (int i = 1; i < admins.size(); i++) {
+                Long adminId = ((Number) admins.get(i).get("id")).longValue();
+                String username = (String) admins.get(i).get("username");
+                String display = (String) admins.get(i).get("display");
+                Long newTeamId = createSoloWorkspaceTeam(username, display);
+                jdbc.update("UPDATE users SET team_id = ? WHERE id = ?", newTeamId, adminId);
+                log.info("Moved admin '{}' (id={}) to fresh team id={} as part of split.",
+                        username, adminId, newTeamId);
+            }
+        }
+    }
+
+    private Long createSoloWorkspaceTeam(String username, String displayName) {
+        String base = username == null ? "team" : username.trim().toLowerCase();
+        String cleaned = base.replaceAll("[^a-z0-9]+", "-").replaceAll("(^-+|-+$)", "");
+        if (cleaned.isEmpty()) cleaned = "team";
+        String slug = cleaned;
+        int i = 2;
+        while (teamRepository.existsBySlugIgnoreCase(slug)) {
+            slug = cleaned + "-" + i++;
+        }
+        String name = (displayName != null && !displayName.isBlank() ? displayName : username)
+                + "'s workspace";
+        TranslationService.Bilingual bi;
+        try {
+            bi = translator.toBoth(name);
+        } catch (Exception e) {
+            bi = new TranslationService.Bilingual(name, name);
+        }
+        Team saved = teamRepository.save(Team.builder()
+                .slug(slug)
+                .name(name)
+                .nameEn(bi.en())
+                .nameAr(bi.ar())
+                .description("Auto-created during the one-admin-per-team split.")
+                .color("#6366f1")
+                .active(true)
+                .build());
+        return saved.getId();
     }
 
     private void cleanOrphanRows() {

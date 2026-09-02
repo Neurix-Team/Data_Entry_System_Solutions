@@ -85,6 +85,25 @@ export interface CreateTeamAdminRequest {
   email?: string;
 }
 
+/** One-shot: create an admin AND their fresh workspace team in a single call.
+ *  Preferred over the two-step (createTeam → createTeamAdmin) flow because every
+ *  admin now owns their own isolated team. */
+export interface CreateAdminWithTeamRequest {
+  username: string;
+  password: string;
+  displayName?: string;
+  email?: string;
+  teamName?: string;
+  teamSlug?: string;
+  teamDescription?: string;
+  teamColor?: string;
+}
+
+export interface AdminWithTeamResponse {
+  team: TeamSummary;
+  admin: TeamAdminRow;
+}
+
 export interface PersonRef {
   id: number;
   username: string;
@@ -217,6 +236,9 @@ export const superApi = {
     api.get<TeamAdminRow[]>(`/super/teams/${teamId}/members`).then((r) => r.data),
   createTeamAdmin: (teamId: number, req: CreateTeamAdminRequest) =>
     api.post<TeamAdminRow>(`/super/teams/${teamId}/admins`, req).then((r) => r.data),
+  /** Canonical admin onboarding: fresh team + admin in one call. */
+  createAdminWithNewTeam: (req: CreateAdminWithTeamRequest) =>
+    api.post<AdminWithTeamResponse>('/super/admins-with-team', req).then((r) => r.data),
 
   projectsBreakdown: () =>
     api.get<ProjectBreakdown[]>('/super/projects-breakdown').then((r) => r.data),

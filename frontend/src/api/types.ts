@@ -24,9 +24,14 @@ export interface User {
   displayNameEn?: string | null;
   displayNameAr?: string | null;
   role: Role;
+  /** Present on the /auth/me payload so the profile page can populate its form. */
+  email?: string | null;
+  phone?: string | null;
   /** ISO timestamp of the last avatar upload; null means no avatar. Used both as
    *  presence check and as a cache-bust value in the avatar URL. */
   avatarUpdatedAt?: string | null;
+  /** When the account itself was created. Shown on the profile page. */
+  createdAt?: string | null;
   /** Owning team. Null only for SUPER_ADMIN accounts. */
   team?: TeamRef | null;
   /** True while a SUPER_ADMIN is "entered" into a specific team via the header — the UI

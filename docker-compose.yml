@@ -1,4 +1,39 @@
 services:
+  postgres:
+    # In-network Postgres. Previously the backend connected to a Postgres on the docker
+    # host via `host.docker.internal`, which on Docker Desktop routes through vpnkit and
+    # adds 20-80 ms per query round-trip — turning a 5-query page into a 400 ms one.
+    # Running Postgres as a container puts it on the same Docker bridge network as the
+    # backend, so queries take <1 ms of network overhead instead of ~50 ms.
+    #
+    # To keep an existing external Postgres, set DB_DOCKER_HOST=host.docker.internal in
+    # .env — the backend URL below honours the override and this service can be skipped
+    # by starting compose without it (`docker compose up backend frontend libretranslate`).
+    # 18-alpine matches the remote source Postgres (18.3) so pg_dump/pg_restore round-trips
+    # in the migrate-db-to-container.sh script work without a version-mismatch warning.
+    image: postgres:18-alpine
+    container_name: dems-postgres
+    environment:
+      POSTGRES_DB: "${DB_NAME:-dataentry}"
+      POSTGRES_USER: "${DB_USERNAME:-daleel}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set in .env}"
+    volumes:
+      # PG 18's official image expects the mount at /var/lib/postgresql (not the older
+      # /var/lib/postgresql/data), so pg_upgrade --link can move between major-version
+      # subdirectories without crossing a mount boundary.
+      - dems-postgres-data:/var/lib/postgresql
+    # Not published to the host by default — only the backend needs to reach it. Uncomment
+    # if you want to connect a GUI client (pgAdmin, DBeaver) from the host.
+    # ports:
+    #   - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-daleel} -d ${DB_NAME:-dataentry}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
@@ -9,7 +44,9 @@ services:
       # If unset the container fails fast at startup — see AppConfig#jwtSecret.
       JWT_SECRET: "${JWT_SECRET:?JWT_SECRET must be set (min 32 chars) — see .env}"
       SPRING_PROFILES_ACTIVE: "docker"
-      SPRING_DATASOURCE_URL: "jdbc:postgresql://${DB_DOCKER_HOST:-host.docker.internal}:${DB_PORT:-5432}/${DB_NAME:-dataentry}"
+      # Default DB host is the in-compose `postgres` service (fast Docker-bridge network).
+      # Override with DB_DOCKER_HOST=host.docker.internal to keep an existing external DB.
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://${DB_DOCKER_HOST:-postgres}:${DB_PORT:-5432}/${DB_NAME:-dataentry}"
       SPRING_DATASOURCE_USERNAME: "${DB_USERNAME:-daleel}"
       SPRING_DATASOURCE_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set in .env}"
       # Which browser origins may call the API (comma-separated).  The API sends credentialed
@@ -45,9 +82,14 @@ services:
     ports:
       - "8083:8080"
     depends_on:
-      # LibreTranslate is optional at runtime (fail-open), but declaring the dep means compose
-      # starts it in parallel so the first requests aren't racing the model download.
-      - libretranslate
+      # Wait for Postgres to accept connections before booting the backend — otherwise
+      # Hibernate's initial connection attempts race the DB and fail-fast with a null-pool
+      # error. LibreTranslate is optional (fail-open) but pre-warming it in parallel keeps
+      # the first translation request from having to wait for the model download.
+      postgres:
+        condition: service_healthy
+      libretranslate:
+        condition: service_started
     restart: unless-stopped
     labels:
       # Neurix reverse proxy → auto-SSL. Domain gets an https cert; port is the host port above.
@@ -94,6 +136,8 @@ services:
 
 volumes:
   dems-data:
+    driver: local
+  dems-postgres-data:
     driver: local
   libretranslate-models:
     driver: local

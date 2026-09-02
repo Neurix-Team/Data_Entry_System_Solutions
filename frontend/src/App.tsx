@@ -14,6 +14,7 @@ import { AdminUserActivityPage } from './pages/admin/AdminUserActivityPage';
 import { SubmitTicketPage } from './pages/user/SubmitTicketPage';
 import { MyTicketsPage } from './pages/user/MyTicketsPage';
 import { UserDashboardPage } from './pages/user/UserDashboardPage';
+import { ProfilePage } from './pages/ProfilePage';
 import { ProjectFoldersPage } from './pages/project-folders/ProjectFoldersPage';
 import { ProjectFolderDetailPage } from './pages/project-folders/ProjectFolderDetailPage';
 import { SuperLayout } from './pages/super/SuperLayout';
@@ -80,6 +81,9 @@ export default function App() {
         <Route path="/my-tickets" element={<MyTicketsPage />} />
         <Route path="/project-folders" element={<ProjectFoldersPage />} />
         <Route path="/project-folders/:projectId" element={<ProjectFolderDetailPage />} />
+
+        {/* Self-service profile — reachable from the topbar avatar; any signed-in user. */}
+        <Route path="/profile" element={<ProfilePage />} />
       </Route>
 
       <Route path="/" element={<RootRedirect />} />
