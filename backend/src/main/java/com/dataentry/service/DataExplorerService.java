@@ -245,7 +245,8 @@ public class DataExplorerService {
         List<DataExplorerDtos.DocumentSummary> docSummaries = docs.stream()
                 .map(d -> new DataExplorerDtos.DocumentSummary(
                         d.getId(), d.getName(), d.getOriginalFilename(),
-                        d.getContentType(), d.getSizeBytes(), d.getUploadedAt(),
+                        d.getContentType(), d.getSizeBytes(),
+                        d.getContentHash(), d.getUploadedAt(),
                         downloadUrlPrefix == null ? null : downloadUrlPrefix + d.getId() + "/download"
                 ))
                 .toList();

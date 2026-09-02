@@ -18,6 +18,9 @@ public class DataExplorerDtos {
             String originalFilename,
             String contentType,
             long sizeBytes,
+            /** SHA-256 hex of the raw bytes. Lets a downstream mirror detect that the same
+             *  file id changed on the server, without re-downloading the payload. */
+            String contentHash,
             Instant uploadedAt,
             /** Download URL relative to the API root. Populated on the export surface only. */
             String downloadUrl

@@ -34,7 +34,8 @@ class DatasetServiceTest {
                 Instant.parse("2026-09-02T10:00:00Z"),
                 List.of(new DataExplorerDtos.DocumentSummary(
                         9L, "File", "file.pdf", "application/pdf", 123L,
-                        Instant.parse("2026-09-02T10:01:00Z"), "/api/v1/export/documents/9/download")),
+                        "abc123", Instant.parse("2026-09-02T10:01:00Z"),
+                        "/api/v1/export/documents/9/download")),
                 List.of());
         when(explorer.search(any(), any(), any(), any()))
                 .thenReturn(new DataExplorerDtos.Page(List.of(source), null, false, 1));
