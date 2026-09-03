@@ -2,6 +2,7 @@ package com.dataentry.config;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
@@ -23,6 +24,14 @@ public class GlobalExceptionHandler {
 
     /** Safe generic message for 500s so we never leak stack traces / DB errors to clients. */
     private static final String GENERIC_500_MESSAGE = "Unexpected server error. Please try again later.";
+
+    /** Mirrors app.attachments.max-file-bytes so the 413 text never drifts from the real cap. */
+    private final long maxFileBytes;
+
+    public GlobalExceptionHandler(
+            @Value("${app.attachments.max-file-bytes:524288000}") long maxFileBytes) {
+        this.maxFileBytes = maxFileBytes;
+    }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex) {
@@ -53,7 +62,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<Map<String, Object>> handleTooLarge(MaxUploadSizeExceededException ex) {
         return build(HttpStatus.PAYLOAD_TOO_LARGE,
-                "Uploaded file is too large. Maximum allowed size is 200 MB.", null);
+                "Uploaded file is too large. Maximum allowed size is "
+                        + (maxFileBytes / (1024 * 1024)) + " MB.", null);
     }
 
     /**

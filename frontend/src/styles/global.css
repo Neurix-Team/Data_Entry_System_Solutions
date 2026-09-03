@@ -4360,3 +4360,103 @@ html[dir='rtl'] .udash-trend-line { transform: scaleX(-1); }
   opacity: 1;
   animation: btnSheenLoop 2s var(--ease-out) 0.3s infinite;
 }
+
+/* --- Progress ring: a circular meter with the percentage in the middle. One per file ---
+   in the quick-upload modal, and the big batch meter inside the upload HUD. The arc is
+   a dashed SVG circle; only stroke-dashoffset changes, so progress never touches layout. */
+.pring {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-primary);
+}
+.pring > svg {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+  overflow: visible;
+}
+.pring-track { fill: none; stroke: var(--border); }
+.pring-arc {
+  fill: none;
+  transition: stroke-dashoffset var(--dur-base) var(--ease-out), stroke var(--dur-base) var(--ease-out);
+}
+.pring.is-uploading .pring-arc {
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent-cyan) 55%, transparent));
+}
+/* Nothing left to measure on the client, server still working: a short arc that orbits. */
+.pring.is-finalizing .pring-arc {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: neurixSpin 0.9s linear infinite;
+}
+.pring.is-done .pring-arc { stroke: var(--success); }
+.pring.is-failed .pring-arc { stroke: var(--danger); }
+.pring-label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.pring.is-failed .pring-label { color: var(--danger); }
+.pring.is-done { animation: pringPop var(--dur-slow) var(--ease-expo); }
+@keyframes pringPop {
+  0% { transform: scale(0.88); }
+  55% { transform: scale(1.07); }
+  100% { transform: scale(1); }
+}
+
+/* --- Upload HUD: ring + title + bytes / speed / time-left. --- */
+@keyframes hudIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.upload-hud {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  margin-bottom: 1rem;
+  animation: hudIn var(--dur-base) var(--ease-out);
+}
+.upload-hud.is-done { border-color: color-mix(in srgb, var(--success) 45%, var(--border)); }
+.upload-hud.is-failed { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
+.upload-hud-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.upload-hud-title { font-weight: 600; }
+.upload-hud-sub {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.upload-hud-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+.upload-hud-note { color: var(--success); font-size: var(--fs-xs); font-weight: 600; }
+.upload-row-meta {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+.upload-row-meta.is-done { color: var(--success); font-weight: 600; }
+.upload-row-meta.is-failed { color: var(--danger); font-weight: 600; }

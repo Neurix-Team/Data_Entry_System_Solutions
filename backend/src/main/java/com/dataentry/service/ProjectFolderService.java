@@ -137,6 +137,24 @@ public class ProjectFolderService {
     }
 
     /**
+     * Who may drop files into a folder: USER must be a project member; ADMIN/SUPER_ADMIN
+     * skip. Both failure modes are 404 so a probing user can't tell "not a member" from
+     * "doesn't exist". The isMember query runs as its own repo tx and returns a boolean —
+     * no lazy load, no entity listener trip.
+     */
+    public void assertCanUploadTo(Long projectId, User currentUser) {
+        if (currentUser == null) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+        if (projectId == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Project is required");
+        boolean isAdmin = currentUser.isAdminLike();
+        if (!isAdmin && !projectRepository.isMember(projectId, currentUser.getId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found");
+        }
+        if (!projectRepository.existsById(projectId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found");
+        }
+    }
+
+    /**
      * Multi-file quick-upload into a folder. Each file becomes its own ticket:
      *   1. Create a REVIEW-status ticket owned by the caller, in the given project.
      *   2. Attach the file. If the attachment fails, roll back the ticket so we don't
@@ -166,17 +184,7 @@ public class ProjectFolderService {
         if (files == null || files.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pick at least one file");
         }
-
-        // Access check: USER must be a project member; ADMIN/SUPER_ADMIN skip. The isMember
-        // query runs as its own repo tx and returns a boolean — no lazy load, no entity
-        // listener trip.
-        boolean isAdmin = currentUser.isAdminLike();
-        if (!isAdmin && !projectRepository.isMember(projectId, currentUser.getId())) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found");
-        }
-        if (!projectRepository.existsById(projectId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found");
-        }
+        assertCanUploadTo(projectId, currentUser);
 
         List<TicketDtos.TicketResponse> ok = new ArrayList<>();
         List<ProjectFolderDtos.QuickUploadFailure> failed = new ArrayList<>();
@@ -194,53 +202,76 @@ public class ProjectFolderService {
                     ? titleFromFilename(file.getOriginalFilename())
                     : requestedTitle.trim();
 
-            processOneFile(projectId, departmentId, currentUser, title, file, ok, failed);
+            try {
+                ok.add(createTicketAndAttachWith(projectId, departmentId, currentUser, title,
+                        ticketId -> documentService.upload(ticketId, title, file, currentUser, true)));
+            } catch (ResponseStatusException rse) {
+                failed.add(new ProjectFolderDtos.QuickUploadFailure(
+                        safeFilename(file.getOriginalFilename()),
+                        rse.getReason() == null ? "Upload failed" : rse.getReason()));
+            }
         }
 
         return new ProjectFolderDtos.QuickUploadResult(ok.size(), failed.size(), ok, failed);
     }
 
     /**
-     * Handle one file end-to-end. Every write goes through {@code REQUIRES_NEW}-scoped
-     * methods on TicketService / TicketDocumentService, so a per-file failure is contained
-     * — the outer batch loop keeps running and the response records both what landed and
-     * what failed.
+     * Chunked-upload finalize: the file already sits on disk. Same create-then-attach
+     * contract as {@link #quickUpload}, for exactly one file, throwing instead of
+     * collecting — the caller has a single session to report on.
      */
-    private void processOneFile(Long projectId, Long departmentId, User currentUser, String title,
-                                MultipartFile file,
-                                List<TicketDtos.TicketResponse> ok,
-                                List<ProjectFolderDtos.QuickUploadFailure> failed) {
+    public TicketDtos.TicketResponse createTicketAndAttach(Long projectId,
+                                                           Long departmentId,
+                                                           User currentUser,
+                                                           String title,
+                                                           TicketDocumentService.IncomingFile file) {
+        assertCanUploadTo(projectId, currentUser);
+        String cleanTitle = (title == null || title.isBlank())
+                ? titleFromFilename(file.originalFilename())
+                : title.trim();
+        return createTicketAndAttachWith(projectId, departmentId, currentUser, cleanTitle,
+                ticketId -> documentService.attach(ticketId, cleanTitle, file, currentUser, true));
+    }
+
+    @FunctionalInterface
+    private interface Attacher {
+        TicketDtos.DocumentResponse attach(Long ticketId);
+    }
+
+    /**
+     * Handle one file end-to-end. Every write goes through {@code REQUIRES_NEW}-scoped
+     * methods on TicketService / TicketDocumentService, so a failure is contained: the
+     * ticket is rolled back when its attachment is refused, and the caller gets a
+     * {@link ResponseStatusException} whose reason is safe to show the user.
+     */
+    private TicketDtos.TicketResponse createTicketAndAttachWith(Long projectId,
+                                                                Long departmentId,
+                                                                User currentUser,
+                                                                String title,
+                                                                Attacher attacher) {
         Long ticketId;
         try {
             ticketId = ticketService.createAttachmentTicket(currentUser, projectId, departmentId, title).getId();
         } catch (ResponseStatusException rse) {
-            failed.add(new ProjectFolderDtos.QuickUploadFailure(
-                    safeFilename(file.getOriginalFilename()),
-                    rse.getReason() == null ? "Could not create ticket" : rse.getReason()));
-            return;
-        } catch (Exception e) {
-            log.warn("Quick-upload ticket create failed for {}: {}", file.getOriginalFilename(), e.toString());
-            failed.add(new ProjectFolderDtos.QuickUploadFailure(
-                    safeFilename(file.getOriginalFilename()),
-                    "Could not create ticket"));
-            return;
+            throw rse.getReason() == null
+                    ? new ResponseStatusException(rse.getStatusCode(), "Could not create ticket")
+                    : rse;
+        } catch (RuntimeException e) {
+            log.warn("Quick-upload ticket create failed for \"{}\": {}", title, e.toString());
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not create ticket");
         }
 
         try {
-            documentService.upload(ticketId, title, file, currentUser, true);
+            attacher.attach(ticketId);
         } catch (ResponseStatusException rse) {
             ticketService.deleteByIdUnchecked(ticketId);
-            failed.add(new ProjectFolderDtos.QuickUploadFailure(
-                    safeFilename(file.getOriginalFilename()),
-                    rse.getReason() == null ? "Upload failed" : rse.getReason()));
-            return;
-        } catch (Exception e) {
+            throw rse.getReason() == null
+                    ? new ResponseStatusException(rse.getStatusCode(), "Upload failed")
+                    : rse;
+        } catch (RuntimeException e) {
             log.warn("Quick-upload attach failed for ticket {}: {}", ticketId, e.toString());
             ticketService.deleteByIdUnchecked(ticketId);
-            failed.add(new ProjectFolderDtos.QuickUploadFailure(
-                    safeFilename(file.getOriginalFilename()),
-                    "Upload failed"));
-            return;
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Upload failed");
         }
 
         // Load the fully-hydrated ticket back for the response envelope. Uses the same
@@ -248,14 +279,12 @@ public class ProjectFolderService {
         // what the frontend already handles. Auth check inside getOne is satisfied because
         // the caller submitted the ticket themselves (or is an admin).
         try {
-            ok.add(ticketService.getOne(ticketId, currentUser, currentUser.isAdminLike()));
-        } catch (Exception e) {
+            return ticketService.getOne(ticketId, currentUser, currentUser.isAdminLike());
+        } catch (RuntimeException e) {
             log.warn("Quick-upload post-load failed for ticket {}: {}", ticketId, e.toString());
-            // Even if the response envelope can't be built, the upload succeeded — record a
-            // stub success so the client doesn't over-report failure.
-            failed.add(new ProjectFolderDtos.QuickUploadFailure(
-                    safeFilename(file.getOriginalFilename()),
-                    "Uploaded, but folder view refresh failed"));
+            // The upload itself succeeded — only the response envelope couldn't be built.
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Uploaded, but folder view refresh failed");
         }
     }
 

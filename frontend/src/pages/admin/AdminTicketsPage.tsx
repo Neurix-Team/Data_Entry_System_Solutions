@@ -11,6 +11,7 @@ import { useToast } from '../../components/toast/ToastContext';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { useT } from '../../i18n';
 import { pickLocalized } from '../../i18n/localized';
+import { EditTicketModal } from './EditTicketModal';
 
 interface Filters {
   q: string;
@@ -36,6 +37,7 @@ export function AdminTicketsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Ticket | null>(null);
+  const [editing, setEditing] = useState<Ticket | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [filters, setFilters] = useState<Filters>(emptyFilters);
   const [deletingDocId, setDeletingDocId] = useState<number | null>(null);
@@ -363,6 +365,9 @@ export function AdminTicketsPage() {
                     <button className="btn btn-secondary btn-sm" onClick={() => setSelected(tk)}>
                       {t('common.view')}
                     </button>
+                    <button className="btn btn-primary btn-sm" onClick={() => setEditing(tk)}>
+                      {t('ticket.edit')}
+                    </button>
                     <button className="btn btn-danger btn-sm" onClick={() => onDelete(tk)}>
                       {t('common.delete')}
                     </button>
@@ -398,7 +403,17 @@ export function AdminTicketsPage() {
         open={!!selected}
         title={selected ? t('ticket.header', { id: selected.id }) : ''}
         onClose={() => setSelected(null)}
-        footer={<button className="btn btn-secondary" onClick={() => setSelected(null)}>{t('common.close')}</button>}
+        footer={
+          <div className="row gap-2" style={{ justifyContent: 'flex-end', width: '100%' }}>
+            <button
+              className="btn btn-primary"
+              onClick={() => { const cur = selected; setSelected(null); setEditing(cur); }}
+            >
+              {t('ticket.edit')}
+            </button>
+            <button className="btn btn-secondary" onClick={() => setSelected(null)}>{t('common.close')}</button>
+          </div>
+        }
       >
         {selected && (
           <TicketDetails
@@ -408,6 +423,15 @@ export function AdminTicketsPage() {
           />
         )}
       </Modal>
+
+      <EditTicketModal
+        ticket={editing}
+        onClose={() => setEditing(null)}
+        onSaved={(updated) => {
+          setData((d) => d ? { ...d, items: d.items.map((x) => x.id === updated.id ? updated : x) } : d);
+          setEditing(null);
+        }}
+      />
     </div>
   );
 }

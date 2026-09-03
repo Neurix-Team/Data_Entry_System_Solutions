@@ -82,11 +82,26 @@ public class TicketDocumentService {
     /** Tika instance for magic-byte detection. Safe to share — Tika.detect is thread-safe. */
     private static final Tika TIKA = new Tika();
 
+    /**
+     * A file that already sits on local disk, ready to be validated and attached. Produced
+     * by the multipart path (after the container spooled it) and by the chunked-upload
+     * finalize. The caller owns {@code path} until {@link #attach} renames it into the
+     * ticket folder, and must remove it if attach rejects the file.
+     */
+    public record IncomingFile(Path path, String originalFilename, long size) {}
+
     private final TicketRepository ticketRepository;
     private final TicketDocumentRepository documentRepository;
     private final UploadQuotaService quota;
     private final ExtractionStagingService staging;
     private final Path baseDir;
+
+    /**
+     * Where uploads land before they're attached. Sits inside {@link #baseDir} so the final
+     * step is a same-filesystem rename — the old flow copied every book from the container's
+     * temp dir into the attachments volume, a second full write of hundreds of MB.
+     */
+    private final Path incomingDir;
 
     /** Per-file cap. The payload never sits in memory, so this bounds disk, not RAM. */
     private final long maxFileBytes;
@@ -96,6 +111,7 @@ public class TicketDocumentService {
                                  UploadQuotaService quota,
                                  ExtractionStagingService staging,
                                  @Value("${app.attachments.dir:./data/attachments}") String baseDir,
+                                 @Value("${app.uploads.incoming-dir:./data/attachments/.incoming}") String incomingDir,
                                  @Value("${app.attachments.max-file-bytes:524288000}") long maxFileBytes) {
         this.maxFileBytes = maxFileBytes;
         this.ticketRepository = ticketRepository;
@@ -103,13 +119,22 @@ public class TicketDocumentService {
         this.quota = quota;
         this.staging = staging;
         this.baseDir = Paths.get(baseDir).toAbsolutePath().normalize();
+        this.incomingDir = Paths.get(incomingDir).toAbsolutePath().normalize();
         try {
             Files.createDirectories(this.baseDir);
+            Files.createDirectories(this.incomingDir);
         } catch (IOException e) {
-            log.warn("Could not create attachments directory {}: {}", this.baseDir, e.getMessage());
+            log.warn("Could not create attachments directories {} / {}: {}",
+                    this.baseDir, this.incomingDir, e.getMessage());
         }
     }
 
+    /**
+     * Classic single-request multipart upload. The servlet container has already spooled
+     * the part into {@link #incomingDir} (see {@code spring.servlet.multipart.location}), so
+     * {@code transferTo} is a rename and the bytes are written to disk exactly once — by
+     * the container, as they arrive off the socket.
+     */
     @Transactional
     public TicketDtos.DocumentResponse upload(Long ticketId, String name, MultipartFile file, User currentUser, boolean isAdmin) {
         if (file == null || file.isEmpty()) {
@@ -119,44 +144,17 @@ public class TicketDocumentService {
             throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE,
                     "File exceeds " + (maxFileBytes / (1024 * 1024)) + " MB limit");
         }
-        Ticket ticket = ticketRepository.findById(ticketId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ticket not found"));
-        com.dataentry.security.TenantGuard.assertOwnership(ticket);
-        if (!isAdmin && !ticket.getSubmittedBy().getId().equals(currentUser.getId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
-        }
-
-        String safeName = (name == null || name.isBlank())
-                ? sanitiseFilename(file.getOriginalFilename())
-                : name.trim();
-        if (safeName.length() > 250) safeName = safeName.substring(0, 250);
         String originalFilename = sanitiseFilename(file.getOriginalFilename());
+        // Reject risky extensions before touching the disk — cheap and covers the obvious cases.
+        assertExtensionAllowed(originalFilename);
 
-        // Reject risky extensions first — cheap and covers most obvious cases.
-        String ext = extensionOf(originalFilename);
-        if (BLOCKED_EXTENSIONS.contains(ext)) {
-            throw new ResponseStatusException(HttpStatus.UNSUPPORTED_MEDIA_TYPE,
-                    "File type '." + ext + "' is not allowed");
-        }
-
-        Path ticketDir = baseDir.resolve(String.valueOf(ticketId));
-        try {
-            Files.createDirectories(ticketDir);
-        } catch (IOException e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not prepare storage");
-        }
-
-        // Land the payload next to its final location first. The servlet container already
-        // parked anything over the multipart threshold on disk, so transferTo is usually a
-        // rename — the bytes never pass through the JVM heap regardless of file size.
-        Path temp = ticketDir.resolve(UUID.randomUUID() + ".part");
+        Path temp = incomingDir.resolve(UUID.randomUUID() + ".part");
         try {
             try {
                 file.transferTo(temp);
             } catch (IOException | IllegalStateException e) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Could not read file");
             }
-
             // Trust the bytes on disk, not the Content-Length the client declared.
             long actualSize;
             try {
@@ -164,73 +162,131 @@ public class TicketDocumentService {
             } catch (IOException e) {
                 throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not save file");
             }
-            if (actualSize > maxFileBytes) {
-                throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE,
-                        "File exceeds " + (maxFileBytes / (1024 * 1024)) + " MB limit");
-            }
-
-            // Sniff the real MIME by content, not the header the browser sent. This is what
-            // catches a `.jpg`-renamed HTML payload that would otherwise be served as an image.
-            // Tika only reads the head of the stream, so this doesn't rescan the whole file.
-            String detectedMime;
-            try (InputStream sniff = new BufferedInputStream(Files.newInputStream(temp))) {
-                detectedMime = TIKA.detect(sniff, originalFilename).toLowerCase(Locale.ROOT);
-            } catch (IOException e) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Could not read file");
-            }
-            if (!ALLOWED_MIME_TYPES.contains(detectedMime)) {
-                throw new ResponseStatusException(HttpStatus.UNSUPPORTED_MEDIA_TYPE,
-                        "File type '" + detectedMime + "' is not allowed");
-            }
-
-            // Content-based duplicate detection — SHA-256 of the raw bytes. Catches both an
-            // exact re-upload (same file name) and a rename (same content, different name).
-            // Scope is per-project (all tickets sharing the project). Ticket has no project?
-            // Fall back to per-team so at least the caller's workspace still de-dupes.
-            String contentHash = sha256HexOf(temp);
-            TicketDocument duplicate = findDuplicate(ticket, contentHash);
-            if (duplicate != null) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT,
-                        describeDuplicate(duplicate));
-            }
-
-            quota.chargeOrThrow(currentUser.getId(), actualSize);
-
-            String storedName = UUID.randomUUID().toString() + suffixOf(originalFilename);
-            Path target = ticketDir.resolve(storedName);
-            try {
-                Files.move(temp, target);
-            } catch (IOException e) {
-                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not save file");
-            }
-
-            TicketDocument doc = TicketDocument.builder()
-                    .ticket(ticket)
-                    .name(safeName)
-                    .originalFilename(originalFilename)
-                    // Store the *detected* type, not the client-supplied one. This is what the
-                    // download endpoint replays, so it must reflect what's really on disk.
-                    .contentType(detectedMime)
-                    .sizeBytes(actualSize)
-                    .storagePath(ticketId + "/" + storedName)
-                    .contentHash(contentHash)
-                    .uploadedAt(Instant.now())
-                    .build();
-            documentRepository.save(doc);
-
-            return new TicketDtos.DocumentResponse(
-                    doc.getId(), doc.getName(), doc.getOriginalFilename(),
-                    doc.getContentType(), doc.getSizeBytes(), doc.getUploadedAt()
-            );
+            return attach(ticketId, name, new IncomingFile(temp, originalFilename, actualSize), currentUser, isAdmin);
         } finally {
-            // No-op on success (the temp was moved away); on any rejection above it removes
-            // the half-landed payload so aborted uploads can't fill the disk.
+            // No-op on success (attach renamed the file away); on any rejection above it
+            // removes the half-landed payload so aborted uploads can't fill the disk.
             try {
                 Files.deleteIfExists(temp);
             } catch (IOException e) {
                 log.warn("Could not remove temp upload {}: {}", temp, e.getMessage());
             }
         }
+    }
+
+    /**
+     * Validate a file that is already on disk and attach it to the ticket: type sniffing,
+     * duplicate detection, quota, then a rename into the ticket folder and a DB row. Shared
+     * by the multipart endpoint and the chunked-upload finalize so both enforce exactly the
+     * same rules.
+     */
+    @Transactional
+    public TicketDtos.DocumentResponse attach(Long ticketId, String name, IncomingFile incoming,
+                                              User currentUser, boolean isAdmin) {
+        Ticket ticket = loadForAttach(ticketId, currentUser, isAdmin);
+
+        String originalFilename = sanitiseFilename(incoming.originalFilename());
+        assertExtensionAllowed(originalFilename);
+        String safeName = (name == null || name.isBlank()) ? originalFilename : name.trim();
+        if (safeName.length() > 250) safeName = safeName.substring(0, 250);
+
+        long actualSize = incoming.size();
+        if (actualSize <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File is empty");
+        }
+        if (actualSize > maxFileBytes) {
+            throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE,
+                    "File exceeds " + (maxFileBytes / (1024 * 1024)) + " MB limit");
+        }
+        Path source = incoming.path();
+
+        // Sniff the real MIME by content, not the header the browser sent. This is what
+        // catches a `.jpg`-renamed HTML payload that would otherwise be served as an image.
+        // Tika only reads the head of the stream, so this doesn't rescan the whole file.
+        String detectedMime;
+        try (InputStream sniff = new BufferedInputStream(Files.newInputStream(source))) {
+            detectedMime = TIKA.detect(sniff, originalFilename).toLowerCase(Locale.ROOT);
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Could not read file");
+        }
+        if (!ALLOWED_MIME_TYPES.contains(detectedMime)) {
+            throw new ResponseStatusException(HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                    "File type '" + detectedMime + "' is not allowed");
+        }
+
+        // Content-based duplicate detection — SHA-256 of the raw bytes. Catches both an
+        // exact re-upload (same file name) and a rename (same content, different name).
+        // Scope is per-project (all tickets sharing the project). Ticket has no project?
+        // Fall back to per-team so at least the caller's workspace still de-dupes.
+        String contentHash = sha256HexOf(source);
+        TicketDocument duplicate = findDuplicate(ticket, contentHash);
+        if (duplicate != null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, describeDuplicate(duplicate));
+        }
+
+        quota.chargeOrThrow(currentUser.getId(), actualSize);
+
+        Path ticketDir = baseDir.resolve(String.valueOf(ticketId));
+        try {
+            Files.createDirectories(ticketDir);
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not prepare storage");
+        }
+        String storedName = UUID.randomUUID().toString() + suffixOf(originalFilename);
+        Path target = ticketDir.resolve(storedName);
+
+        TicketDocument doc = TicketDocument.builder()
+                .ticket(ticket)
+                .name(safeName)
+                .originalFilename(originalFilename)
+                // Store the *detected* type, not the client-supplied one. This is what the
+                // download endpoint replays, so it must reflect what's really on disk.
+                .contentType(detectedMime)
+                .sizeBytes(actualSize)
+                .storagePath(ticketId + "/" + storedName)
+                .contentHash(contentHash)
+                .uploadedAt(Instant.now())
+                .build();
+        documentRepository.save(doc);
+
+        // Rename last, once the row is staged in the transaction: if the move fails the
+        // exception rolls the row back and the caller still owns the source file.
+        try {
+            Files.move(source, target);
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not save file");
+        }
+
+        return new TicketDtos.DocumentResponse(
+                doc.getId(), doc.getName(), doc.getOriginalFilename(),
+                doc.getContentType(), doc.getSizeBytes(), doc.getUploadedAt()
+        );
+    }
+
+    /** Same access rules as {@link #attach}, without touching any file. Lets the chunked
+     *  upload refuse a session up front instead of after the whole transfer. */
+    @Transactional(readOnly = true)
+    public void assertCanAttach(Long ticketId, User currentUser, boolean isAdmin) {
+        loadForAttach(ticketId, currentUser, isAdmin);
+    }
+
+    /** 415 for extensions on the blocklist. Public so session creation can fail fast. */
+    public void assertExtensionAllowed(String filename) {
+        String ext = extensionOf(filename);
+        if (BLOCKED_EXTENSIONS.contains(ext)) {
+            throw new ResponseStatusException(HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                    "File type '." + ext + "' is not allowed");
+        }
+    }
+
+    private Ticket loadForAttach(Long ticketId, User currentUser, boolean isAdmin) {
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ticket not found"));
+        com.dataentry.security.TenantGuard.assertOwnership(ticket);
+        if (!isAdmin && !ticket.getSubmittedBy().getId().equals(currentUser.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
+        return ticket;
     }
 
     @Transactional(readOnly = true)
@@ -455,7 +511,8 @@ public class TicketDocumentService {
         }
     }
 
-    private String sanitiseFilename(String s) {
+    /** Strip any directory component and control characters from a client-supplied name. */
+    public static String sanitiseFilename(String s) {
         if (s == null || s.isBlank()) return "file";
         String cleaned = s.replace('\\', '/');
         int slash = cleaned.lastIndexOf('/');
@@ -466,7 +523,7 @@ public class TicketDocumentService {
         return cleaned;
     }
 
-    private String suffixOf(String filename) {
+    private static String suffixOf(String filename) {
         int dot = filename.lastIndexOf('.');
         if (dot <= 0 || dot >= filename.length() - 1) return "";
         String ext = filename.substring(dot + 1);
@@ -474,7 +531,7 @@ public class TicketDocumentService {
         return "." + ext.toLowerCase();
     }
 
-    private String extensionOf(String filename) {
+    private static String extensionOf(String filename) {
         if (filename == null) return "";
         int dot = filename.lastIndexOf('.');
         if (dot <= 0 || dot >= filename.length() - 1) return "";

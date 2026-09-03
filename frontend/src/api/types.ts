@@ -165,6 +165,15 @@ export interface ArticleInput {
   extractedImages?: ExtractedImageRefInput[];
 }
 
+/** Admin edit of an entry's authored fields. Resources are replaced wholesale. */
+export interface UpdateTicketPayload {
+  title: string;
+  content: string;
+  websiteName?: string;
+  websiteLink?: string;
+  resources: ResourceInput[];
+}
+
 export interface TicketResource {
   id: number;
   name: string | null;
@@ -459,4 +468,42 @@ export interface ExtractedPdf {
    *  on submit so the server promotes them into permanent ticket attachments. */
   extractionId: string | null;
   images: ExtractedImage[];
+}
+
+// --- chunked uploads (/uploads/sessions) ---
+
+export type UploadTarget = 'QUICK_UPLOAD' | 'TICKET_DOCUMENT';
+
+export interface UploadSessionCreateRequest {
+  filename: string;
+  size: number;
+  contentType?: string | null;
+  target: UploadTarget;
+  projectId?: number | null;
+  departmentId?: number | null;
+  ticketId?: number | null;
+  /** Ticket title (QUICK_UPLOAD) or document display name (TICKET_DOCUMENT). */
+  title?: string | null;
+}
+
+export interface UploadSession {
+  id: string;
+  filename: string;
+  size: number;
+  chunkBytes: number;
+  totalChunks: number;
+  /** Chunk indices already safely on disk — resume by sending the rest. */
+  received: number[];
+  expiresAt: string;
+}
+
+export interface UploadChunkAck {
+  index: number;
+  bytes: number;
+}
+
+export interface UploadCompleteResponse {
+  target: UploadTarget;
+  ticket: Ticket | null;
+  document: TicketDocument | null;
 }

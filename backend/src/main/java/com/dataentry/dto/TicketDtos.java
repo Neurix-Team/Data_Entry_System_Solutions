@@ -95,6 +95,19 @@ public class TicketDtos {
             String status
     ) {}
 
+    /**
+     * Admin edit of an entry's authored fields. Resources are replaced wholesale when the
+     * list is present (null leaves them untouched). Department, subcategory, custom values
+     * and attachments have their own flows and are not part of this request.
+     */
+    public record UpdateTicketRequest(
+            @Size(max = 500) String title,
+            @Size(max = 2000000) String content,
+            @Size(max = 250) String websiteName,
+            @Size(max = 500) String websiteLink,
+            @Valid List<ResourceRequest> resources
+    ) {}
+
     public record BulkApproveRequest(
             @NotEmpty @Size(max = 500) List<@NotNull Long> ticketIds
     ) {}

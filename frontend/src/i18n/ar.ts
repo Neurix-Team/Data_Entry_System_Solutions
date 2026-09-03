@@ -563,6 +563,7 @@ export const ar: Dict = {
       removeDocument: 'حذف المستند',
       documentUploadFailed: 'فشل رفع المستند "{name}".',
       documentUploadedCount: 'تم رفع {count} مستند.',
+      uploadingFileOf: 'جاري رفع الملف {n} من {count}',
       content: 'المحتوى',
       contentPlaceholder: 'اكتب المحتوى هنا…',
       submitBtn: 'إرسال الإدخال',
@@ -717,6 +718,15 @@ export const ar: Dict = {
     deleteDocument: 'حذف المستند',
     confirmDeleteDocument: 'هل تريد حذف هذا المستند؟',
     documentDeleted: 'تم حذف المستند.',
+    edit: 'تحديث',
+    editTitle: 'تحديث الإدخال #{id}',
+    saveChanges: 'حفظ التعديلات',
+    saving: 'جارٍ الحفظ…',
+    updated: 'تم تحديث الإدخال.',
+    existingDocuments: 'مرفق بالفعل',
+    addFiles: 'إرفاق ملفات إضافية',
+    addFilesHint: 'الملفات الجديدة هتترفع لما تحفظ.',
+    newFileName: 'اسم المستند',
   },
 
   theme: {

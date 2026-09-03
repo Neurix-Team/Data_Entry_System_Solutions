@@ -58,6 +58,12 @@ spring:
       max-file-size: 500MB
       max-request-size: 520MB
       file-size-threshold: 2MB
+      # Spool location for multipart bodies. Lives INSIDE the attachments volume on
+      # purpose: the upload path then renames the spooled file into the ticket folder
+      # instead of copying it across filesystems (the container temp dir used to cost a
+      # second full write of every book). Must be absolute — Tomcat resolves a relative
+      # path against its own work dir, not the process cwd.
+      location: ${app.uploads.incoming-dir}
 
 app:
   jwt:
@@ -77,7 +83,20 @@ app:
     # Per-user rolling 24h upload byte cap. Prevents any one agent from filling the disk.
     # 5 GB ≈ a dozen scanned books a day; a single book scan can run 300–500 MB.
     per-user-daily-bytes: ${APP_UPLOADS_PER_USER_DAILY_BYTES:5368709120}
+    # Chunked, parallel upload (ChunkedUploadService). The browser opens a session, PUTs
+    # fixed-size chunks with several requests in flight, then asks the server to finalize.
+    # Chunks are written straight into a pre-sized payload file under incoming-dir, which
+    # must sit on the same filesystem as app.attachments.dir so finalize is a rename.
+    # 8 MB keeps every request comfortably under any reverse proxy's body limit while
+    # still amortising per-request overhead on fast links.
+    incoming-dir: ${APP_UPLOADS_INCOMING_DIR:${app.attachments.dir}/.incoming}
+    chunk-bytes: ${APP_UPLOADS_CHUNK_BYTES:8388608}
+    # Abandoned sessions (closed laptop, lost connection) are swept after this long.
+    session-ttl-hours: ${APP_UPLOADS_SESSION_TTL_HOURS:24}
   attachments:
+    # Absolute on purpose (see spring.servlet.multipart.location above). ${user.dir} is
+    # /app inside the container, i.e. the dems-data volume mount.
+    dir: ${APP_ATTACHMENTS_DIR:${user.dir}/data/attachments}
     # Hard per-file cap enforced in TicketDocumentService. The upload path streams to
     # disk, so this bounds storage, not heap. Keep it ≤ multipart max-file-size above.
     max-file-bytes: ${APP_ATTACHMENTS_MAX_FILE_BYTES:524288000}

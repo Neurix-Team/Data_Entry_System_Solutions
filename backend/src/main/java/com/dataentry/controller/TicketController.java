@@ -74,6 +74,17 @@ public class TicketController {
         return service.updateStatus(id, req.status());
     }
 
+    /**
+     * Admin edit of an entry's authored fields (title, content, website, resources).
+     * Attachments are managed through the documents endpoints; status through /status.
+     */
+    @PatchMapping("/admin/tickets/{id}")
+    public TicketDtos.TicketResponse update(
+            @PathVariable Long id,
+            @Valid @RequestBody TicketDtos.UpdateTicketRequest req) {
+        return service.updateByAdmin(id, req);
+    }
+
     /** Approve a ticket — sets its status to COMPLETED. Thin alias over updateStatus so
      *  the Project Folders UI can call one dedicated verb instead of building a status
      *  payload; auditing and authz land in the same place either way. */

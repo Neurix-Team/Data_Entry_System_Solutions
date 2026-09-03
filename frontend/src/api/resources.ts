@@ -26,6 +26,11 @@ import type {
   TicketDocument,
   TicketPage,
   TicketStatus,
+  UpdateTicketPayload,
+  UploadChunkAck,
+  UploadCompleteResponse,
+  UploadSession,
+  UploadSessionCreateRequest,
   UserActivity,
 } from './types';
 
@@ -139,6 +144,9 @@ export const ticketsApi = {
   removeMine: (id: number) => api.delete(`/user/tickets/${id}`).then(() => undefined),
   updateStatus: (id: number, status: TicketStatus) =>
     api.patch<Ticket>(`/admin/tickets/${id}/status`, { status }).then(r => r.data),
+  /** Admin edit of title, content, website and resources. Attachments go via the documents API. */
+  updateAdmin: (id: number, payload: UpdateTicketPayload) =>
+    api.patch<Ticket>(`/admin/tickets/${id}`, payload).then(r => r.data),
   stats: () => api.get<AdminStats>('/admin/stats').then(r => r.data),
   reports: () => api.get<ReportData>('/admin/reports').then(r => r.data),
 
@@ -268,4 +276,32 @@ export const projectsApi = {
   update: (id: number, payload: UpsertProjectPayload) =>
     api.patch<Project>(`/admin/projects/${id}`, payload).then(r => r.data),
   remove: (id: number) => api.delete(`/admin/projects/${id}`).then(() => undefined),
+};
+
+// Chunked uploads — see api/chunkedUpload.ts for the client that drives these.
+export const uploadsApi = {
+  createSession: (req: UploadSessionCreateRequest, signal?: AbortSignal) =>
+    api.post<UploadSession>('/uploads/sessions', req, { signal }).then(r => r.data),
+  status: (id: string, signal?: AbortSignal) =>
+    api.get<UploadSession>(`/uploads/sessions/${id}`, { signal }).then(r => r.data),
+  /**
+   * Raw body, no multipart framing. The explicit octet-stream header keeps axios from
+   * copying the Blob's own type (e.g. application/pdf) onto a request that is only a slice.
+   */
+  putChunk: (
+    id: string,
+    index: number,
+    chunk: Blob,
+    onLoaded: (bytes: number) => void,
+    signal?: AbortSignal,
+  ) =>
+    api.put<UploadChunkAck>(`/uploads/sessions/${id}/chunks/${index}`, chunk, {
+      headers: { 'Content-Type': 'application/octet-stream' },
+      signal,
+      onUploadProgress: (e) => onLoaded(e.loaded),
+    }).then(r => r.data),
+  complete: (id: string, signal?: AbortSignal) =>
+    api.post<UploadCompleteResponse>(`/uploads/sessions/${id}/complete`, undefined, { signal })
+      .then(r => r.data),
+  abort: (id: string) => api.delete(`/uploads/sessions/${id}`).then(() => undefined),
 };

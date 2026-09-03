@@ -1,5 +1,11 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { extractError } from '../../api/client';
+import {
+  ChunkedUploadUnsupportedError,
+  DEFAULT_CHUNK_PARALLELISM,
+  uploadFileChunked,
+  type UploadProgress,
+} from '../../api/chunkedUpload';
 import { useToast } from '../../components/toast/ToastContext';
 import {
   aiApi,
@@ -12,8 +18,10 @@ import type {
   ResourceInput,
 } from '../../api/types';
 import { IconFolder, IconPlus, IconTasks } from '../../components/Icons';
+import { UploadHud } from '../../components/UploadHud';
 import { useT } from '../../i18n';
 import { pickLocalized } from '../../i18n/localized';
+import { extractTitleFromFile } from '../../utils/titleFromFile';
 import { AiCheckDialog, type AiResult } from './submit/AiCheckDialog';
 import {
   ArticleCard,
@@ -91,6 +99,18 @@ export function SubmitTicketPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Live meter for the attachment uploads that follow a successful submit. Null when idle.
+  const [uploadHud, setUploadHud] = useState<{
+    name: string; index: number; count: number; progress: UploadProgress;
+  } | null>(null);
+
+  // Titles this page filled in from an attached file, keyed by article id. Lets a later
+  // attachment (or a better PDF-metadata title) replace an auto-filled title without ever
+  // overwriting something the user typed themselves.
+  const autoTitles = useRef<Map<number, string>>(new Map());
+  const articlesRef = useRef(articles);
+  articlesRef.current = articles;
 
   // Which half of the article form is visible. Null on first render — nothing shows
   // until the user picks a mode from the two big picker cards. Once picked they can
@@ -195,15 +215,34 @@ export function SubmitTicketPage() {
    * Uploads every document for one ticket. Throws on the first failure so the caller can
    * roll the ticket back — partial success would leave orphan tickets with no attachments,
    * which the user cannot distinguish from a working ticket.
+   *
+   * <p>Files go through the chunked uploader (parallel chunks, per-chunk retry, live
+   * percentage in the HUD above the submit button). A backend without the session
+   * endpoints is detected on the first request and the classic multipart path takes over.
    */
   async function uploadArticleDocumentsAllOrNothing(
-    ticketId: number, docs: DocumentRow[],
+    ticketId: number, docs: DocumentRow[], counter: { index: number; count: number },
   ): Promise<number> {
     let ok = 0;
     for (const d of docs) {
       if (!d.file) continue;
-      const name = d.name.trim() || d.file.name;
-      await ticketsApi.uploadDocument(ticketId, name, d.file);
+      const file = d.file;
+      const name = d.name.trim() || file.name;
+      counter.index += 1;
+      const show = (progress: UploadProgress) =>
+        setUploadHud({ name, index: counter.index, count: counter.count, progress });
+      show({ phase: 'starting', loaded: 0, total: file.size, fraction: 0, bytesPerSecond: 0, etaSeconds: null });
+      try {
+        await uploadFileChunked({
+          file,
+          target: { kind: 'TICKET_DOCUMENT', ticketId, name },
+          parallel: DEFAULT_CHUNK_PARALLELISM,
+          onProgress: show,
+        });
+      } catch (err) {
+        if (!(err instanceof ChunkedUploadUnsupportedError)) throw err;
+        await ticketsApi.uploadDocument(ticketId, name, file);
+      }
       ok += 1;
     }
     return ok;
@@ -249,10 +288,14 @@ export function SubmitTicketPage() {
       // Upload documents per article. If any upload fails, roll back every ticket in this
       // batch so the user isn't left with orphan rows they think succeeded.
       let uploaded = 0;
+      const counter = {
+        index: 0,
+        count: articles.reduce((n, a) => n + a.documents.filter((d) => d.file != null).length, 0),
+      };
       try {
         for (let i = 0; i < res.tickets.length && i < articles.length; i++) {
           uploaded += await uploadArticleDocumentsAllOrNothing(
-            res.tickets[i].id, articles[i].documents,
+            res.tickets[i].id, articles[i].documents, counter,
           );
         }
       } catch (uploadErr) {
@@ -269,11 +312,36 @@ export function SubmitTicketPage() {
         toast.success(t('user.submit.documentUploadedCount', { count: uploaded }));
       }
       resetArticles();
+      autoTitles.current.clear();
       setErrors({});
     } catch (err) {
       setSubmitError(extractError(err, t('user.submit.submitFailed')));
     } finally {
       setSubmitting(false);
+      setUploadHud(null);
+    }
+  }
+
+  /**
+   * A file was attached to an article row: give the article a title from it (the way
+   * the multi-file button already does) unless the user has typed their own, and name
+   * the document row when it's still blank. The PDF-metadata pass is asynchronous, so a
+   * "scan0001.pdf" that carries a real title inside gets that one instead.
+   */
+  async function autoTitleFromAttachment(articleId: number, documentId: number, file: File) {
+    const title = await extractTitleFromFile(file);
+    if (!title) return;
+    const article = articlesRef.current.find((a) => a.id === articleId);
+    if (!article) return;
+    const current = article.title.trim();
+    const previousAuto = autoTitles.current.get(articleId);
+    if (current === '' || current === previousAuto) {
+      autoTitles.current.set(articleId, title);
+      updateArticle(articleId, { title });
+    }
+    const doc = article.documents.find((d) => d.id === documentId);
+    if (doc && !doc.name.trim()) {
+      updateDocument(articleId, documentId, { name: title });
     }
   }
 
@@ -561,12 +629,28 @@ export function SubmitTicketPage() {
                   onUpdateResource={(rid: number, patch: Partial<ResourceRow>) => updateResource(a.id, rid, patch)}
                   onAddDocument={() => addDocument(a.id)}
                   onRemoveDocument={(did: number) => removeDocument(a.id, did)}
-                  onUpdateDocument={(did: number, patch: Partial<DocumentRow>) => updateDocument(a.id, did, patch)}
+                  onUpdateDocument={(did: number, patch: Partial<DocumentRow>) => {
+                    updateDocument(a.id, did, patch);
+                    if (patch.file) void autoTitleFromAttachment(a.id, did, patch.file);
+                  }}
                   onRemoveExtractedImage={(iid: number) => removeExtractedImage(a.id, iid)}
                   onUpdateExtractedImage={(iid, patch) => updateExtractedImage(a.id, iid, patch)}
                 />
               ))}
             </div>
+          )}
+
+          {uploadHud && (
+            <UploadHud
+              lang={lang}
+              size={56}
+              title={t('user.submit.uploadingFileOf', { n: uploadHud.index, count: uploadHud.count })}
+              subtitle={uploadHud.name}
+              progress={uploadHud.progress}
+              state={uploadHud.progress.phase === 'finalizing'
+                ? 'finalizing'
+                : uploadHud.progress.phase === 'done' ? 'done' : 'uploading'}
+            />
           )}
 
           <div className="form-row-end">

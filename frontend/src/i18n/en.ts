@@ -561,6 +561,7 @@ export const en = {
       removeDocument: 'Remove document',
       documentUploadFailed: 'Failed to upload "{name}".',
       documentUploadedCount: '{count} document(s) uploaded.',
+      uploadingFileOf: 'Uploading file {n} of {count}',
       content: 'Content',
       contentPlaceholder: 'Enter the content here…',
       submitBtn: 'Submit Entry',
@@ -715,6 +716,15 @@ export const en = {
     deleteDocument: 'Delete document',
     confirmDeleteDocument: 'Delete this document?',
     documentDeleted: 'Document deleted.',
+    edit: 'Update',
+    editTitle: 'Update entry #{id}',
+    saveChanges: 'Save changes',
+    saving: 'Saving…',
+    updated: 'Entry updated.',
+    existingDocuments: 'Already attached',
+    addFiles: 'Attach more files',
+    addFilesHint: 'New files are uploaded when you save.',
+    newFileName: 'Document name',
   },
 
   theme: {

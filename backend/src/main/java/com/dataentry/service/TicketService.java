@@ -536,6 +536,64 @@ public class TicketService {
         return new TicketDtos.BulkApproveResponse(changed, approved);
     }
 
+    /**
+     * Admin edit of an entry's authored fields (title, content, website, resources). The
+     * bilingual columns are re-translated so what either language shows never drifts from
+     * what was typed. Translation runs outside the DB transaction, like create does, so a
+     * slow LibreTranslate round-trip never holds a pooled connection.
+     */
+    public TicketDtos.TicketResponse updateByAdmin(Long id, TicketDtos.UpdateTicketRequest req) {
+        assertAdminAuthenticated();
+        Map<String, TranslationService.Bilingual> tr = translations.prepareForOne(
+                req.title(), req.content(), req.websiteName(), Map.of(), List.of());
+        return selfProvider.getObject().updateByAdminTx(id, req, tr);
+    }
+
+    @Transactional
+    public TicketDtos.TicketResponse updateByAdminTx(Long id,
+                                                     TicketDtos.UpdateTicketRequest req,
+                                                     Map<String, TranslationService.Bilingual> tr) {
+        assertAdminAuthenticated();
+        Ticket t = ticketRepository.findWithDetailsById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ticket not found"));
+        TenantGuard.assertOwnership(t);
+
+        String cleanTitle = req.title() == null ? "" : req.title().trim();
+        String cleanContent = req.content() == null ? "" : req.content().trim();
+        String cleanName = req.websiteName() == null ? "" : req.websiteName().trim();
+        String cleanUrl = req.websiteLink() == null ? "" : req.websiteLink().trim();
+        if (!cleanUrl.isEmpty()) {
+            validateUrl(cleanUrl);
+        }
+
+        t.setTitle(cleanTitle);
+        TranslationService.Bilingual titleBi = translations.lookup(tr, cleanTitle);
+        t.setTitleEn(titleBi.en());
+        t.setTitleAr(titleBi.ar());
+
+        t.setContent(cleanContent);
+        TranslationService.Bilingual contentBi = translations.lookup(tr, cleanContent);
+        t.setContentEn(contentBi.en());
+        t.setContentAr(contentBi.ar());
+
+        t.setWebsiteName(cleanName);
+        TranslationService.Bilingual nameBi = translations.lookup(tr, cleanName);
+        t.setWebsiteNameEn(nameBi.en());
+        t.setWebsiteNameAr(nameBi.ar());
+        t.setWebsiteLink(cleanUrl);
+
+        if (req.resources() != null) {
+            // orphanRemoval on Ticket.resources turns the clear into row deletes, so the
+            // list the admin sees after saving is exactly the list they submitted.
+            t.getResources().clear();
+            applyResources(t, req.resources());
+        }
+
+        Ticket saved = ticketRepository.save(t);
+        audit.record(AuditService.Action.UPDATE, AuditService.EntityType.TICKET, id, null);
+        return toDto(saved);
+    }
+
     private void assertAdminAuthenticated() {
         var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
         boolean isAdmin = auth != null && auth.isAuthenticated()
