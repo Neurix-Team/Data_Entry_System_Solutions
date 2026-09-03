@@ -70,12 +70,13 @@ public class DataExplorerController {
             @RequestParam(required = false) Instant to,
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "false") boolean subcategoryFolders,
+            @RequestParam(defaultValue = "false") boolean prefixNames,
             @RequestParam(defaultValue = "false") boolean includeText
     ) {
         DataExplorerService.Filters f = new DataExplorerService.Filters(teamId, projectId, userId, from, to, search);
         String filename = "neurix-export-" + LocalDate.now() + ".zip";
         ContentDisposition cd = ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build();
-        StreamingResponseBody body = out -> archive.writeZip(f, subcategoryFolders, includeText, out);
+        StreamingResponseBody body = out -> archive.writeZip(f, subcategoryFolders, prefixNames, includeText, out);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, cd.toString())
                 .header("X-Content-Type-Options", "nosniff")

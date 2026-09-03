@@ -66,6 +66,17 @@ ehthumbs.db
 # Database dumps produced by scripts/migrate-db-to-container.sh — real production data.
 scripts/.migration/
 
-# Rendered promo/demo videos are large binaries — keep them out of git
+# ===== docs/ =====
+# docs/ holds repository documentation only. Anything else landing here is output from
+# the super-admin Download Centre — real ticket data and customer files mirrored out of
+# the running app. Allowlist what we actually commit; ignore everything else.
+docs/*
+!docs/FEATURES.md
+!docs/Neurix-Technical-Documentation.pdf
+!docs/neurix-documentation.html
+!docs/preview-cover.png
+!docs/preview-design-system.png
+!docs/video/
+# Rendered promo videos are large binaries; the poster frame is small enough to keep.
 docs/video/*.mp4
 docs/video/*.webm

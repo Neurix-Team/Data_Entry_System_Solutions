@@ -53,6 +53,7 @@ public class ExplorerArchiveService {
 
     public void writeZip(DataExplorerService.Filters filters,
                          boolean subcategoryFolders,
+                         boolean prefixNames,
                          boolean includeText,
                          OutputStream out) throws IOException {
         DataExplorerDtos.Manifest manifest = explorer.manifest(filters, includeText);
@@ -70,7 +71,7 @@ public class ExplorerArchiveService {
                 Path abs = baseDir.resolve(doc.getStoragePath()).normalize();
                 if (!abs.startsWith(baseDir) || !Files.exists(abs)) { missing++; continue; }
 
-                String path = ExportPaths.filePath(e, subcategoryFolders, usedPaths);
+                String path = ExportPaths.filePath(e, subcategoryFolders, prefixNames, usedPaths);
                 ZipEntry entry = new ZipEntry(path);
                 entry.setTime(e.submittedAt() != null ? e.submittedAt().toEpochMilli() : Instant.now().toEpochMilli());
                 zip.putNextEntry(entry);
@@ -126,7 +127,9 @@ public class ExplorerArchiveService {
             return sb.toString();
         }
 
-        public static String filePath(DataExplorerDtos.ManifestEntry e, boolean subcategoryFolders, Set<String> used) {
+        /** Original file name by default; {@code prefixNames} adds "#id - title - " in front. */
+        public static String filePath(DataExplorerDtos.ManifestEntry e, boolean subcategoryFolders,
+                                      boolean prefixNames, Set<String> used) {
             String original = e.originalFilename() != null && !e.originalFilename().isBlank()
                     ? e.originalFilename() : (e.name() != null ? e.name() : "file");
             String ext = "";
@@ -135,8 +138,11 @@ public class ExplorerArchiveService {
                 ext = original.substring(dot);
                 original = original.substring(0, dot);
             }
-            String title = safe(e.ticketTitle(), "");
-            String base = "#" + e.ticketId() + (title.isEmpty() ? "" : " - " + title) + " - " + safe(original, "file");
+            String base = safe(original, "file");
+            if (prefixNames) {
+                String title = safe(e.ticketTitle(), "");
+                base = "#" + e.ticketId() + (title.isEmpty() ? "" : " - " + title) + " - " + base;
+            }
             if (base.length() > 180) base = base.substring(0, 180).trim();
             return unique(folder(e.projectName(), e.departmentName(), e.subcategoryName(), subcategoryFolders), base, ext, used);
         }

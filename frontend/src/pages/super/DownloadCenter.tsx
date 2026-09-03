@@ -38,7 +38,8 @@ export function DownloadCenter({ open, onClose, query, filterLabels }: Props) {
   const toast = useToast();
   const [manifest, setManifest] = useState<ExplorerManifest | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [opts, setOpts] = useState<DownloadOptions>({ subcategoryFolders: false, includeText: true, skipExisting: true });
+  // Defaults: the files exactly as uploaded — original names, no sidecar notes.
+  const [opts, setOpts] = useState<DownloadOptions>({ subcategoryFolders: false, prefixNames: false, includeText: false, skipExisting: true });
   const [progress, setProgress] = useState<DownloadProgress | null>(null);
   const [zipNotice, setZipNotice] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -204,6 +205,12 @@ export function DownloadCenter({ open, onClose, query, filterLabels }: Props) {
             label={t('super.data.download.optSubcategory')}
           />
           <Toggle
+            checked={opts.prefixNames}
+            onChange={(v) => setOpts((o) => ({ ...o, prefixNames: v }))}
+            label={t('super.data.download.optPrefix')}
+            hint={t('super.data.download.optPrefixHint')}
+          />
+          <Toggle
             checked={opts.includeText}
             onChange={(v) => setOpts((o) => ({ ...o, includeText: v }))}
             label={t('super.data.download.optText')}
@@ -362,7 +369,7 @@ function ProgressOverlay({ progress, running, onCancel, onClose, t }: {
               {p.filesFailed > 0 && ` · ${t('super.data.download.failedCount', { n: p.filesFailed })}`}
             </div>
             <div className="dlc-file">{p.currentFile ?? '…'}</div>
-            <div className="dlc-mini"><i style={{ width: `${Math.round(filePct * 100)}%` }} /></div>
+            <div className="dlc-mini"><i style={{ transform: `scaleX(${filePct.toFixed(3)})` }} /></div>
             {p.recent.length > 0 && (
               <ul className="dlc-recent" aria-label={t('super.data.download.recent')}>
                 {p.recent.map((r) => (

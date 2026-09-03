@@ -124,7 +124,7 @@
   width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center; color: #fff;
   background: linear-gradient(135deg, #0e9f7c, #22c3d9);
   box-shadow: 0 16px 34px rgba(14, 159, 124, 0.35);
-  animation: dlcPop .55s cubic-bezier(.2,.9,.2,1.2);
+  animation: dlcPop .5s cubic-bezier(.16,1,.3,1);
 }
 .dlc-check.is-warn { background: linear-gradient(135deg, #f0a020, #e04562); box-shadow: 0 16px 34px rgba(224, 69, 98, 0.3); }
 .dlc-check.is-muted { background: var(--text-tertiary); box-shadow: none; }
@@ -147,9 +147,11 @@
 }
 .dlc-mini { height: 6px; border-radius: 999px; background: var(--bg-muted); overflow: hidden; margin-top: 8px; position: relative; }
 .dlc-mini > i {
-  display: block; height: 100%; border-radius: 999px; background: var(--brand-gradient);
-  transition: width .2s ease; position: relative; overflow: hidden;
+  display: block; width: 100%; height: 100%; border-radius: 999px; background: var(--brand-gradient);
+  transform-origin: 0 50%; transform: scaleX(0);
+  transition: transform .2s ease; position: relative; overflow: hidden;
 }
+[dir="rtl"] .dlc-mini > i { transform-origin: 100% 50%; }
 .dlc-mini > i::after {
   content: ''; position: absolute; inset: 0;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent);
@@ -180,7 +182,7 @@
 @keyframes dlcFade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes dlcCardIn { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: none; } }
 @keyframes dlcOrbit { to { transform: rotate(360deg); } }
-@keyframes dlcPop { 0% { transform: scale(.4); opacity: 0; } 60% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); } }
+@keyframes dlcPop { 0% { transform: scale(.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 @keyframes dlcSheen { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
 
 @media (prefers-reduced-motion: reduce) {

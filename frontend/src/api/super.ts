@@ -242,6 +242,7 @@ export interface ExplorerManifest {
 
 export interface ExplorerArchiveOptions {
   subcategoryFolders: boolean;
+  prefixNames: boolean;
   includeText: boolean;
 }
 
@@ -359,6 +360,7 @@ export const superApi = {
   explorerArchiveUrl: (q: ExplorerQuery, opts: ExplorerArchiveOptions) => {
     const p = explorerParams(q);
     if (opts.subcategoryFolders) p.set('subcategoryFolders', 'true');
+    if (opts.prefixNames) p.set('prefixNames', 'true');
     if (opts.includeText) p.set('includeText', 'true');
     return `${API_BASE}/super/data/archive?${p.toString()}`;
   },
