@@ -15,8 +15,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Unified cross-team ticket view used by both the super-admin data explorer page and the
@@ -54,16 +56,7 @@ public class DataExplorerService {
 
         StringBuilder jpql = baseRowQuery("where 1=1 ");
         Map<String, Object> params = new HashMap<>();
-
-        if (filters.teamId() != null) { jpql.append("and t.team.id = :teamId "); params.put("teamId", filters.teamId()); }
-        if (filters.projectId() != null) { jpql.append("and t.project.id = :projectId "); params.put("projectId", filters.projectId()); }
-        if (filters.userId() != null) { jpql.append("and t.submittedBy.id = :userId "); params.put("userId", filters.userId()); }
-        if (filters.from() != null) { jpql.append("and t.submittedAt >= :from "); params.put("from", filters.from()); }
-        if (filters.to() != null) { jpql.append("and t.submittedAt < :to "); params.put("to", filters.to()); }
-        if (filters.search() != null && !filters.search().isBlank()) {
-            jpql.append("and (lower(t.title) like :q or lower(t.content) like :q or lower(t.websiteName) like :q) ");
-            params.put("q", "%" + filters.search().toLowerCase() + "%");
-        }
+        appendFilters(jpql, params, filters);
         if (cursor != null) { jpql.append("and t.id < :cursor "); params.put("cursor", cursor); }
 
         jpql.append("order by t.id desc");
@@ -190,9 +183,113 @@ public class DataExplorerService {
                 row.get("submittedAt", Instant.class));
     }
 
-    private long countMatching(Filters filters) {
-        StringBuilder jpql = new StringBuilder("select count(t) from Ticket t where 1=1 ");
+    /**
+     * Every attachment that matches {@code filters}, flattened with the ticket, project,
+     * department and subcategory it belongs to. Powers the "download to folder" feature in
+     * the explorer: the browser walks this list and mirrors each file into
+     * {@code Project/Department[/Subcategory]/} on the operator's machine, so it needs the
+     * whole set at once rather than a page.
+     *
+     * @param includeTickets also return every matching ticket's text and custom fields, so
+     *                       the client can write a Markdown sidecar per entry and an index.
+     */
+    public DataExplorerDtos.Manifest manifest(Filters filters, boolean includeTickets) {
+        StringBuilder jpql = new StringBuilder(
+                "select d.id as docId, d.name as docName, d.originalFilename as originalFilename, " +
+                        "d.contentType as contentType, d.sizeBytes as sizeBytes, d.contentHash as contentHash, " +
+                        "t.id as id, t.title as title, t.submittedAt as submittedAt, " +
+                        "team.id as teamId, team.name as teamName, " +
+                        "project.id as projectId, project.name as projectName, " +
+                        "department.id as departmentId, department.name as departmentName, " +
+                        "subcategory.id as subcategoryId, subcategory.name as subcategoryName, " +
+                        "submitter.displayName as submitterDisplayName, submitter.username as submitterUsername " +
+                        "from TicketDocument d " +
+                        "join d.ticket t " +
+                        "left join t.submittedBy submitter " +
+                        "left join t.team team " +
+                        "left join t.project project " +
+                        "left join t.department department " +
+                        "left join t.subcategory subcategory " +
+                        "where 1=1 ");
         Map<String, Object> params = new HashMap<>();
+        appendFilters(jpql, params, filters);
+        jpql.append("order by t.id desc, d.id asc");
+
+        TypedQuery<Tuple> q = em.createQuery(jpql.toString(), Tuple.class);
+        params.forEach(q::setParameter);
+
+        List<DataExplorerDtos.ManifestEntry> files = new ArrayList<>();
+        Set<Long> ticketsWithFiles = new HashSet<>();
+        long bytes = 0;
+        for (Tuple r : q.getResultList()) {
+            String display = r.get("submitterDisplayName", String.class);
+            String submitter = display != null && !display.isBlank() ? display : r.get("submitterUsername", String.class);
+            long size = r.get("sizeBytes", Long.class) == null ? 0 : r.get("sizeBytes", Long.class);
+            bytes += size;
+            ticketsWithFiles.add(r.get("id", Long.class));
+            files.add(new DataExplorerDtos.ManifestEntry(
+                    r.get("id", Long.class),
+                    r.get("title", String.class),
+                    r.get("submittedAt", Instant.class),
+                    r.get("teamId", Long.class),
+                    r.get("teamName", String.class),
+                    r.get("projectId", Long.class),
+                    r.get("projectName", String.class),
+                    r.get("departmentId", Long.class),
+                    r.get("departmentName", String.class),
+                    r.get("subcategoryId", Long.class),
+                    r.get("subcategoryName", String.class),
+                    submitter,
+                    r.get("docId", Long.class),
+                    r.get("docName", String.class),
+                    r.get("originalFilename", String.class),
+                    r.get("contentType", String.class),
+                    size,
+                    r.get("contentHash", String.class)));
+        }
+
+        List<DataExplorerDtos.ManifestTicket> tickets = includeTickets ? manifestTickets(filters) : List.of();
+        long totalTickets = includeTickets ? tickets.size() : ticketsWithFiles.size();
+        return new DataExplorerDtos.Manifest(files, tickets, files.size(), bytes, totalTickets);
+    }
+
+    /** All matching tickets (with or without files) with their text and custom fields. */
+    private List<DataExplorerDtos.ManifestTicket> manifestTickets(Filters filters) {
+        StringBuilder jpql = baseRowQuery("where 1=1 ");
+        Map<String, Object> params = new HashMap<>();
+        appendFilters(jpql, params, filters);
+        jpql.append("order by t.id desc");
+        TypedQuery<Tuple> q = em.createQuery(jpql.toString(), Tuple.class);
+        params.forEach(q::setParameter);
+        List<BaseRow> rows = q.getResultList().stream().map(this::toBaseRow).toList();
+
+        // Field values in chunks — a very large filter set must not blow the IN-list limit.
+        Map<Long, List<TicketFieldValue>> fields = new HashMap<>();
+        List<Long> ids = rows.stream().map(BaseRow::id).toList();
+        for (int i = 0; i < ids.size(); i += 500) {
+            fields.putAll(loadFieldValues(ids.subList(i, Math.min(ids.size(), i + 500))));
+        }
+
+        List<DataExplorerDtos.ManifestTicket> out = new ArrayList<>(rows.size());
+        for (BaseRow row : rows) {
+            List<DataExplorerDtos.FieldValue> fv = fields.getOrDefault(row.id(), List.of()).stream()
+                    .map(v -> new DataExplorerDtos.FieldValue(
+                            v.getField() != null ? v.getField().getId() : null,
+                            v.getField() != null ? v.getField().getLabel() : null,
+                            v.getValue()))
+                    .toList();
+            String submitter = row.submitterDisplayName() != null && !row.submitterDisplayName().isBlank()
+                    ? row.submitterDisplayName() : row.submitterUsername();
+            out.add(new DataExplorerDtos.ManifestTicket(
+                    row.id(), row.title(), row.content(), row.websiteName(), row.websiteLink(),
+                    row.status() != null ? row.status().name() : null, row.submittedAt(), submitter,
+                    row.teamName(), row.projectName(), row.departmentName(), row.subcategoryName(), fv));
+        }
+        return out;
+    }
+
+    /** Shared WHERE fragment so the page, the count and the manifest always agree. */
+    private void appendFilters(StringBuilder jpql, Map<String, Object> params, Filters filters) {
         if (filters.teamId() != null) { jpql.append("and t.team.id = :teamId "); params.put("teamId", filters.teamId()); }
         if (filters.projectId() != null) { jpql.append("and t.project.id = :projectId "); params.put("projectId", filters.projectId()); }
         if (filters.userId() != null) { jpql.append("and t.submittedBy.id = :userId "); params.put("userId", filters.userId()); }
@@ -202,6 +299,12 @@ public class DataExplorerService {
             jpql.append("and (lower(t.title) like :q or lower(t.content) like :q or lower(t.websiteName) like :q) ");
             params.put("q", "%" + filters.search().toLowerCase() + "%");
         }
+    }
+
+    private long countMatching(Filters filters) {
+        StringBuilder jpql = new StringBuilder("select count(t) from Ticket t where 1=1 ");
+        Map<String, Object> params = new HashMap<>();
+        appendFilters(jpql, params, filters);
         TypedQuery<Long> q = em.createQuery(jpql.toString(), Long.class);
         params.forEach(q::setParameter);
         Long v = q.getSingleResult();

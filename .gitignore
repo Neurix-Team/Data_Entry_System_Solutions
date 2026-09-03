@@ -65,3 +65,7 @@ ehthumbs.db
 
 # Database dumps produced by scripts/migrate-db-to-container.sh — real production data.
 scripts/.migration/
+
+# Rendered promo/demo videos are large binaries — keep them out of git
+docs/video/*.mp4
+docs/video/*.webm

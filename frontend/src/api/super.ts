@@ -1,4 +1,4 @@
-import { api } from './client';
+import { api, API_BASE } from './client';
 
 export interface TeamSummary {
   id: number;
@@ -194,6 +194,68 @@ export interface ExplorerQuery {
   size?: number;
 }
 
+/** One attachment plus the folder context needed to mirror it as Project/Department/file. */
+export interface ExplorerManifestEntry {
+  ticketId: number;
+  ticketTitle: string | null;
+  submittedAt: string;
+  teamId: number | null;
+  teamName: string | null;
+  projectId: number | null;
+  projectName: string | null;
+  departmentId: number | null;
+  departmentName: string | null;
+  subcategoryId: number | null;
+  subcategoryName: string | null;
+  submittedBy: string | null;
+  documentId: number;
+  name: string | null;
+  originalFilename: string | null;
+  contentType: string | null;
+  sizeBytes: number;
+  contentHash: string | null;
+}
+
+export interface ExplorerManifestTicket {
+  id: number;
+  title: string | null;
+  content: string | null;
+  websiteName: string | null;
+  websiteLink: string | null;
+  status: string | null;
+  submittedAt: string;
+  submittedBy: string | null;
+  teamName: string | null;
+  projectName: string | null;
+  departmentName: string | null;
+  subcategoryName: string | null;
+  customFields: ExplorerFieldValue[];
+}
+
+export interface ExplorerManifest {
+  files: ExplorerManifestEntry[];
+  tickets: ExplorerManifestTicket[];
+  totalFiles: number;
+  totalBytes: number;
+  totalTickets: number;
+}
+
+export interface ExplorerArchiveOptions {
+  subcategoryFolders: boolean;
+  includeText: boolean;
+}
+
+function explorerParams(q: ExplorerQuery): URLSearchParams {
+  const p = new URLSearchParams();
+  if (q.teamId) p.set('teamId', String(q.teamId));
+  if (q.projectId) p.set('projectId', String(q.projectId));
+  if (q.userId) p.set('userId', String(q.userId));
+  if (q.from) p.set('from', q.from);
+  if (q.to) p.set('to', q.to);
+  if (q.search) p.set('search', q.search);
+  return p;
+}
+
 // ---------- Published dataset ----------
 
 export interface DatasetRow extends Omit<ExplorerRow, 'id' | 'documents'> {
@@ -287,6 +349,19 @@ export const superApi = {
     api.get<ExplorerPage>('/super/data/tickets', { params: q }).then((r) => r.data),
   explorerTicket: (id: number) =>
     api.get<ExplorerRow>(`/super/data/tickets/${id}`).then((r) => r.data),
+  /** Every attachment matching the filters (no paging) — drives the folder download. */
+  explorerManifest: (q: ExplorerQuery, includeText = false) => {
+    const p = explorerParams(q);
+    if (includeText) p.set('includeText', 'true');
+    return api.get<ExplorerManifest>(`/super/data/manifest?${p.toString()}`).then((r) => r.data);
+  },
+  /** Session-authenticated ZIP of the same selection, for browsers without folder access. */
+  explorerArchiveUrl: (q: ExplorerQuery, opts: ExplorerArchiveOptions) => {
+    const p = explorerParams(q);
+    if (opts.subcategoryFolders) p.set('subcategoryFolders', 'true');
+    if (opts.includeText) p.set('includeText', 'true');
+    return `${API_BASE}/super/data/archive?${p.toString()}`;
+  },
 
   dataset: (cursor?: number, size = 50) =>
     api.get<DatasetPage>('/super/dataset', { params: { cursor, size } }).then((r) => r.data),

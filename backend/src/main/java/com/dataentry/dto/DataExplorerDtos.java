@@ -76,4 +76,55 @@ public class DataExplorerDtos {
     ) {}
 
     public record Named(Long id, String name) {}
+
+    /**
+     * One downloadable attachment together with the folder context a client needs to
+     * mirror it locally as {@code Project / Department [/ Subcategory] / file}.
+     */
+    public record ManifestEntry(
+            Long ticketId,
+            String ticketTitle,
+            Instant submittedAt,
+            Long teamId,
+            String teamName,
+            Long projectId,
+            String projectName,
+            Long departmentId,
+            String departmentName,
+            Long subcategoryId,
+            String subcategoryName,
+            String submittedBy,
+            Long documentId,
+            String name,
+            String originalFilename,
+            String contentType,
+            long sizeBytes,
+            String contentHash
+    ) {}
+
+    /** Ticket text + metadata for the optional per-entry Markdown sidecar and index.csv. */
+    public record ManifestTicket(
+            Long id,
+            String title,
+            String content,
+            String websiteName,
+            String websiteLink,
+            String status,
+            Instant submittedAt,
+            String submittedBy,
+            String teamName,
+            String projectName,
+            String departmentName,
+            String subcategoryName,
+            List<FieldValue> customFields
+    ) {}
+
+    /** Everything the "download to folder" feature needs, for one filter combination. */
+    public record Manifest(
+            List<ManifestEntry> files,
+            List<ManifestTicket> tickets,
+            long totalFiles,
+            long totalBytes,
+            long totalTickets
+    ) {}
 }

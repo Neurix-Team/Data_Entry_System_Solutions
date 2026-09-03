@@ -8,6 +8,7 @@ import {
   IconDatabase, IconDownload, IconSearch,
 } from '../../components/Icons';
 import { useT } from '../../i18n';
+import { DownloadCenter } from './DownloadCenter';
 
 /**
  * Cross-team ticket explorer for SUPER_ADMIN. One table shows every ticket in the
@@ -40,6 +41,7 @@ export function SuperDataPage() {
   const [items, setItems] = useState<ExplorerRow[]>([]);
   const [cursor, setCursor] = useState<number | null>(null);
   const [reloading, setReloading] = useState(false);
+  const [downloadOpen, setDownloadOpen] = useState(false);
 
   useEffect(() => {
     superApi.explorerFacets().then(setFacets).catch((e) => setError(extractError(e)));
@@ -93,6 +95,21 @@ export function SuperDataPage() {
     setExpanded(next);
   }
 
+  // Labels for the active filters, shown inside the download dialog so the operator can
+  // confirm exactly which slice of the data is about to be mirrored.
+  const filterLabels = useMemo(() => {
+    const labels: string[] = [];
+    const name = (list: { id: number; name: string }[] | undefined, id: string) =>
+      list?.find((x) => String(x.id) === id)?.name;
+    if (teamId) labels.push(`${t('super.data.team') || 'Team'}: ${name(facets?.teams, teamId) ?? teamId}`);
+    if (projectId) labels.push(`${t('super.data.project') || 'Project'}: ${name(facets?.projects, projectId) ?? projectId}`);
+    if (userId) labels.push(`${t('super.data.user') || 'Submitted by'}: ${name(facets?.users, userId) ?? userId}`);
+    if (from) labels.push(`${t('super.data.from') || 'From'}: ${from}`);
+    if (to) labels.push(`${t('super.data.to') || 'To'}: ${to}`);
+    if (search.trim()) labels.push(`“${search.trim()}”`);
+    return labels;
+  }, [facets, teamId, projectId, userId, from, to, search, t]);
+
   return (
     <div className="page super-page">
       <div className="page-header">
@@ -103,7 +120,23 @@ export function SuperDataPage() {
               || 'Every ticket in every team, with its uploads, custom fields, and submitter.'}
           </p>
         </div>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => setDownloadOpen(true)}
+          disabled={!page || page.total === 0}
+          title={t('super.data.download.subtitle')}
+        >
+          <IconDownload size={16} /> {t('super.data.download.button')}
+        </button>
       </div>
+
+      <DownloadCenter
+        open={downloadOpen}
+        onClose={() => setDownloadOpen(false)}
+        query={query}
+        filterLabels={filterLabels}
+      />
 
       {error && <div className="alert alert-error">{error}</div>}
 
