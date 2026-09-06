@@ -20,7 +20,12 @@ const MEANINGLESS = /^(?:scan|scanned|img|image|dsc|dcim|document|doc|file|untit
 
 export function isMeaninglessTitle(title: string): boolean {
   const t = title.trim();
-  return t.length < 3 || MEANINGLESS.test(t);
+  if (t.length < 3) return true;
+  // A bare date-time stamp — "20260906 112233" off a phone camera, "2026 09 06 11 22" off a
+  // scanner — carries no letter in any script, so there is nothing in it that could name the
+  // document. The prefix list below only catches the ones that lead with a word.
+  if (!/\p{L}/u.test(t)) return true;
+  return MEANINGLESS.test(t);
 }
 
 const HEAD_BYTES = 512 * 1024;
