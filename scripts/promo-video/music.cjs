@@ -1,7 +1,7 @@
 // Procedural royalty-free "modern tech / corporate" music bed. Writes music.wav (stereo 44.1k 16-bit).
 const fs = require('fs');
 const SR = 44100, BPM = 100, BEAT = 60 / BPM, BAR = BEAT * 4, SIXTEENTH = BEAT / 4;
-const BARS = 172; // ~6:53 at 100 BPM — comfortably longer than the tour
+const BARS = Number(process.env.MUSIC_BARS) || 172; // 172 bars ≈ 6:53 at 100 BPM; raise MUSIC_BARS for longer narrations
 const N = Math.ceil(BARS * BAR * SR) + SR * 4;
 const L = new Float32Array(N), R = new Float32Array(N);
 const sendL = new Float32Array(N), sendR = new Float32Array(N); // reverb send

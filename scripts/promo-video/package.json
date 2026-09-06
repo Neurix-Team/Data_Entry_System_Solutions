@@ -2,14 +2,15 @@
   "name": "neurix-promo-video",
   "private": true,
   "type": "module",
-  "description": "Records and assembles the Neurix product tour video (Playwright + Edge neural TTS + procedural music + ffmpeg).",
+  "description": "Records and assembles the Neurix product tour video in English or Egyptian Arabic (Playwright + Edge neural TTS + procedural music + ffmpeg).",
   "scripts": {
     "seed": "node seed.mjs",
     "docs": "node gen_docs.mjs",
-    "music": "node music.js",
+    "music": "node music.cjs",
     "tts": "node tts.mjs",
     "record": "node tour.mjs",
-    "assemble": "node assemble.mjs rec/tour.webm timeline.json out/Neurix-Product-Tour.mp4 music.wav"
+    "anchors": "node anchors.mjs",
+    "assemble": "node assemble.mjs"
   },
   "dependencies": {
     "ffmpeg-static": "^5.2.0",

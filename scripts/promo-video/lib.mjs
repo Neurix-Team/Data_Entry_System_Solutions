@@ -1,8 +1,11 @@
 // Recording framework: in-page overlay (cursor, ripple, lower-third captions, chapter cards),
 // camera zoom, human-like mouse/typing, and scene timing bookkeeping.
 import fs from 'node:fs';
+import { CARDS, RTL } from './narration.mjs';
 
 export const BASE = 'http://localhost:8082';
+// Arabic editions render the overlay in Cairo (Google Fonts) with a right-to-left layout.
+const AR_FONT_URL = 'https://fonts.googleapis.com/css2?family=Cairo:wght@500;700;800&display=swap';
 // SPEED<1 shortens every pause (dry runs); DRY=1 also skips narration holds.
 const SPEED = Number(process.env.SPEED) || 1;
 export const DRY = !!process.env.DRY;
@@ -12,6 +15,11 @@ const OVERLAY = `
 (() => {
   if (window.__nxOverlay) return;
   window.__nxOverlay = true;
+  const RTL = ${RTL};
+  if (RTL && !document.getElementById('nx-font')) {
+    const link = document.createElement('link'); link.id = 'nx-font'; link.rel = 'stylesheet'; link.href = '${AR_FONT_URL}';
+    document.head.appendChild(link);
+  }
   const style = document.createElement('style');
   style.id = 'nx-style';
   style.textContent = \`
@@ -52,6 +60,16 @@ const OVERLAY = `
     #nx-card .badge{position:absolute;top:44px;left:56px;display:flex;align-items:center;gap:12px;font-size:16px;letter-spacing:.3em;text-transform:uppercase;color:#9fd9e6;font-weight:700;opacity:0;transition:opacity .8s ease .2s}
     #nx-card.anim .badge{opacity:1}
     #nx-card .badge i{display:block;width:34px;height:3px;background:#22c3d9;border-radius:2px}
+    [dir=rtl]#nx-caption{font-family:'Cairo','Segoe UI',Tahoma,sans-serif;font-weight:700;font-size:27px;line-height:1.5;letter-spacing:0;padding:13px 22px 13px 30px;text-shadow:0 1px 2px rgba(0,0,0,.4)}
+    [dir=rtl]#nx-card,[dir=rtl]#nx-card .title{font-family:'Cairo','Segoe UI',Tahoma,sans-serif;letter-spacing:0}
+    [dir=rtl]#nx-card .kicker{letter-spacing:.06em;font-size:21px;text-transform:none}
+    [dir=rtl]#nx-card .title{font-size:74px;line-height:1.35;letter-spacing:0}
+    [dir=rtl]#nx-card .sub{font-size:31px;line-height:1.75}
+    [dir=rtl]#nx-card .tile{text-align:right}
+    [dir=rtl]#nx-card .tile b{font-size:22px}
+    [dir=rtl]#nx-card .tile span{font-size:17px;line-height:1.7}
+    [dir=rtl]#nx-card .badge{left:auto;right:56px;letter-spacing:.04em;font-size:18px;text-transform:none}
+    [dir=rtl]#nx-card .foot{letter-spacing:0;font-size:17px}
   \`;
   document.head.appendChild(style);
   const cur = document.createElement('div'); cur.id = 'nx-cursor';
@@ -61,6 +79,7 @@ const OVERLAY = `
   const ring = document.createElement('div'); ring.id = 'nx-ring';
   const card = document.createElement('div'); card.id = 'nx-card';
   document.body.append(cur, rip, cap, ring, card);
+  if (RTL) { cap.dir = 'rtl'; card.dir = 'rtl'; }
   window.__nxPos = { x: -100, y: -100 };
   document.addEventListener('mousemove', (e) => {
     window.__nxPos = { x: e.clientX, y: e.clientY };
@@ -114,6 +133,15 @@ const OVERLAY = `
 
 export async function installOverlay(page) {
   await page.evaluate(OVERLAY);
+}
+
+/** Make sure the Arabic display font is in memory before the first card is shown (no-op for LTR). */
+export async function preloadFonts(page, timeoutMs = 6000) {
+  if (!RTL) return;
+  await Promise.race([
+    page.evaluate(() => Promise.all(['500', '700', '800'].map(w => document.fonts.load(w + ' 24px Cairo'))).then(() => document.fonts.ready)),
+    new Promise(r => setTimeout(r, timeoutMs)),
+  ]).catch(() => {});
 }
 
 function ease(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
@@ -197,6 +225,8 @@ export class Tour {
   async hover(target, ms = 500) { await this.moveTo(target, ms); }
   async type(locator, text, delay = 34) {
     await this.click(locator, { after: 120 });
+    // A click that lands while a dialog is still animating in can miss the field; make sure it has focus.
+    await locator.focus().catch(() => {});
     await this.page.keyboard.type(text, { delay });
   }
   async select(locator, value) {
@@ -228,44 +258,42 @@ export class Tour {
   dump(file) { fs.writeFileSync(file, JSON.stringify({ scenes: this.scenes, total: this.now() }, null, 2)); }
 }
 
-// ---------- cards ----------
+// ---------- cards (copy comes from the narration edition, see narration.<lang>.mjs) ----------
 export function introCard() {
+  const c = CARDS.intro;
   return `<div class="wrap">
     <img class="logo" src="/neurix-logo-light.png" alt="Neurix">
-    <div class="kicker">Data Entry Management System</div>
-    <h1 class="title">Turn documents into <em>structured knowledge</em></h1>
-    <div class="sub">One workspace for data-entry agents, team leaders and your AI data pipeline.</div>
+    <div class="kicker">${c.kicker}</div>
+    <h1 class="title">${c.title}</h1>
+    <div class="sub">${c.sub}</div>
     <div class="line"></div>
-  </div><div class="foot">NEURIX · 2026</div>`;
+  </div><div class="foot">${c.foot}</div>`;
 }
-export function chapterCard(num, title, sub) {
-  return `<div class="badge"><i></i> Chapter ${num}</div><div class="wrap">
-    <div class="kicker">Chapter ${num}</div>
-    <h1 class="title">${title}</h1>
-    <div class="sub">${sub}</div>
+export function chapterCard(num) {
+  const c = CARDS.chapters[num];
+  const label = `${CARDS.chapterWord} ${String(num).padStart(2, '0')}`;
+  return `<div class="badge"><i></i> ${label}</div><div class="wrap">
+    <div class="kicker">${label}</div>
+    <h1 class="title">${c.title}</h1>
+    <div class="sub">${c.sub}</div>
     <div class="line"></div>
   </div>`;
 }
 export function platformCard() {
-  const tiles = [
-    ['Java 17 · Spring Boot 3', 'Stateless JWT API, JPA/Hibernate, audit log on every sensitive action'],
-    ['React 18 · TypeScript', 'Route-level code splitting, skeleton loading, hand-crafted design system'],
-    ['PostgreSQL 16+', 'Per-team isolation enforced on every write path'],
-    ['Docker Compose', 'Postgres, API, UI and LibreTranslate in one stack with auto-SSL labels'],
-    ['Self-hosted translation', 'Arabic ⇄ English on the server, no API keys, no rate limits'],
-    ['Built for scale', 'Streaming uploads to 500 MB, daily quotas, OCR gate, brute-force protection'],
-  ].map((t, i) => `<div class="tile" style="transition-delay:${0.5 + i * 0.14}s"><b>${t[0]}</b><span>${t[1]}</span></div>`).join('');
-  return `<div class="badge"><i></i> Platform</div><div class="wrap">
-    <div class="kicker">Under the hood</div>
-    <h1 class="title" style="font-size:62px">Production-grade by design</h1>
+  const c = CARDS.platform;
+  const tiles = c.tiles.map((t, i) => `<div class="tile" style="transition-delay:${0.5 + i * 0.14}s"><b>${t[0]}</b><span>${t[1]}</span></div>`).join('');
+  return `<div class="badge"><i></i> ${c.badge}</div><div class="wrap">
+    <div class="kicker">${c.kicker}</div>
+    <h1 class="title" style="font-size:62px">${c.title}</h1>
     <div class="tiles">${tiles}</div>
   </div>`;
 }
 export function outroCard() {
+  const c = CARDS.outro;
   return `<div class="wrap">
     <img class="logo" src="/neurix-logo-light.png" alt="Neurix">
-    <h1 class="title" style="font-size:64px;margin-top:30px">Manage data entry <em>with confidence</em></h1>
-    <div class="sub">dataentry.neurix.uk</div>
+    <h1 class="title" style="font-size:64px;margin-top:30px">${c.title}</h1>
+    <div class="sub">${c.sub}</div>
     <div class="line"></div>
-  </div><div class="foot">© 2026 NEURIX — ALL RIGHTS RESERVED</div>`;
+  </div><div class="foot">${c.foot}</div>`;
 }

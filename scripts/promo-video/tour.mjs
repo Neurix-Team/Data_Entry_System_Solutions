@@ -1,9 +1,12 @@
 // The scripted walkthrough. Records one continuous 1080p video of the whole system.
 import { chromium } from 'playwright';
 import fs from 'node:fs';
-import { Tour, BASE, DRY, sleep, introCard, chapterCard, platformCard, outroCard } from './lib.mjs';
+import { Tour, BASE, DRY, sleep, preloadFonts, introCard, chapterCard, platformCard, outroCard } from './lib.mjs';
+import { LANG, META_FILE, SCENES } from './narration.mjs';
 
-const meta = JSON.parse(fs.readFileSync('narration_meta.json', 'utf8'));
+// Narration durations drive every scene's length; run `NX_LANG=<lang> node tts.mjs` first.
+const meta = JSON.parse(fs.readFileSync(META_FILE, 'utf8'));
+console.log(`recording the ${LANG} edition (${META_FILE})`);
 const state = JSON.parse(fs.readFileSync('seed_state.json', 'utf8'));
 const AGENT = { u: 'omar.hassan', p: 'Agent#2026' };
 const ADMIN = { u: 'demo.admin', p: 'DemoAdmin#2026' };
@@ -24,7 +27,7 @@ async function api(u, p) {
     const t = await res.text(); let j = null; try { j = t ? JSON.parse(t) : null; } catch { j = t; }
     return { status: res.status, json: j };
   };
-  return { get: (u) => call('GET', u), post: (u, b) => call('POST', u, b), del: (u) => call('DELETE', u) };
+  return { get: (u) => call('GET', u), post: (u, b) => call('POST', u, b), patch: (u, b) => call('PATCH', u, b), del: (u) => call('DELETE', u) };
 }
 
 async function prep() {
@@ -37,9 +40,19 @@ async function prep() {
   if (junk.length) all = (await adm.get('/api/admin/tickets?page=0&size=100')).json.items || [];
   console.log('prep: removed leftovers', junk.length);
   const pending = all.filter(t => t.status !== 'COMPLETED');
-  const omar = pending.find(t => t.submittedByUsername === AGENT.u);
+  // After a few takes every seeded entry is already approved; send one back to review first so the
+  // approval below still produces a fresh notification (Omar) and a "completed today" (someone else).
+  const pick = async (who) => {
+    let t = pending.find(x => (x.submittedByUsername === AGENT.u) === who);
+    if (!t) {
+      t = all.find(x => (x.submittedByUsername === AGENT.u) === who && x.status === 'COMPLETED');
+      if (t) await adm.patch(`/api/admin/tickets/${t.id}/status`, { status: 'REVIEW' });
+    }
+    return t;
+  };
+  const omar = await pick(true);
   if (omar) await adm.post(`/api/admin/tickets/${omar.id}/approve`);
-  const other = pending.find(t => t.submittedByUsername !== AGENT.u);
+  const other = await pick(false);
   if (other) await adm.post(`/api/admin/tickets/${other.id}/approve`);
   // remove the member created by a previous run so the live "Add Member" works again
   const users = (await adm.get('/api/admin/users')).json;
@@ -119,6 +132,7 @@ async function main() {
   // ===== INTRO =====
   await page.goto(BASE + '/login', { waitUntil: 'domcontentloaded' });
   await tour.ensure();
+  await preloadFonts(page);
   await tour.scene('intro', async () => {
     await tour.card(introCard());
     await page.waitForLoadState('networkidle').catch(() => {});
@@ -139,7 +153,7 @@ async function main() {
 
   // ===== CHAPTER 1 =====
   await tour.scene('ch1', async () => {
-    await tour.card(chapterCard('01', 'Built for <em>data-entry agents</em>', 'A focused workspace for submitting, tracking and uploading work.'));
+    await tour.card(chapterCard(1));
     await sleep(900);
     await tour.silentNav('New Entry');
   }, { caption: null, tail: 0.3 });
@@ -150,8 +164,8 @@ async function main() {
     await sleep(200);
     await tour.cardOff();
     await tour.moveTo({ x: 640, y: 330 }, 800);
-    await tour.zoom(1.12, 1000, 280, 2400);
-    await sleep(2600);
+    await tour.zoom(1.22, 1000, 280, 2400);
+    await sleep(3000);
     await tour.moveTo({ x: 1400, y: 330 }, 1000);
     await sleep(500);
     await tour.zoomReset(1300); await sleep(1400);
@@ -300,7 +314,7 @@ async function main() {
 
   // ===== CHAPTER 2 =====
   await tour.scene('ch2', async () => {
-    await tour.card(chapterCard('02', 'Built for <em>team leaders</em>', 'Structure the work, review every entry, and see who is delivering.'));
+    await tour.card(chapterCard(2));
     await sleep(600);
     await switchUser(ADMIN, '/admin');
     await tour.silentNav('Team Members');
@@ -312,7 +326,7 @@ async function main() {
     await sleep(200);
     await tour.cardOff();
     await tour.moveTo({ x: 900, y: 180 }, 800);
-    await tour.zoom(1.12, 1080, 200, 2200); await sleep(2400); await tour.zoomReset(1200); await sleep(1300);
+    await tour.zoom(1.2, 1080, 200, 2200); await sleep(2800); await tour.zoomReset(1200); await sleep(1300);
     await tour.scroll(450, 10); await sleep(1500);
     await tour.scroll(500, 10); await sleep(500);
     await tour.click(page.getByRole('button', { name: 'Show subcategories' }).first()); await sleep(1300);
@@ -395,7 +409,7 @@ async function main() {
   await tour.scene('reports', async () => {
     await tour.nav('Reports');
     await tour.moveTo({ x: 900, y: 320 }, 700);
-    await tour.zoom(1.1, 1000, 320, 2000); await sleep(2200); await tour.zoomReset(1000); await sleep(1100);
+    await tour.zoom(1.18, 1000, 320, 2000); await sleep(2600); await tour.zoomReset(1000); await sleep(1100);
     await tour.scroll(520, 10); await sleep(1600);
     await tour.nav('Dashboard');
     await tour.scroll(1800, 14); await sleep(300);
@@ -407,7 +421,7 @@ async function main() {
 
   // ===== CHAPTER 3 =====
   await tour.scene('ch3', async () => {
-    await tour.card(chapterCard('03', 'Super admins and the <em>data pipeline</em>', 'Isolated teams, cross-team analytics, and a read-only export API for AI.'));
+    await tour.card(chapterCard(3));
     await sleep(600);
     await switchUser(SUPER, '/super');
   }, { caption: null, tail: 0.3 });
@@ -416,7 +430,7 @@ async function main() {
   await tour.scene('super', async () => {
     await tour.cardOff();
     await tour.moveTo({ x: 900, y: 280 }, 800);
-    await tour.zoom(1.1, 1080, 300, 2200); await sleep(2400); await tour.zoomReset(1200); await sleep(1300);
+    await tour.zoom(1.18, 1080, 300, 2200); await sleep(2800); await tour.zoomReset(1200); await sleep(1300);
     await tour.scroll(420, 10);
     await tour.type(page.locator('input.input').first(), 'neurix', 80);
     await sleep(700);
@@ -462,6 +476,8 @@ async function main() {
     await tour.click(page.getByRole('button', { name: 'Create token' }));
     const m = page.locator('.modal').last();
     await m.waitFor({ timeout: 10000 });
+    await m.getByPlaceholder('e.g. AI ingest job').waitFor({ state: 'visible', timeout: 10000 });
+    await sleep(600);
     await tour.type(m.getByPlaceholder('e.g. AI ingest job'), 'AI ingest job', 48);
     await tour.click(m.getByRole('button', { name: '90 days' }));
     await tour.click(m.getByRole('button', { name: 'Create token' }));
@@ -497,7 +513,7 @@ async function main() {
   await cleanup();
 }
 
-const CAPTIONS = Object.fromEntries((await import('./narration.mjs')).SCENES.map(s => [s.id, s.caption]));
+const CAPTIONS = Object.fromEntries(SCENES.map(s => [s.id, s.caption]));
 function SCENE_CAPTION(id) { return CAPTIONS[id]; }
 
 main().catch(e => { console.error(e); process.exit(1); });

@@ -1,31 +1,34 @@
 // Generates one MP3 per scene with Edge neural TTS (cached by text hash) and measures durations.
+// The language comes from NX_LANG (see narration.mjs); clips land in tts/<lang>/.
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { SCENES, VOICE } from './narration.mjs';
+import { SCENES, VOICE, RATE, LANG, META_FILE, TTS_DIR } from './narration.mjs';
 const ff = createRequire(import.meta.url)('ffmpeg-static');
 
-fs.mkdirSync('tts', { recursive: true });
-const metaPath = 'narration_meta.json';
-const meta = fs.existsSync(metaPath) ? JSON.parse(fs.readFileSync(metaPath, 'utf8')) : {};
+fs.mkdirSync(TTS_DIR, { recursive: true });
+const meta = fs.existsSync(META_FILE) ? JSON.parse(fs.readFileSync(META_FILE, 'utf8')) : {};
+console.log(`narration edition: ${LANG}, voice ${VOICE}, rate ${RATE}`);
 
 let tts = null;
 async function synth(text, out) {
   if (!tts) { tts = new MsEdgeTTS(); await tts.setMetadata(VOICE, OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3); }
-  const { audioStream } = tts.toStream(text, { rate: '+3%' });
+  const { audioStream } = tts.toStream(text, { rate: RATE });
   const chunks = [];
   for await (const c of audioStream) chunks.push(c);
-  fs.writeFileSync(out, Buffer.concat(chunks));
+  const buf = Buffer.concat(chunks);
+  if (buf.length < 1000) throw new Error('empty clip');
+  fs.writeFileSync(out, buf);
 }
 
 for (const s of SCENES) {
-  const hash = crypto.createHash('md5').update(VOICE + '|' + s.text).digest('hex').slice(0, 10);
-  const mp3 = `tts/${s.id}.mp3`, raw = `tts/${s.id}.raw`;
+  const hash = crypto.createHash('md5').update(VOICE + '|' + RATE + '|' + s.text).digest('hex').slice(0, 10);
+  const mp3 = `${TTS_DIR}/${s.id}.mp3`, raw = `${TTS_DIR}/${s.id}.raw`;
   if (!meta[s.id] || meta[s.id].hash !== hash || !fs.existsSync(raw)) {
     let ok = false;
-    for (let attempt = 0; attempt < 3 && !ok; attempt++) {
+    for (let attempt = 0; attempt < 4 && !ok; attempt++) {
       try { await synth(s.text, mp3); ok = true; } catch (e) { console.error('retry', s.id, e.message); tts = null; }
     }
     if (!ok) throw new Error('TTS failed for ' + s.id);
@@ -39,6 +42,6 @@ for (const s of SCENES) {
     console.log(s.id.padEnd(14), meta[s.id].duration.toFixed(2) + 's (cached)');
   }
 }
-fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
+fs.writeFileSync(META_FILE, JSON.stringify(meta, null, 2));
 const total = Object.values(meta).reduce((a, b) => a + b.duration, 0);
-console.log('total narration', total.toFixed(1), 's');
+console.log('total narration', total.toFixed(1), 's ->', META_FILE);

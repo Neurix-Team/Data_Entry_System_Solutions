@@ -1,13 +1,17 @@
 // Muxes the Playwright recording with the narration track and the ducked music bed into an MP4.
-// usage: node assemble.mjs <video.webm> <timeline.json> <out.mp4> [music.wav]
+// usage: node assemble.mjs [video.webm] [timeline.json] [out.mp4] [music.wav]
+// The narration edition (and so the default output name) follows NX_LANG, see narration.mjs.
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
+import { META_FILE, OUTPUT_NAME, LANG } from './narration.mjs';
 const ff = createRequire(import.meta.url)('ffmpeg-static');
 
-const [,, videoIn, timelinePath, outPath, musicPath = 'music.wav'] = process.argv;
+const [,, videoIn = 'rec/tour.webm', timelinePath = 'timeline.json', outPath = `out/${OUTPUT_NAME}.mp4`, musicPath = 'music.wav'] = process.argv;
+fs.mkdirSync('out', { recursive: true });
 const timeline = JSON.parse(fs.readFileSync(timelinePath, 'utf8'));
-const meta = JSON.parse(fs.readFileSync('narration_meta.json', 'utf8'));
+const meta = JSON.parse(fs.readFileSync(META_FILE, 'utf8'));
+console.log(`edition ${LANG}: ${videoIn} + ${META_FILE} + ${musicPath} -> ${outPath}`);
 
 function run(args, label) {
   const r = spawnSync(ff, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
@@ -44,6 +48,8 @@ const need = videoTime(timeline.total) * stretch;
 const pad = Math.max(0, need - stretched + 0.6);
 const D = stretched + pad;
 console.log(`video ${rawD.toFixed(2)}s, tour clock ${timeline.total.toFixed(2)}s → mapped ${need.toFixed(2)}s, stretch ${stretch.toFixed(4)}, offset ${offset.toFixed(2)}s, tail pad ${pad.toFixed(2)}s`);
+const musicD = durationOf(musicPath);
+if (musicD < D) console.warn(`WARNING: music bed is ${musicD.toFixed(0)}s but the video is ${D.toFixed(0)}s — render a longer one (MUSIC_BARS=... node music.cjs)`);
 
 // ---- build narration track (48k mono s16le) ----
 const SR = 48000;
