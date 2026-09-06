@@ -79,7 +79,7 @@ public class TicketService {
     public TicketDtos.TicketResponse create(User currentUser, TicketDtos.CreateTicketRequest req) {
         List<CustomField> fields = loadActiveFields(req.subcategoryId());
         Map<String, TranslationService.Bilingual> tr = translations.prepareForOne(
-                req.title(), req.content(), req.websiteName(), req.customValues(), fields);
+                req.content(), req.websiteName(), req.customValues(), fields);
         return selfProvider.getObject().createTx(currentUser, req, fields, tr);
     }
 
@@ -397,9 +397,10 @@ public class TicketService {
                 .status(TicketStatus.IN_PROGRESS)
                 .build();
 
-        TranslationService.Bilingual titleBi = translations.lookup(tr, cleanTitle);
-        t.setTitleEn(titleBi.en());
-        t.setTitleAr(titleBi.ar());
+        // The title is what the file called itself — mirrored into both language columns so
+        // it reads back exactly as extracted, whichever language the viewer is in.
+        t.setTitleEn(cleanTitle);
+        t.setTitleAr(cleanTitle);
         TranslationService.Bilingual contentBi = translations.lookup(tr, cleanContent);
         t.setContentEn(contentBi.en());
         t.setContentAr(contentBi.ar());
@@ -538,14 +539,15 @@ public class TicketService {
 
     /**
      * Admin edit of an entry's authored fields (title, content, website, resources). The
-     * bilingual columns are re-translated so what either language shows never drifts from
-     * what was typed. Translation runs outside the DB transaction, like create does, so a
-     * slow LibreTranslate round-trip never holds a pooled connection.
+     * content and website columns are re-translated so what either language shows never
+     * drifts from what was typed; the title is mirrored verbatim. Translation runs outside
+     * the DB transaction, like create does, so a slow LibreTranslate round-trip never
+     * holds a pooled connection.
      */
     public TicketDtos.TicketResponse updateByAdmin(Long id, TicketDtos.UpdateTicketRequest req) {
         assertAdminAuthenticated();
         Map<String, TranslationService.Bilingual> tr = translations.prepareForOne(
-                req.title(), req.content(), req.websiteName(), Map.of(), List.of());
+                req.content(), req.websiteName(), Map.of(), List.of());
         return selfProvider.getObject().updateByAdminTx(id, req, tr);
     }
 
@@ -567,9 +569,9 @@ public class TicketService {
         }
 
         t.setTitle(cleanTitle);
-        TranslationService.Bilingual titleBi = translations.lookup(tr, cleanTitle);
-        t.setTitleEn(titleBi.en());
-        t.setTitleAr(titleBi.ar());
+        // Mirrored, not translated — see buildTicket.
+        t.setTitleEn(cleanTitle);
+        t.setTitleAr(cleanTitle);
 
         t.setContent(cleanContent);
         TranslationService.Bilingual contentBi = translations.lookup(tr, cleanContent);

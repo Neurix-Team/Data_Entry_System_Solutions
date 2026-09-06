@@ -18,6 +18,10 @@ import java.util.Set;
  *
  * <p>Only text/textarea/select custom fields are translated — numbers, dates and URLs are
  * mirrored back untouched by the caller.
+ *
+ * <p>The entry title is deliberately absent. It is extracted from the attached file — its
+ * filename, or the document's own embedded title — and has to reach both language columns
+ * verbatim, so the caller mirrors it instead of looking it up here.
  */
 @Component
 public class TicketTranslationPreparer {
@@ -31,19 +35,19 @@ public class TicketTranslationPreparer {
         this.translator = translator;
     }
 
-    /** Translation cache for a single-ticket create. */
+    /** Translation cache for a single-ticket create. The title is not part of it. */
     public Map<String, TranslationService.Bilingual> prepareForOne(
-            String title, String content, String websiteName,
+            String content, String websiteName,
             Map<String, String> customValues, List<CustomField> fields) {
         Map<String, TranslationService.Bilingual> out = new HashMap<>();
-        addIfNeeded(out, title);
         addIfNeeded(out, content);
         addIfNeeded(out, websiteName);
         addCustomValues(out, customValues, fields);
         return out;
     }
 
-    /** Translation cache spanning every article + the shared custom values in a bulk request. */
+    /** Translation cache spanning every article + the shared custom values in a bulk request.
+     *  Article titles are skipped for the same reason {@link #prepareForOne} skips its own. */
     public Map<String, TranslationService.Bilingual> prepareForBulk(
             List<TicketDtos.ArticleRequest> articles,
             Map<String, String> customValues, List<CustomField> fields) {
@@ -51,7 +55,6 @@ public class TicketTranslationPreparer {
         addCustomValues(out, customValues, fields);
         if (articles != null) {
             for (TicketDtos.ArticleRequest a : articles) {
-                addIfNeeded(out, a.title());
                 addIfNeeded(out, a.content());
                 addIfNeeded(out, a.websiteName());
             }

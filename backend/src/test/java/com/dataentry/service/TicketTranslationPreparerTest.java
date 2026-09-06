@@ -44,15 +44,15 @@ class TicketTranslationPreparerTest {
 
     @Test
     void prepareForOne_skipsNullAndBlankStrings() {
-        preparer.prepareForOne(null, "  ", "", null, List.of());
+        preparer.prepareForOne("  ", "", null, List.of());
         verify(translator, never()).toBoth(anyString());
     }
 
     @Test
     void prepareForOne_dedupesIdenticalTextAcrossFields() {
-        // Same string reused as title, content, and website name → translator called ONCE.
+        // Same string reused as content and website name → translator called ONCE.
         Map<String, TranslationService.Bilingual> cache = preparer.prepareForOne(
-                "same", "same", "same", null, List.of());
+                "same", "same", null, List.of());
 
         verify(translator, times(1)).toBoth("same");
         assertThat(cache).containsKey("same");
@@ -60,7 +60,7 @@ class TicketTranslationPreparerTest {
 
     @Test
     void prepareForOne_trimsWhitespaceBeforeCaching() {
-        preparer.prepareForOne(" hello ", "hello", null, null, List.of());
+        preparer.prepareForOne(" hello ", "hello", null, List.of());
         // Both entries normalise to "hello" → still a single translator call.
         verify(translator, times(1)).toBoth("hello");
     }
@@ -78,7 +78,7 @@ class TicketTranslationPreparerTest {
                 "link", "https://example.com",
                 "category", "News");
 
-        preparer.prepareForOne(null, null, null, values,
+        preparer.prepareForOne(null, null, values,
                 List.of(textField, numberField, urlField, selectField));
 
         verify(translator).toBoth("hello");
@@ -90,16 +90,38 @@ class TicketTranslationPreparerTest {
     @Test
     void prepareForBulk_walksEveryArticleAndDedupes() {
         TicketDtos.ArticleRequest a = new TicketDtos.ArticleRequest(
-                "Shared", "unique A", null, null, null, null);
+                null, "unique A", "Shared", null, null, null);
         TicketDtos.ArticleRequest b = new TicketDtos.ArticleRequest(
-                "Shared", "unique B", null, null, null, null);
+                null, "unique B", "Shared", null, null, null);
 
         preparer.prepareForBulk(List.of(a, b), Map.of(), List.of());
 
-        // "Shared" appears in both articles' titles → still just one translator call.
+        // "Shared" appears as both articles' website name → still just one translator call.
         verify(translator, times(1)).toBoth("Shared");
         verify(translator, times(1)).toBoth("unique A");
         verify(translator, times(1)).toBoth("unique B");
+    }
+
+    @Test
+    void prepareForOne_cachesOnlyTheTranslatableFields() {
+        // The title no longer reaches the preparer at all: it is extracted from the attached
+        // file and must survive verbatim, so TicketService mirrors it into both columns.
+        Map<String, TranslationService.Bilingual> cache =
+                preparer.prepareForOne("body", null, null, List.of());
+
+        assertThat(cache).containsOnlyKeys("body");
+    }
+
+    @Test
+    void prepareForBulk_neverTranslatesArticleTitles() {
+        TicketDtos.ArticleRequest a = new TicketDtos.ArticleRequest(
+                "Scanned Contract 2026", "body", null, null, null, null);
+
+        Map<String, TranslationService.Bilingual> cache =
+                preparer.prepareForBulk(List.of(a), Map.of(), List.of());
+
+        assertThat(cache).containsOnlyKeys("body");
+        verify(translator, never()).toBoth("Scanned Contract 2026");
     }
 
     @Test
@@ -121,7 +143,7 @@ class TicketTranslationPreparerTest {
     @Test
     void lookup_returnsCachedBilingualWhenPresent() {
         Map<String, TranslationService.Bilingual> cache =
-                preparer.prepareForOne("hello", null, null, null, List.of());
+                preparer.prepareForOne("hello", null, null, List.of());
         TranslationService.Bilingual bi = preparer.lookup(cache, "hello");
         assertThat(bi.en()).isEqualTo("EN:hello");
         assertThat(bi.ar()).isEqualTo("AR:hello");

@@ -88,6 +88,7 @@ public class DataSeeder implements CommandLineRunner {
         seedCustomFields(defaultTeam);
         backfillLegacyRows();
         backfillTranslations();
+        unTranslateEntryTitles();
         splitMultiAdminTeams();
     }
 
@@ -624,6 +625,28 @@ public class DataSeeder implements CommandLineRunner {
                     });
         } catch (Exception e) {
             log.warn("Translation backfill skipped: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * An entry's title is the name of the file it came from — its filename, or the title the
+     * document carries inside it — so it has to read back exactly as extracted rather than
+     * machine-translated. Entries created before that rule still hold translated copies in
+     * their bilingual columns, and those are what the dashboard's recent-activity list reads,
+     * so one statement pulls them back in line. Idempotent: once every row mirrors its own
+     * title the update matches nothing.
+     */
+    private void unTranslateEntryTitles() {
+        try {
+            int fixed = jdbc.update(
+                    "UPDATE tickets SET title_en = title, title_ar = title "
+                            + "WHERE title IS NOT NULL AND (title_en IS NULL OR title_ar IS NULL "
+                            + "OR title_en <> title OR title_ar <> title)");
+            if (fixed > 0) {
+                log.info("Restored {} entry title(s) to the text extracted from the file.", fixed);
+            }
+        } catch (Exception e) {
+            log.warn("Entry-title un-translate skipped: {}", e.getMessage());
         }
     }
 }
