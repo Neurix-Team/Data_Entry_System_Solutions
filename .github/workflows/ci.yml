@@ -26,7 +26,7 @@ jobs:
 
       - name: Publish test report
         if: always()
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@v3
         with:
           name: Backend tests
           path: backend/target/surefire-reports/*.xml
