@@ -19,26 +19,15 @@ const TREE_LIMIT = 40;
 interface Props {
   open: boolean;
   onClose: () => void;
-  /** The explorer's current filters — the download mirrors exactly what the table shows. */
   query: ExplorerQuery;
-  /** Human-readable labels of the active filters, shown as chips in the dialog. */
   filterLabels: string[];
 }
 
-/**
- * "Download files" for the super-admin data explorer.
- *
- * Step 1 is a small options dialog (folder preview, sub-folder / text / resume toggles and
- * the destination). Step 2 is a full-screen progress overlay with an animated ring,
- * throughput, ETA and the file currently being written. Chromium browsers write straight
- * into a folder the operator picks; everything else falls back to a server-built ZIP.
- */
 export function DownloadCenter({ open, onClose, query, filterLabels }: Props) {
   const { t } = useT();
   const toast = useToast();
   const [manifest, setManifest] = useState<ExplorerManifest | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  // Defaults: the files exactly as uploaded — original names, no sidecar notes.
   const [opts, setOpts] = useState<DownloadOptions>({ subcategoryFolders: false, prefixNames: false, includeText: false, skipExisting: true });
   const [progress, setProgress] = useState<DownloadProgress | null>(null);
   const [zipNotice, setZipNotice] = useState(false);
@@ -67,7 +56,6 @@ export function DownloadCenter({ open, onClose, query, filterLabels }: Props) {
     return () => { cancelled = true; };
   }, [open, cleanQuery]);
 
-  // Folder preview: Project → Department [→ Subcategory] with file counts and sizes.
   const tree = useMemo(() => {
     if (!manifest) return [];
     const map = new Map<string, { segs: string[]; files: number; bytes: number }>();
@@ -127,7 +115,6 @@ export function DownloadCenter({ open, onClose, query, filterLabels }: Props) {
 
   const running = !!progress && (progress.phase === 'preparing' || progress.phase === 'downloading' || progress.phase === 'finishing');
 
-  // Escape cancels a running download, or dismisses the finished overlay.
   useEffect(() => {
     if (!progress) return;
     const onKey = (e: KeyboardEvent) => {

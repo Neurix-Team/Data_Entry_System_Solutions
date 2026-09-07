@@ -16,7 +16,6 @@ interface Props {
   onApply: () => void;
 }
 
-/** Modal that displays AI-suggested corrections and lets the user apply them. */
 export function AiCheckDialog({ open, loading, result, error, onClose, onApply }: Props) {
   const { t } = useT();
   const canApply = !loading && result != null && result.original !== result.corrected;

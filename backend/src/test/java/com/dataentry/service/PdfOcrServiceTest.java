@@ -19,7 +19,6 @@ class PdfOcrServiceTest {
 
     @Test
     void containsRtl_returnsTrueForArabicText() {
-        // Repeat enough Arabic characters to exceed the 20-char RTL threshold
         String arabic = "مرحبا بكم في نظام إدارة إدخال البيانات، هذا نص عربي طويل بما يكفي.";
         assertThat(PdfOcrService.containsRtl(arabic)).isTrue();
     }
@@ -51,8 +50,6 @@ class PdfOcrServiceTest {
 
     @Test
     void cleanOcrOutput_dropsStrayDecorativeSymbols() {
-        // Leading `~` and trailing `<` are stripped by the symbol regex;
-        // they become empty lines and get dropped.
         String text = "~\nA valid line here.\n<";
         String cleaned = PdfOcrService.cleanOcrOutput(text);
         assertThat(cleaned).isEqualTo("A valid line here.");

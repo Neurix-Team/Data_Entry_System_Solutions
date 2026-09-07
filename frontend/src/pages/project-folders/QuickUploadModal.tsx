@@ -24,26 +24,17 @@ interface Props {
   open: boolean;
   projectId: number;
   onClose: () => void;
-  /** Fired after the server processed the batch. Passes the numeric result so the parent
-   *  can show a summary (e.g. "3 of 4 uploaded"); parent decides whether to close. */
   onCreated: (result: { created: number; failed: number }) => void;
 }
 
 interface Row {
   id: number;
   file: File;
-  /** Editable title — auto-filled from the file on drop. */
   title: string;
 }
 
-/**
- * Files travelling at once. Each one fans out into {@link DEFAULT_CHUNK_PARALLELISM}
- * chunk requests, so two files keep eight connections busy — enough to fill a fast pipe
- * without starving the rest of the app behind the browser's per-host cap.
- */
 const FILE_CONCURRENCY = 2;
 
-/** Soft tints cycled across the per-file icon chips, same rotation the dept cards use. */
 const CHIP_TINTS = [
   { bg: 'var(--brand-soft)', fg: 'var(--brand-soft-text)' },
   { bg: 'var(--accent-cyan-soft)', fg: 'var(--accent-cyan-soft-text)' },
@@ -53,7 +44,6 @@ const CHIP_TINTS = [
 
 type RowStatus = 'uploading' | 'finalizing' | 'done' | 'failed';
 
-/** Whole-batch meter shown above the file list while a batch is in flight (and after). */
 interface BatchStats {
   count: number;
   loaded: number;
@@ -66,17 +56,6 @@ interface BatchStats {
   failed: number;
 }
 
-/**
- * Multi-file quick-upload. Every file becomes its own ticket in the current project
- * with the title auto-extracted from the file. Titles are still editable so a
- * mis-guessed name can be corrected inline before send.
- *
- * <p>Each file goes up through the chunked uploader ({@link uploadFileChunked}): fixed-size
- * chunks, several in flight at once, per-chunk retry, then a server-side finalize that
- * creates the ticket and attaches the file in one transaction. {@link FILE_CONCURRENCY}
- * files travel at a time. A backend without the session endpoints is detected on the
- * first request and the modal falls back to the one-request-per-file multipart path.
- */
 export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props) {
   const { lang, t } = useT();
   const toast = useToast();
@@ -85,10 +64,8 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [failures, setFailures] = useState<Array<{ filename: string; reason: string }>>([]);
-  /** Per-row live progress, keyed by Row.id. Only rows that started have entries. */
   const [progress, setProgress] = useState<Record<number, UploadProgress>>({});
   const [rowStatus, setRowStatus] = useState<Record<number, RowStatus>>({});
-  /** Wall-clock milliseconds each finished row took, for the "done in 4.2 s" line. */
   const [rowTime, setRowTime] = useState<Record<number, number>>({});
   const [batch, setBatch] = useState<BatchStats | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -97,8 +74,6 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
   const [departmentId, setDepartmentId] = useState<number | ''>('');
   const inputRef = useRef<HTMLInputElement | null>(null);
   const nextId = useRef(1);
-  // Live per-row byte counts sit in a ref so every progress tick sums plain numbers
-  // instead of re-deriving the batch total from React state.
   const rowLoaded = useRef<Record<number, number>>({});
   const batchMeter = useRef(new SpeedMeter());
 
@@ -118,10 +93,6 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
       batchMeter.current = new SpeedMeter();
       return;
     }
-    // Pull the department list the moment the modal opens. Scoped per-project by the
-    // server (USER only sees their member-project departments; ADMIN sees all). No
-    // auto-select — we force the caller to pick explicitly so batches don't silently
-    // land in the wrong section, which was the whole point of adding this picker.
     const ctrl = new AbortController();
     setDepartmentsLoading(true);
     departmentsApi.userList(projectId, ctrl.signal)
@@ -140,8 +111,6 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
   const addFiles = useCallback((files: FileList | File[]) => {
     const list = Array.from(files);
     if (list.length === 0) return;
-    // Filename first, instantly. The PDF-metadata pass below is async and only replaces
-    // a scanner-default title ("scan0001") once it has read the document's header.
     const fresh: Row[] = list.map((f) => ({
       id: nextId.current++,
       file: f,
@@ -151,7 +120,6 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
     for (const row of fresh) {
       void extractTitleFromFile(row.file).then((better) => {
         if (!better || better === row.title) return;
-        // Only swap if the user hasn't already edited the auto-filled title.
         setRows((prev) => prev.map((r) => (
           r.id === row.id && r.title === row.title ? { ...r, title: better } : r
         )));
@@ -195,9 +163,6 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
       setError(ar ? 'اختر ملف واحد على الأقل' : 'Pick at least one file');
       return;
     }
-    // Force explicit picking whenever the project actually has departments to choose
-    // from. The empty-project case (server auto-creates a default) is the only path
-    // where we let this stay unset.
     if (departments.length > 0 && departmentId === '') {
       setError(ar ? 'اختر القسم أولاً' : 'Pick a department first');
       return;
@@ -215,8 +180,6 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
       startedAt: performance.now(), finishedAt: null, created: 0, failed: 0,
     });
 
-    // The queue is a shared array the workers shift() from — single-threaded JS makes
-    // that race-free between awaits.
     const queue = [...rows];
     const dept = departmentId === '' ? null : departmentId;
     let created = 0;
@@ -244,7 +207,6 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
           });
         } catch (err) {
           if (!(err instanceof ChunkedUploadUnsupportedError)) throw err;
-          // Older backend without session endpoints: one multipart request per file.
           const result = await projectFoldersApi.quickUpload(
             projectId,
             [{ file: row.file, title: row.title.trim() }],
@@ -302,15 +264,11 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
 
     if (newFailures.length > 0) {
       setFailures(newFailures);
-      // Also toast so the user notices even if they miss the inline list.
       toast.warning(
         ar
           ? `فشل رفع ${newFailures.length} ملف — راجع القائمة`
           : `${newFailures.length} file${newFailures.length === 1 ? '' : 's'} failed — check the list below`,
       );
-      // Keep the modal open when there were failures so the user can retry only the
-      // ones that failed (currently by re-picking them; a per-row retry could be added).
-      // Trim successful rows so the visible list matches what still needs attention.
       setRows((prev) => prev.filter((r) => failedRowIds.has(r.id)));
     }
 

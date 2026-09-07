@@ -142,9 +142,34 @@ Edit `backend/src/main/resources/application.yml` (or set env vars at runtime):
 
 ### PostgreSQL connection
 
-Copy `.env.example` to `.env`, set the `DB_*` values, and start the backend. Hibernate
-creates missing tables and updates the schema on startup. Docker uses `DB_DOCKER_HOST`
+Copy `.env.example` to `.env`, set the `DB_*` values, and start the backend. Flyway runs
+any pending migrations from `backend/src/main/resources/db/migration/` before Hibernate
+starts, and Hibernate is set to `ddl-auto: validate` so any drift between an entity and
+the schema fails the boot instead of silently patching the DB. Docker uses `DB_DOCKER_HOST`
 when the database host differs from the address used by a backend running directly on Windows.
+
+### Database migrations
+
+Every schema change ships as a versioned SQL file in
+`backend/src/main/resources/db/migration/`, named `V<n>__<short_description>.sql`
+(double underscore). Flyway picks them up on backend startup and applies anything past
+the current schema version, then Hibernate `validate` confirms every `@Entity` maps to a
+real column. **Never change `ddl-auto` back to `update`** — it will silently drift the
+schema again and undo the whole point of this system.
+
+- **First boot on an existing deployment** — Flyway sees the tables already exist,
+  creates its `flyway_schema_history` table, and stamps `V1` as a baseline row without
+  executing it (`spring.flyway.baseline-on-migrate=true`, `baseline-version=1`).
+  Only V2 onwards actually run.
+- **First boot on a fresh database** — Flyway executes `V1__baseline_schema.sql` from
+  scratch. V1 captures the schema as of the 2026-09-02 `pg_dump` plus the three
+  entities added between that dump and the switch to Flyway (`upload_sessions`,
+  `dataset_records`, `ticket_documents.content_hash`).
+- **Adding a new column / table** — add a `V<next>__<what_it_does>.sql` file with the
+  DDL, e.g. `V2__add_ticket_priority.sql`. Don't edit an already-applied migration
+  (`V1` is the frozen baseline) — Flyway detects checksum drift and refuses to boot.
+- **Tests** — H2 is used for `mvn test` with `spring.flyway.enabled=false` and
+  `ddl-auto: create-drop`; the Postgres-flavoured migrations don't need to run there.
 
 ---
 

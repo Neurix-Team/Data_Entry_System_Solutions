@@ -13,10 +13,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
-/**
- * User-scoped notification feed. The service enforces "you can only see / act on your
- * own notifications" — the endpoints just wrap the current auth principal.
- */
 @RestController
 @RequestMapping("/api/notifications")
 public class NotificationController {

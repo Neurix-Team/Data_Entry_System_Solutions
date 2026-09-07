@@ -20,10 +20,6 @@ function TrendIcon({ dir }: { dir: TrendDir }) {
   return <Cmp size={14} className="udash-kpi-trend-icon" />;
 }
 
-/** Counts a numeric value up from 0 (then between values) off the React render path —
- *  the MotionValue writes straight to the DOM node, so a 60fps count costs no re-renders.
- *  Ease matches --ease-expo; duration sits at the top of the app's motion scale on
- *  purpose: a number "arriving" is an entrance, and 420ms reads as weight, not lag. */
 function CountUpValue({ value }: { value: number }) {
   const reduced = useReducedMotion();
   const mv = useMotionValue(0);
@@ -53,9 +49,6 @@ export function KpiCard({ label, value, sub, icon, accent = 'blue', trend }: Pro
         {sub && <span className="udash-kpi-sub">{sub}</span>}
         {trend && (
           <span className={`udash-kpi-trend ${trend.dir}`}>
-            {/* Drawn icons rather than ↑/↓/→ glyphs: the arrows rendered at whatever
-                weight and baseline the user's fallback font happened to supply, which
-                never matched the 1.75px stroke used everywhere else in the app. */}
             <TrendIcon dir={trend.dir} />
             {trend.text}
           </span>

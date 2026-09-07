@@ -7,16 +7,6 @@ import { useAuth } from '../context/AuthContext';
 import { useT } from '../i18n';
 import { IconBell } from './Icons';
 
-/**
- * Topbar notifications widget. Polls the feed on mount and every 60s (plus once whenever
- * the tab regains focus, so returning to the tab shows fresh data without waiting for the
- * next poll interval). Click the bell to open the dropdown; click an item to jump to the
- * relevant folder and mark it read.
- *
- * <p>Kept self-contained (no shared context) because it's the only surface reading the
- * notification feed. If we grow more consumers (e.g. an in-page banner) this can lift
- * into a context provider without changing the component API.
- */
 export function NotificationBell() {
   const { lang, t } = useT();
   const { user } = useAuth();
@@ -40,8 +30,6 @@ export function NotificationBell() {
     }
   }, [user]);
 
-  // Poll + refresh on focus. 60s is quiet enough for a chat-style widget while still
-  // catching an approval within a minute of it landing on the server.
   useEffect(() => {
     if (!user) return;
     refresh();
@@ -54,7 +42,6 @@ export function NotificationBell() {
     };
   }, [user, refresh]);
 
-  // Close the dropdown on outside-click / Escape.
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
@@ -72,7 +59,6 @@ export function NotificationBell() {
   }, [open]);
 
   async function onClickItem(n: NotificationItem) {
-    // Mark read optimistically so the badge updates before the network round-trip.
     setFeed((prev) => prev ? {
       ...prev,
       items: prev.items.map((x) => x.id === n.id && !x.readAt
@@ -81,7 +67,6 @@ export function NotificationBell() {
     } : prev);
     try { await notificationsApi.markRead(n.id); } catch { /* silent; will resync on next poll */ }
 
-    // Deep-link to the folder if we know one, otherwise the tickets list.
     if (n.projectId != null) {
       const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
       navigate(isAdmin ? `/admin/project-folders/${n.projectId}` : `/project-folders/${n.projectId}`);
@@ -97,8 +82,6 @@ export function NotificationBell() {
 
   const unread = feed?.unread ?? 0;
 
-  // Swing the bell once when the unread count RISES (something new arrived). A drop —
-  // the user reading notifications — stays silent.
   useEffect(() => {
     if (unread > prevUnreadRef.current) {
       setRinging(true);
@@ -124,13 +107,10 @@ export function NotificationBell() {
         <IconBell size={20} />
         {unread > 0 && (
           <span
-            // Remount on count change so the badgePop entrance replays per new arrival.
             key={unread}
             className="notification-dot"
             aria-label={lang === 'ar' ? `${unread} إشعار جديد` : `${unread} unread`}
             style={{
-              // Bump the dot into a small counter chip when there are 2+ unread. The
-              // existing dot styles show only a colored dot; a counter reads faster.
               minWidth: 16,
               height: 16,
               padding: '0 4px',
@@ -230,7 +210,6 @@ export function NotificationBell() {
           )}
         </div>
       )}
-      {/* Ensure t() is referenced so unused-var lint stays quiet if this file is trimmed later. */}
       <span style={{ display: 'none' }}>{t('common.loading')}</span>
     </div>
   );

@@ -1,0 +1,41 @@
+# Alertmanager routing config.
+#
+# Ships intentionally SILENT — the `default` and `pages` receivers have no delivery
+# configured, so alerts fire, are de-duplicated, and are visible in the Alertmanager UI
+# (:9093 if you publish the port), but nothing is sent to Slack/email/paging until an
+# operator wires it in. That's on purpose: no accidental notifications when someone
+# first boots the stack, and no risk of a broken URL crash-looping the container.
+#
+# To wire real delivery, add webhook_configs / slack_configs / email_configs blocks to
+# the receivers below and `docker compose up -d alertmanager` — it hot-reloads on
+# SIGHUP or via POST /-/reload. See RUNBOOK.md for template examples.
+
+global:
+  resolve_timeout: 5m
+
+templates: []
+
+route:
+  group_by: ["alertname", "severity"]
+  group_wait: 30s
+  group_interval: 4h
+  repeat_interval: 4h
+  receiver: default
+  routes:
+    - matchers:
+        - severity="page"
+      receiver: pages
+      group_wait: 10s
+      # Pages need to repeat faster than the default 4h group interval — a paged
+      # alert that no one has acked in 30 min should nag again. Setting both makes
+      # Alertmanager honour the 30 min cadence instead of clamping to group_interval.
+      group_interval: 30m
+      repeat_interval: 30m
+
+receivers:
+  # A receiver with no delivery configs is valid — Alertmanager records the alert and
+  # de-duplicates it, but never sends. Add webhook_configs here to wire Slack/etc.
+  - name: default
+  - name: pages
+
+inhibit_rules: []

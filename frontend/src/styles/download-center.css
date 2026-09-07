@@ -1,10 +1,3 @@
-/* =====================================================================
-   Download center — super-admin "download files to a folder" feature.
-   Scoped with the dlc- prefix; colours come from the global design tokens
-   so light/dark and RTL work without extra rules.
-   ===================================================================== */
-
-/* ---------- options step (inside the shared Modal) ---------- */
 .dlc-summary {
   display: flex; align-items: center; gap: 14px;
   padding: 14px 16px; border-radius: var(--radius);
@@ -73,7 +66,6 @@
 .dlc-dest-title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; }
 .dlc-dest-hint { font-size: 12px; color: var(--text-tertiary); line-height: 1.4; }
 
-/* ---------- progress overlay ---------- */
 .dlc-overlay {
   position: fixed; inset: 0; z-index: 1400;
   display: grid; place-items: center; padding: 20px;

@@ -30,11 +30,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * Web-layer contract for /api/uploads/sessions, which the browser's chunked uploader
- * depends on: JSON session creation with validation, and a raw-body chunk PUT whose bytes
- * reach the service untouched (no multipart framing, any Content-Type).
- */
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
 @ActiveProfiles("test")

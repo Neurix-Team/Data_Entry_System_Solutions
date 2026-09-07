@@ -1,12 +1,8 @@
-// Recording framework: in-page overlay (cursor, ripple, lower-third captions, chapter cards),
-// camera zoom, human-like mouse/typing, and scene timing bookkeeping.
 import fs from 'node:fs';
 import { CARDS, RTL } from './narration.mjs';
 
 export const BASE = 'http://localhost:8082';
-// Arabic editions render the overlay in Cairo (Google Fonts) with a right-to-left layout.
 const AR_FONT_URL = 'https://fonts.googleapis.com/css2?family=Cairo:wght@500;700;800&display=swap';
-// SPEED<1 shortens every pause (dry runs); DRY=1 also skips narration holds.
 const SPEED = Number(process.env.SPEED) || 1;
 export const DRY = !!process.env.DRY;
 export const sleep = (ms) => new Promise(r => setTimeout(r, ms * SPEED));
@@ -135,7 +131,6 @@ export async function installOverlay(page) {
   await page.evaluate(OVERLAY);
 }
 
-/** Make sure the Arabic display font is in memory before the first card is shown (no-op for LTR). */
 export async function preloadFonts(page, timeoutMs = 6000) {
   if (!RTL) return;
   await Promise.race([
@@ -155,7 +150,6 @@ export class Tour {
   now() { return (Date.now() - this.t0) / 1000; }
   async ensure() { await installOverlay(this.page); }
 
-  // ---------- scenes ----------
   async scene(id, fn, opts = {}) {
     const start = this.now();
     const s = { id, start };
@@ -175,10 +169,8 @@ export class Tour {
     this.log(`   done @ ${s.end.toFixed(1)}s (narration ${dur.toFixed(1)}s)`);
   }
   async holdUntil(t) { if (DRY) return; const ms = (t - this.now()) * 1000; if (ms > 0) await new Promise(r => setTimeout(r, ms)); }
-  /** Wait until `offset` seconds before the current scene's narration ends. */
   async holdRemaining(offset = 0) { const dur = this.meta[this.cur.id]?.duration ?? 0; await this.holdUntil(this.cur.start + dur - offset); }
 
-  // ---------- overlay ----------
   async caption(html) { await this.ensure(); await this.page.evaluate((h) => window.__nxCaption(h), html); }
   async card(html) { await this.ensure(); await this.page.evaluate((h) => window.__nxCard(h), html); }
   async cardOff() { await this.page.evaluate(() => window.__nxCard(null)); await sleep(750); }
@@ -196,7 +188,6 @@ export class Tour {
   }
   async zoomReset(ms = 1200) { await this.zoom(1, 960, 540, ms); }
 
-  // ---------- mouse ----------
   async moveTo(target, ms = 550) {
     let x, y;
     if (target.x !== undefined) ({ x, y } = target);
@@ -225,7 +216,6 @@ export class Tour {
   async hover(target, ms = 500) { await this.moveTo(target, ms); }
   async type(locator, text, delay = 34) {
     await this.click(locator, { after: 120 });
-    // A click that lands while a dialog is still animating in can miss the field; make sure it has focus.
     await locator.focus().catch(() => {});
     await this.page.keyboard.type(text, { delay });
   }
@@ -250,7 +240,6 @@ export class Tour {
     await this.page.waitForLoadState('networkidle').catch(() => {});
     await sleep(500);
   }
-  /** SPA navigation without the mouse (used behind chapter cards). */
   async silentNav(linkText) {
     await this.page.getByRole('link', { name: linkText, exact: true }).first().dispatchEvent('click');
     await this.page.waitForLoadState('networkidle').catch(() => {});
@@ -258,7 +247,6 @@ export class Tour {
   dump(file) { fs.writeFileSync(file, JSON.stringify({ scenes: this.scenes, total: this.now() }, null, 2)); }
 }
 
-// ---------- cards (copy comes from the narration edition, see narration.<lang>.mjs) ----------
 export function introCard() {
   const c = CARDS.intro;
   return `<div class="wrap">

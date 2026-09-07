@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
-/** One (name, url) reference attached to a ticket. Tickets may have many. */
 @Entity
 @Table(name = "ticket_resources")
 @Getter

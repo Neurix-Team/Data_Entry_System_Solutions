@@ -23,15 +23,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/**
- * Walks every page of a PDF via PDFBox and writes each embedded raster image to disk
- * as PNG. Runs after text extraction so both the markdown and OCR fallback paths get
- * the same asset set — the images live inside the PDF regardless of how text was read.
- * <p>
- * Skips images smaller than {@link #minSide}px on either axis (icons, bullet decorations,
- * form-field checkboxes) so the user isn't drowned in noise. De-duplicates by the PDF's
- * own object name so a repeated logo across N pages is written once.
- */
 @Service
 public class PdfImageExtractor {
 
@@ -49,11 +40,6 @@ public class PdfImageExtractor {
 
     public record Extracted(String filename, int page, int width, int height, long sizeBytes) {}
 
-    /**
-     * Extract every raster image into {@code outputDir}. Files are named {@code image-01.png}
-     * upwards in page-then-appearance order. Vector-only pages contribute nothing.
-     * Fails soft: an image that can't be read is logged and skipped, not thrown.
-     */
     public List<Extracted> extractInto(File pdfFile, Path outputDir) throws IOException {
         Files.createDirectories(outputDir);
         List<Extracted> out = new ArrayList<>();
@@ -81,8 +67,6 @@ public class PdfImageExtractor {
                     }
                     if (!(xobj instanceof PDImageXObject img)) continue;
 
-                    // De-dupe: the same COSName across pages is the same underlying object.
-                    // COSName alone can collide across pages so we key on identity via toString().
                     String key = name.getName() + "@" + System.identityHashCode(img.getCOSObject());
                     if (!seenObjectKeys.add(key)) continue;
 
@@ -94,8 +78,6 @@ public class PdfImageExtractor {
                     try {
                         bi = img.getImage();
                     } catch (IOException | RuntimeException e) {
-                        // Some PDFs contain images with unsupported filters (JBIG2 without the
-                        // optional plugin, JPEG2000, exotic ICC profiles). Log and move on.
                         log.debug("Skipping image on page {} — decode failed: {}", pageNumber, e.getMessage());
                         continue;
                     }

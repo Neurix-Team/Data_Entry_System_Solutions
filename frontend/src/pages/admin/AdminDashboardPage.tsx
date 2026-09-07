@@ -121,7 +121,6 @@ export function AdminDashboardPage() {
         </div>
       </div>
 
-      {/* Domain grid */}
       <div className="card mt-2" style={{ padding: '1.5rem' }}>
         <div className="row-between mb-2">
           <h3 style={{ margin: 0 }}>{t('admin.dashboard.domainOverview')}</h3>
@@ -227,7 +226,6 @@ export function AdminDashboardPage() {
         )}
       </div>
 
-      {/* Agent leaderboard */}
       <div className="card mt-2">
         <div className="row-between mb-2">
           <h3 style={{ margin: 0 }}>{t('admin.dashboard.agentLeaderboard')}</h3>

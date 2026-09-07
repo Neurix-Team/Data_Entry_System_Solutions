@@ -34,21 +34,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(JwtAuthFilter.class);
 
-    /** Header used by a SUPER_ADMIN to "enter" a specific team from the super-admin UI. */
     public static final String IMPERSONATE_HEADER = "X-Impersonate-Team-Id";
 
-    /** Name of the httpOnly cookie used for browser sessions. Kept in sync with AuthController. */
     public static final String AUTH_COOKIE = "dems_auth";
 
-    /**
-     * Short-lived cache of authenticated principals keyed by (JWT + impersonation header).
-     * The previous implementation ran {@code userRepository.findByUsername} on every request
-     * — a single DB round-trip that accounted for ~100–200 ms of the total request latency on
-     * warm endpoints. Cached entries expire after {@link #AUTH_CACHE_TTL_NS} so
-     * deactivations, role changes, and team edits take effect within a few seconds.
-     * Cache size is bounded so a stream of unique/expired tokens can't grow the map without
-     * limit (a very cheap sweep runs when {@link #AUTH_CACHE_MAX_ENTRIES} is exceeded).
-     */
     private static final long AUTH_CACHE_TTL_NS = TimeUnit.SECONDS.toNanos(30);
     private static final int AUTH_CACHE_MAX_ENTRIES = 5_000;
     private final ConcurrentHashMap<String, AuthCacheEntry> authCache = new ConcurrentHashMap<>();
@@ -92,9 +81,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         try {
             if (token != null) {
                 try {
-                    // Cache key must include the impersonation header — the same JWT presented
-                    // with different X-Impersonate-Team-Id headers resolves to different
-                    // effective scopes, so we can't collapse them into one entry.
                     String impersonateHeader = request.getHeader(IMPERSONATE_HEADER);
                     String cacheKey = impersonateHeader == null
                             ? token
@@ -109,7 +95,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                         if (username != null
                                 && SecurityContextHolder.getContext().getAuthentication() == null) {
                             Optional<User> userOpt = userRepository.findByUsername(username);
-                            if (userOpt.isPresent() && userOpt.get().isActive()) {
+                            if (userOpt.isPresent() && userOpt.get().isActive()
+                                    && tokenVersionCurrent(claims, userOpt.get())) {
                                 AuthCacheEntry entry = buildEntry(request, userOpt.get());
                                 storeInCache(cacheKey, entry);
                                 applyAuth(request, entry);
@@ -117,16 +104,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                         }
                     }
                 } catch (JwtException e) {
-                    // Invalid/expired token — leave context unauthenticated, but log so we can
-                    // diagnose auth issues from server logs instead of guessing.
                     log.debug("Rejected JWT for {} {}: {}",
                             request.getMethod(), request.getRequestURI(), e.getMessage());
                 }
             }
             chain.doFilter(request, response);
         } finally {
-            // Container threads are pooled — a leaked tenant would let the next request run
-            // with someone else's team scope. Always clear.
             TenantContext.clear();
         }
     }
@@ -134,9 +117,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     private void storeInCache(String key, AuthCacheEntry entry) {
         authCache.put(key, entry);
         if (authCache.size() > AUTH_CACHE_MAX_ENTRIES) {
-            // Cheap opportunistic sweep — remove expired entries and, if still over, drop
-            // arbitrary ones. Only one thread runs the sweep at a time; the throttling
-            // prevents a hot-path burst from thrashing the map.
             long now = System.nanoTime();
             long last = lastSweepNs.get();
             if (now - last > TimeUnit.SECONDS.toNanos(5)
@@ -159,21 +139,15 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         Long teamId = user.getTeam() != null ? user.getTeam().getId() : null;
         Long impersonatedBy = null;
 
-        // A SUPER_ADMIN may opt into a specific team's scope by sending X-Impersonate-Team-Id.
-        // For that request only, they behave like an ADMIN of the target team — the tenant
-        // filter is enabled and admin-only endpoints become reachable. Audit logs still
-        // attribute the action back to the super admin id.
         if (role == Role.SUPER_ADMIN) {
             Long headerTeam = parseHeaderTeamId(request);
             if (headerTeam != null && teamExists(headerTeam)) {
                 teamId = headerTeam;
                 impersonatedBy = user.getId();
-                role = Role.ADMIN; // functional role for the tenant filter + URL access
+                role = Role.ADMIN;
             }
         }
 
-        // Grant authorities: the actual DB role plus (for super admins) ROLE_ADMIN so the
-        // impersonation path can reach /api/admin/** without needing separate auth logic.
         List<SimpleGrantedAuthority> authorities = new ArrayList<>(3);
         authorities.add(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
         if (user.getRole() == Role.SUPER_ADMIN) {
@@ -203,6 +177,18 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         SecurityContextHolder.getContext().setAuthentication(authToken);
     }
 
+    private boolean tokenVersionCurrent(Claims claims, User user) {
+        Object tv = claims.get("tv");
+        long claimed = 0L;
+        if (tv instanceof Number n) {
+            claimed = n.longValue();
+        }
+        if (claimed >= user.getTokenVersion()) return true;
+        log.debug("Rejected stale JWT for user={} (claim tv={}, current tv={})",
+                user.getUsername(), claimed, user.getTokenVersion());
+        return false;
+    }
+
     private Long parseHeaderTeamId(HttpServletRequest request) {
         String raw = request.getHeader(IMPERSONATE_HEADER);
         if (raw == null || raw.isBlank()) return null;
@@ -215,15 +201,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     }
 
     private boolean teamExists(Long id) {
-        // Guard against a super admin sending a random or deleted team id — otherwise
-        // the aspect would enable the filter for a team that isn't real, hiding everything
-        // and producing confusing empty screens.
         Optional<Team> t = teamRepository.findById(id);
         return t.isPresent() && t.get().isActive();
     }
 
-    /** Prefer the Authorization header (used by CLI / mobile clients); fall back to the
-     *  httpOnly cookie set on browser logins. */
     private String extractToken(HttpServletRequest request) {
         String auth = request.getHeader("Authorization");
         if (auth != null && auth.startsWith("Bearer ")) return auth.substring(7);

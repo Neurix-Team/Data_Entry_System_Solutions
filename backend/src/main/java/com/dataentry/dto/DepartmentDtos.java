@@ -12,11 +12,6 @@ public class DepartmentDtos {
             Boolean active
     ) {}
 
-    /**
-     * `name` is already localized for the caller (based on Accept-Language). `nameEn` and `nameAr`
-     * are the raw stored translations — exposed so admin screens can show both sides when editing.
-     * {@code projectId} / {@code projectName} tell the admin UI which project owns this department.
-     */
     public record DepartmentResponse(
             Long id,
             String name,

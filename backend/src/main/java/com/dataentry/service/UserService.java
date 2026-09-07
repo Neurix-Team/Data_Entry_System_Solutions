@@ -17,9 +17,6 @@ import java.util.List;
 import java.util.Objects;
 
 @Service
-// Class-level readOnly so every method (including list()) runs inside a Spring tx and the
-// TenantFilterAspect enables the tenant filter — otherwise cross-team users would leak into
-// the response OR (worse) the TeamOwned @PostLoad guard would 404 on the first foreign row.
 @Transactional(readOnly = true)
 public class UserService {
 
@@ -29,19 +26,30 @@ public class UserService {
     private final Localizer localizer;
     private final AuditService audit;
     private final JwtAuthFilter jwtAuthFilter;
+    private final PasswordPolicy passwordPolicy;
 
     public UserService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
                        TranslationService translator,
                        Localizer localizer,
                        AuditService audit,
-                       JwtAuthFilter jwtAuthFilter) {
+                       JwtAuthFilter jwtAuthFilter,
+                       PasswordPolicy passwordPolicy) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.translator = translator;
         this.localizer = localizer;
         this.audit = audit;
         this.jwtAuthFilter = jwtAuthFilter;
+        this.passwordPolicy = passwordPolicy;
+    }
+
+    private void enforcePolicy(String password, String username) {
+        var violations = passwordPolicy.validate(password, username);
+        if (!violations.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    PasswordPolicy.describe(violations.get(0)));
+        }
     }
 
     public List<UserDtos.UserResponse> list() {
@@ -56,6 +64,7 @@ public class UserService {
         if (userRepository.existsByUsername(req.username())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already exists");
         }
+        enforcePolicy(req.password(), req.username());
         User user = User.builder()
                 .username(req.username())
                 .passwordHash(passwordEncoder.encode(req.password()))
@@ -86,15 +95,13 @@ public class UserService {
         if (req.email() != null) user.setEmail(req.email());
         if (req.phone() != null) user.setPhone(req.phone());
         if (req.password() != null && !req.password().isBlank()) {
+            enforcePolicy(req.password(), user.getUsername());
             user.setPasswordHash(passwordEncoder.encode(req.password()));
+            user.setTokenVersion(user.getTokenVersion() + 1);
         }
         if (req.active() != null) user.setActive(req.active());
         User saved = userRepository.save(user);
-        // Any change (password, active flag, display name) invalidates the auth cache entry
-        // so a deactivated user is bounced on their next request instead of getting up to
-        // 30 s of grace period from a cached principal.
         jwtAuthFilter.evictUser(saved.getId());
-        // Record whether the password/active flag changed — but never log the value itself.
         String details = "displayName=" + saved.getDisplayName()
                 + " active=" + saved.isActive()
                 + " passwordChanged=" + (req.password() != null && !req.password().isBlank());

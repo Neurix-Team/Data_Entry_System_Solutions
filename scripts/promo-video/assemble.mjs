@@ -1,6 +1,3 @@
-// Muxes the Playwright recording with the narration track and the ducked music bed into an MP4.
-// usage: node assemble.mjs [video.webm] [timeline.json] [out.mp4] [music.wav]
-// The narration edition (and so the default output name) follows NX_LANG, see narration.mjs.
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -27,13 +24,8 @@ function durationOf(file) {
 }
 
 const rawD = durationOf(videoIn);
-// The recorder's clock runs ~2% fast relative to wall time (measured against the chapter
-// cards), so the picture is stretched by STRETCH to line up with the tour clock; whatever
-// is still missing at the tail is covered by freezing the last frame.
 const offset = Number(process.env.OFFSET ?? 0);
 const stretch = Number(process.env.STRETCH || 1);
-// Piecewise-linear map from tour clock → video time, measured from the chapter cards
-// (tour seconds, video seconds). Past the last anchor the slope is 1.
 const ANCHORS = JSON.parse(process.env.ANCHORS || '[[0,0]]');
 function videoTime(t) {
   for (let i = 1; i < ANCHORS.length; i++) {
@@ -51,7 +43,6 @@ console.log(`video ${rawD.toFixed(2)}s, tour clock ${timeline.total.toFixed(2)}s
 const musicD = durationOf(musicPath);
 if (musicD < D) console.warn(`WARNING: music bed is ${musicD.toFixed(0)}s but the video is ${D.toFixed(0)}s — render a longer one (MUSIC_BARS=... node music.cjs)`);
 
-// ---- build narration track (48k mono s16le) ----
 const SR = 48000;
 const N = Math.ceil(D * SR) + SR;
 const buf = Buffer.alloc(N * 2);
@@ -66,7 +57,6 @@ for (const s of timeline.scenes) {
 fs.writeFileSync('narration.raw', buf);
 run(['-y', '-f', 's16le', '-ar', String(SR), '-ac', '1', '-i', 'narration.raw', '-af', 'volume=1.7,alimiter=limit=0.97', 'narration.wav'], 'narration');
 
-// ---- mux ----
 const fadeOut = Math.max(0, D - 1.4);
 const filter = [
   `[0:v]setpts=${stretch.toFixed(5)}*PTS,tpad=stop_mode=clone:stop_duration=${pad.toFixed(2)},fps=30,format=yuv420p,fade=t=in:st=0:d=0.9,fade=t=out:st=${fadeOut.toFixed(2)}:d=1.4[v]`,
@@ -80,6 +70,5 @@ const log = run(['-y', '-i', videoIn, '-i', 'narration.wav', '-i', musicPath,
   '-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-profile:v', 'high', '-movflags', '+faststart',
   '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-shortest', outPath], 'mux');
 console.log(log.split('\n').filter(l => /video:|Lsize/.test(l)).join('\n'));
-// poster frame
 run(['-y', '-ss', '5', '-i', outPath, '-frames:v', '1', outPath.replace(/\.mp4$/, '-poster.jpg')], 'poster');
 console.log('done', outPath, (fs.statSync(outPath).size / 1e6).toFixed(1), 'MB');

@@ -26,14 +26,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * Web-layer test for POST /api/user/tickets/bulk with attachments-only articles.
- *
- * <p>Before the DTO validation relaxation, {@code ArticleRequest} carried {@code @NotBlank}
- * on both title and content — so users trying to submit a pure-attachment ticket got a 400
- * complaining about missing text fields they had intentionally left empty. This test locks
- * in the new behaviour: blank title/content is a valid payload.
- */
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
 @ActiveProfiles("test")
@@ -61,8 +53,6 @@ class TicketBulkSubmitMvcTest {
         Mockito.when(ticketService.createMany(ArgumentMatchers.any(), ArgumentMatchers.any()))
                 .thenReturn(new TicketDtos.BulkCreateResponse(1, List.of()));
 
-        // Article with blank title AND blank content — the attachments-only case the frontend
-        // now allows. The DTO relaxation should let this through validation.
         String payload = """
                 {
                   "departmentId": 1,
@@ -84,8 +74,6 @@ class TicketBulkSubmitMvcTest {
 
     @Test
     void bulkSubmit_stillRejectsEmptyArticleList() throws Exception {
-        // Belt-and-braces: @NotEmpty on articles must still hold, otherwise a totally empty
-        // request would return 200 with zero tickets and mask a client bug.
         String payload = """
                 {
                   "departmentId": 1,

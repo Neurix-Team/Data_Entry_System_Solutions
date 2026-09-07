@@ -12,14 +12,6 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Instant;
 import java.util.List;
 
-/**
- * In-app notification pipeline. Emitted server-side on events (e.g. ticket approval);
- * consumed by the frontend via the bell widget on the topbar.
- *
- * <p>Emit is intentionally best-effort: an approval action should not fail because the
- * notification write failed. The caller passes the notification through {@link #emit},
- * and any exception is logged but swallowed — the primary action is what mattered.
- */
 @Service
 public class NotificationService {
 
@@ -31,11 +23,6 @@ public class NotificationService {
         this.repository = repository;
     }
 
-    /**
-     * Emit a notification for {@code recipient}. Runs in its own transaction (via a fresh
-     * @Transactional) so a rollback of the caller's transaction doesn't kill the
-     * notification write, and vice versa.
-     */
     @Transactional
     public void emit(User recipient, String type, String message,
                      String refType, Long refId, Long projectId) {
@@ -52,7 +39,6 @@ public class NotificationService {
                     .build();
             repository.save(n);
         } catch (Exception e) {
-            // Never let a notification write bring down the primary action.
             log.warn("Failed to emit notification (type={}, recipient={}): {}",
                     type, recipient.getId(), e.toString());
         }

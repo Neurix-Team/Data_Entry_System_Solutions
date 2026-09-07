@@ -74,13 +74,10 @@ public class DashboardService {
         return picked != null && !picked.isBlank() ? picked : u.getUsername();
     }
 
-    // ---------- admin stats (moved from TicketService) ----------
 
     public DashboardDtos.AdminStats adminStats() {
         LocalDate today = today();
         Instant startOfToday = today.atStartOfDay(zone()).toInstant();
-        // teamId may be null for a SUPER_ADMIN that hasn't entered a team yet;
-        // the native query treats null as "no team restriction" and returns cross-team totals.
         Long teamId = TenantContext.getTeamId();
         TicketRepository.AdminStatsProjection row =
                 ticketRepository.aggregateAdminStats(teamId, startOfToday);
@@ -96,7 +93,6 @@ public class DashboardService {
         );
     }
 
-    // ---------- weekly report (moved from TicketService) ----------
 
     public DashboardDtos.ReportData report() {
         LocalDate today = today();
@@ -121,7 +117,6 @@ public class DashboardService {
         return new DashboardDtos.ReportData(byDay, topPerformers, completedThisWeek);
     }
 
-    // ---------- domains ----------
 
     public List<DashboardDtos.DomainStats> domains() {
         Long teamId = TenantContext.getTeamId();
@@ -178,7 +173,6 @@ public class DashboardService {
         );
     }
 
-    // ---------- subcategories ----------
 
     public List<DashboardDtos.SubcategoryStats> subcategories(Long departmentId) {
         if (departmentId == null) {
@@ -216,7 +210,6 @@ public class DashboardService {
                 .toList();
     }
 
-    // ---------- users ----------
 
     public DashboardDtos.LeaderboardResponse leaderboard(String range) {
         String normalized = normalizeRange(range);
@@ -224,7 +217,7 @@ public class DashboardService {
         LocalDate windowStart = switch (normalized) {
             case "day" -> today;
             case "month" -> today.minusDays(29);
-            default -> today.minusDays(6); // "week"
+            default -> today.minusDays(6);
         };
         int windowDays = (int) java.time.temporal.ChronoUnit.DAYS.between(windowStart, today) + 1;
         Instant since = windowStart.atStartOfDay(zone()).toInstant();
@@ -304,13 +297,7 @@ public class DashboardService {
         );
     }
 
-    // ---------- user self-dashboard ----------
 
-    /**
-     * Everything a data-entry agent needs to see about their own progress on one screen:
-     * KPIs, streak, best day, 30-day trend, status/department/subcategory breakdowns,
-     * and the most recent tickets.
-     */
     public DashboardDtos.MyDashboard myDashboard(User user, Integer daysWindow) {
         int window = (daysWindow == null || daysWindow < 7 || daysWindow > 90) ? 30 : daysWindow;
         LocalDate today = today();
@@ -318,8 +305,6 @@ public class DashboardService {
         LocalDate monthStart = today.minusDays(29);
         LocalDate windowStart = today.minusDays(window - 1L);
 
-        // Single query: pull every submission timestamp for this user, ever.
-        // Cheap (just longs) and enough to derive counts, streaks, and the best-day metric.
         List<Instant> allTimes = ticketRepository.userSubmissionTimesSince(user.getId(), Instant.EPOCH);
         long total = allTimes.size();
 
@@ -421,7 +406,6 @@ public class DashboardService {
         return longest;
     }
 
-    // ---------- helpers ----------
 
     private LocalDate today() {
         return LocalDate.now(clock);

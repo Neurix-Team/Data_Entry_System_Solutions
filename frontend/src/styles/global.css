@@ -1,52 +1,37 @@
-/* Tailwind utility layers — additive to the existing design system below.
-   Preflight is disabled in tailwind.config.js so utilities coexist with the
-   legacy CSS reset/typography rules (only utility classes are emitted here). */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ============================================================
-   Design tokens — Neurix design system (electric blue / cyan / deep navy)
-   Palette sampled from the Neurix logo: royal blue primary, cyan accent,
-   deep navy for anchoring text and inverted surfaces.
-   ============================================================ */
 :root {
-  /* Neutrals — very light with a cool cast, white surfaces */
   --bg-app: #f4f7fc;
   --bg-surface: #ffffff;
   --bg-muted: #eef2f9;
   --bg-hover: #e6ecf5;
   --bg-sunken: #f7f9fd;
 
-  /* Text — deep navy from the Neurix wordmark */
   --text-primary: #0d1a33;
   --text-secondary: #455270;
   --text-tertiary: #7c869e;
   --text-inverse: #ffffff;
 
-  /* Primary — electric blue from the logo N mark */
   --brand: #0f5fd1;
   --brand-hover: #0a4db2;
   --brand-soft: #e3efff;
   --brand-soft-text: #0a3f9c;
   --brand-border: #b6d0f5;
 
-  /* Deep navy anchor — the wordmark colour; use for high-emphasis CTAs and hero surfaces */
   --accent-deep: #0d1a33;
   --accent-deep-hover: #1b2a4a;
   --accent-deep-text: #ffffff;
 
-  /* Cyan accent — the highlight/energy colour from the circuit dots */
   --accent-cyan: #22c3d9;
   --accent-cyan-hover: #14aec3;
   --accent-cyan-soft: #e0f7fb;
   --accent-cyan-soft-text: #0a6570;
 
-  /* Signature Neurix gradient — from primary blue through cyan (used sparingly on hero surfaces) */
   --brand-gradient: linear-gradient(135deg, #0a3f9c 0%, #0f5fd1 45%, #22c3d9 100%);
   --brand-gradient-soft: linear-gradient(135deg, #e3efff 0%, #e0f7fb 100%);
 
-  /* Status colors */
   --status-progress: #0f5fd1;
   --status-progress-soft: #e3efff;
   --status-progress-text: #0a3f9c;
@@ -63,13 +48,11 @@
   --status-overdue-soft: #fde8ec;
   --status-overdue-text: #a1233b;
 
-  /* Success (cool green) */
   --success: #0e9f7c;
   --success-soft: #dcf5ec;
   --success-soft-text: #0a6b52;
   --success-soft-border: #b0e0cf;
 
-  /* Warning / info */
   --warning: #f0a020;
   --warning-soft: #fdf1d9;
   --warning-soft-text: #8a5a0e;
@@ -82,24 +65,17 @@
   --border: #dde3ef;
   --border-strong: #c3cadb;
 
-  /* Compatibility aliases. The super-admin pages were written against these names and
-     used `var(--bg-subtle, #f9fafb)`-style fallbacks; because the names were never
-     defined, the hard-coded light-mode fallback always won and those screens stayed
-     white in dark mode. Defined as aliases (not literals) so they resolve through the
-     active theme's value at use time — one definition covers light and dark. */
   --bg-subtle: var(--bg-sunken);
   --border-subtle: var(--border);
   --accent: var(--brand);
 
-  /* Department card top-border color palette — cool-forward, brand-consistent */
-  --dept-color-1: #0f5fd1;   /* electric blue */
-  --dept-color-2: #22c3d9;   /* cyan          */
-  --dept-color-3: #7c56d9;   /* violet        */
-  --dept-color-4: #0e9f7c;   /* green         */
-  --dept-color-5: #e04562;   /* coral         */
-  --dept-color-6: #f0a020;   /* warm amber    */
+  --dept-color-1: #0f5fd1;
+  --dept-color-2: #22c3d9;
+  --dept-color-3: #7c56d9;
+  --dept-color-4: #0e9f7c;
+  --dept-color-5: #e04562;
+  --dept-color-6: #f0a020;
 
-  /* Soft tinted backgrounds for mini stat cards inside a department card */
   --dept-mini-1: #e3efff;
   --dept-mini-2: #e0f7fb;
   --dept-mini-3: #ece5fa;
@@ -107,7 +83,6 @@
   --dept-mini-5: #fde8ec;
   --dept-mini-6: #fdf1d9;
 
-  /* Avatar palette — cool-first, brand-aligned */
   --avatar-1-bg: #d9e6ff;
   --avatar-1-fg: #0a3f9c;
   --avatar-2-bg: #d1f2f7;
@@ -121,27 +96,20 @@
   --avatar-6-bg: #fceecd;
   --avatar-6-fg: #8a5a0e;
 
-  /* Shape */
   --radius-sm: 6px;
   --radius: 10px;
   --radius-lg: 16px;
   --radius-pill: 999px;
 
-  /* Elevation */
   --shadow-sm: 0 1px 2px rgba(20, 22, 31, 0.03), 0 1px 3px rgba(20, 22, 31, 0.04);
   --shadow: 0 4px 12px rgba(20, 22, 31, 0.05), 0 2px 4px rgba(20, 22, 31, 0.03);
   --shadow-lg: 0 12px 32px rgba(20, 22, 31, 0.08);
-  /* Card lift: neutral depth + a soft brand-tinted halo underneath.
-     --card-glow accepts any CSS color and is mixed with transparent so
-     dept-cards and KPI cards can bind it to their existing color tokens
-     directly (change --dept-color-1 and the glow follows). */
   --card-glow: var(--accent-cyan);
   --shadow-lift:
     0 2px 4px rgba(20, 22, 31, 0.05),
     0 18px 40px -12px rgba(20, 22, 31, 0.16),
     0 24px 48px -18px color-mix(in oklch, var(--card-glow) 22%, transparent);
 
-  /* Type */
   --font-body: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI',
     'Helvetica Neue', Arial, sans-serif;
   --font-body-ar: 'Segoe UI', 'Tahoma', 'Cairo', 'Noto Kufi Arabic', Arial, sans-serif;
@@ -162,33 +130,16 @@
   --sidebar-w: 240px;
   --topbar-h: 68px;
 
-  /* Motion — three durations, two easings. Everything in the app picks from this set;
-     a value outside it is a bug, not a preference. The app previously carried fourteen
-     distinct durations between 90ms and 900ms, which is what made otherwise-careful
-     animation read as accidental.
-       fast  → a tint the eye barely tracks (hover, focus, active)
-       base  → an element changing shape or place (cards, toggles, panels)
-       slow  → something arriving or drawing itself (charts, dialogs, entrances) */
   --dur-fast: 140ms;
   --dur-base: 240ms;
   --dur-slow: 420ms;
-  /* Default. Leaves immediately, settles long — the curve most UI motion wants. */
   --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
-  /* Exponential ease-out: decelerates harder and settles without overshooting. For
-     entrances, where the extra deceleration reads as weight. Named for the curve —
-     nothing in this app overshoots: it is a tool people sit in for a shift, and a
-     control that springs under the cursor gets tiring by the fiftieth row. */
   --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
-  /* Stagger step for entrance sequences. Multiply it, don't invent new delays — an even
-     step is what makes a sequence read as one motion instead of several. */
   --stagger: 90ms;
-  /* Tighter step for dense sequences inside a single card or control, where the
-     hero-scale step would read as sluggish. */
   --stagger-tight: 60ms;
 }
 
 :root[data-theme='dark'] {
-  /* Deep navy grounds — the wordmark color extended to a full surface scale */
   --bg-app: #060b1a;
   --bg-surface: #0f172c;
   --bg-muted: #141d38;
@@ -199,7 +150,6 @@
   --text-secondary: #a9b4d0;
   --text-tertiary: #7c86a5;
 
-  /* Primary lifts on dark to keep contrast against deep-navy surfaces */
   --brand: #4b8fee;
   --brand-hover: #6ba3f2;
   --brand-soft: #122747;
@@ -241,10 +191,6 @@
   --danger-soft-text: #f5aab6;
   --danger-soft-border: #5a2434;
 
-  /* Warning had no dark values at all, so every warning surface in the app kept its
-     light-mode cream (#fdf1d9) and sat on the navy background as a glowing panel.
-     Built to the same recipe as success/danger above: deep desaturated ground, lifted
-     hue, light text — 10:1 against its own surface. */
   --warning: #f5b53f;
   --warning-soft: #37280d;
   --warning-soft-text: #f0cd8e;
@@ -255,15 +201,12 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
   --shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
-  /* Dark mode lift: deeper base shadow, brand-tinted halo readable against navy.
-     Higher mix percentage compensates for the darker surface. */
   --card-glow: var(--accent-cyan);
   --shadow-lift:
     0 4px 8px rgba(0, 0, 0, 0.5),
     0 24px 48px -12px rgba(0, 0, 0, 0.7),
     0 28px 56px -20px color-mix(in oklch, var(--card-glow) 30%, transparent);
 
-  /* Department mini-stat tints: deep, low-saturation tints of each hue for legibility on navy. */
   --dept-mini-1: #122747;
   --dept-mini-2: #0f2a35;
   --dept-mini-3: #1e1738;
@@ -271,7 +214,6 @@
   --dept-mini-5: #351724;
   --dept-mini-6: #2e2210;
 
-  /* Avatar bubbles keep colour identity, plate darkened, initials brightened for contrast. */
   --avatar-1-bg: #122c55; --avatar-1-fg: #9ec1f5;
   --avatar-2-bg: #0f3742; --avatar-2-fg: #7ee0ee;
   --avatar-3-bg: #26195c; --avatar-3-fg: #b39cf5;
@@ -308,13 +250,6 @@ a:hover { text-decoration: underline; }
 button { font: inherit; cursor: pointer; }
 input, select, textarea, button { font-family: inherit; }
 
-/* ============================================================
-   Buttons — pill shape by default
-   Motion: SaaS-appropriate subtle press/hover feedback (200-250ms).
-   All transforms run on the compositor thread (transform + opacity
-   only); shine/ring pseudo-elements are transform-based; layout
-   props are never animated. Reduced-motion cancels all transforms.
-   ============================================================ */
 .btn {
   position: relative;
   isolation: isolate;
@@ -339,8 +274,6 @@ input, select, textarea, button { font-family: inherit; }
     box-shadow var(--dur-base) var(--ease-out),
     transform var(--dur-fast) var(--ease-out);
 }
-/* Diagonal shine — only visible on solid CTA variants that opt in
-   (.btn-primary / .btn-brand / .btn-danger). Uses transform only. */
 .btn::before {
   content: '';
   position: absolute;
@@ -364,7 +297,6 @@ input, select, textarea, button { font-family: inherit; }
   box-shadow: 0 0 0 3px var(--bg-surface), 0 0 0 5px var(--accent-cyan);
 }
 
-/* --- Primary (deep navy CTA) ------------------------------------ */
 .btn-primary { background: var(--accent-deep); color: var(--accent-deep-text); }
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-deep-hover);
@@ -376,7 +308,6 @@ input, select, textarea, button { font-family: inherit; }
 .btn-primary::before { opacity: 1; }
 .btn-primary:hover:not(:disabled)::before { transform: translateX(120%); }
 
-/* --- Brand (electric-blue CTA) ---------------------------------- */
 .btn-brand { background: var(--brand); color: var(--text-primary); }
 .btn-brand:hover:not(:disabled) {
   background: var(--brand-hover);
@@ -388,7 +319,6 @@ input, select, textarea, button { font-family: inherit; }
 .btn-brand::before { opacity: 1; }
 .btn-brand:hover:not(:disabled)::before { transform: translateX(120%); }
 
-/* --- Secondary (surface + border) ------------------------------- */
 .btn-secondary {
   background: var(--bg-surface);
   color: var(--text-primary);
@@ -401,7 +331,6 @@ input, select, textarea, button { font-family: inherit; }
   box-shadow: 0 6px 14px -8px rgba(15, 95, 209, 0.25);
 }
 
-/* --- Ghost (utility, no lift, tint only) ------------------------ */
 .btn-ghost {
   background: transparent;
   color: var(--text-secondary);
@@ -409,7 +338,6 @@ input, select, textarea, button { font-family: inherit; }
 }
 .btn-ghost:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
 
-/* --- Danger ---------------------------------------------------- */
 .btn-danger { background: var(--danger); color: var(--text-inverse); }
 .btn-danger:hover:not(:disabled) {
   background: var(--danger-hover);
@@ -421,13 +349,11 @@ input, select, textarea, button { font-family: inherit; }
 .btn-danger::before { opacity: 1; }
 .btn-danger:hover:not(:disabled)::before { transform: translateX(120%); }
 
-/* --- Sizes ----------------------------------------------------- */
 .btn-sm { padding: 0.4rem 0.85rem; min-height: 34px; font-size: var(--fs-xs); }
 .btn-icon { padding: 0.4rem 0.6rem; }
 .btn-icon:hover:not(:disabled) { transform: scale(1.06); }
 .btn-icon:active:not(:disabled) { transform: scale(0.94); }
 
-/* --- Loading state --------------------------------------------- */
 .btn.is-loading {
   pointer-events: none;
   color: transparent !important;
@@ -446,13 +372,9 @@ input, select, textarea, button { font-family: inherit; }
 .btn-secondary.is-loading::after,
 .btn-ghost.is-loading::after { color: var(--text-primary); }
 
-/* --- Reduced motion: cancel transforms + shine ------------------ */
 @media (prefers-reduced-motion: reduce) {
   .btn,
   .btn::before { transition: none; animation: none; }
-  /* The loading spinner keeps its animation-name here — the global reduced-motion
-     floor at the end of this file slows it instead of stopping it. Killing the name
-     with `animation: none` would leave a frozen ring that reads as a hung request. */
   .btn.is-loading::after { transition: none; }
   .btn:hover:not(:disabled),
   .btn-icon:hover:not(:disabled),
@@ -461,9 +383,6 @@ input, select, textarea, button { font-family: inherit; }
   .btn::before { display: none; }
 }
 
-/* ============================================================
-   Form primitives
-   ============================================================ */
 .field {
   display: flex;
   flex-direction: column;
@@ -514,7 +433,6 @@ html[dir='rtl'] .input, html[dir='rtl'] .textarea, html[dir='rtl'] .select { tex
   box-shadow: 0 0 0 3px var(--danger-soft);
 }
 
-/* Toggle switch */
 .switch {
   --w: 44px;
   --h: 24px;
@@ -542,9 +460,6 @@ html[dir='rtl'] .input, html[dir='rtl'] .textarea, html[dir='rtl'] .select { tex
 .switch input:checked + .slider::before { transform: translateX(20px); }
 html[dir='rtl'] .switch input:checked + .slider::before { transform: translateX(-20px); }
 
-/* ============================================================
-   Alerts
-   ============================================================ */
 .alert {
   padding: 0.85rem 1rem;
   border-radius: var(--radius);
@@ -558,9 +473,6 @@ html[dir='rtl'] .switch input:checked + .slider::before { transform: translateX(
 .alert-warning { background: var(--warning-soft); color: var(--warning-soft-text); }
 .alert-info { background: var(--status-progress-soft); border-color: var(--status-progress); color: var(--status-progress-text); }
 
-/* ============================================================
-   Cards
-   ============================================================ */
 .card {
   background: var(--bg-surface);
   border: 1px solid var(--border);
@@ -570,13 +482,6 @@ html[dir='rtl'] .switch input:checked + .slider::before { transform: translateX(
 }
 .card + .card { margin-top: 1rem; }
 
-/* ============================================================
-   Card lift — the Neurix cards behave like circuit nodes:
-   on hover they rise toward the cursor and light up from below
-   with a halo tinted to their own identity color (--card-glow).
-   Base cards get a cyan wash from the Neurix logo dots; dept-cards
-   and KPI cards override --card-glow to their own accent.
-   ============================================================ */
 .card, .stat-card, .dept-card, .udash-kpi, .udash-panel, .article-card {
   transition:
     transform var(--dur-base) var(--ease-expo),
@@ -584,8 +489,6 @@ html[dir='rtl'] .switch input:checked + .slider::before { transform: translateX(
     border-color var(--dur-fast) ease;
 }
 
-/* Lift + halo are gated to true hover devices so touch screens don't
-   get stuck-hover states and jittery scroll transforms. */
 @media (hover: hover) and (pointer: fine) {
   .card:hover,
   .stat-card:hover,
@@ -599,8 +502,6 @@ html[dir='rtl'] .switch input:checked + .slider::before { transform: translateX(
     will-change: transform;
   }
 
-  /* Tactile press — the card settles halfway back with a snappier curve,
-     giving the click a physical response before navigation runs. */
   .card:active,
   .stat-card:active,
   .dept-card:active,
@@ -614,11 +515,6 @@ html[dir='rtl'] .switch input:checked + .slider::before { transform: translateX(
   }
 }
 
-/* Keyboard focus lifts the card. Two patterns because the actual click
-   targets in this app (dept-card open button, article-card actions) live
-   INSIDE the card, not on it — :has(:focus-visible) catches keyboard focus
-   on any descendant so the card responds when its inner control is tabbed
-   to. :focus-visible also covers cards that are themselves focusable. */
 .card:focus-visible,
 .stat-card:focus-visible,
 .dept-card:focus-visible,
@@ -634,8 +530,6 @@ html[dir='rtl'] .switch input:checked + .slider::before { transform: translateX(
   transform: translateY(-8px);
   box-shadow: var(--shadow-lift);
 }
-/* Ring only on the card itself, not when a nested control has focus —
-   inner buttons already draw their own focus ring. */
 .card:focus-visible,
 .stat-card:focus-visible,
 .dept-card:focus-visible,
@@ -646,8 +540,6 @@ html[dir='rtl'] .switch input:checked + .slider::before { transform: translateX(
   outline-offset: 3px;
 }
 
-/* Busy / disabled cards must not lift and must reject pointer intent —
-   otherwise a loading card looks tappable and a disabled one invites clicks. */
 .card[aria-busy="true"],
 .stat-card[aria-busy="true"],
 .dept-card[aria-busy="true"],
@@ -699,8 +591,6 @@ html[dir='rtl'] .switch input:checked + .slider::before { transform: translateX(
   .udash-kpi:active, .udash-panel:active, .article-card:active {
     transform: none;
   }
-  /* Also freeze the identity pseudo-elements — no strip pulse, no stripe
-     brighten — so reduced-motion users get a completely static card. */
   .dept-card::before {
     transition: none;
   }
@@ -711,7 +601,6 @@ html[dir='rtl'] .switch input:checked + .slider::before { transform: translateX(
   }
 }
 
-/* Recent activity row — just a soft background wash on hover, no shift */
 .udash-recent-item {
   transition: background var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
   transform: none !important;
@@ -722,7 +611,6 @@ html[dir='rtl'] .switch input:checked + .slider::before { transform: translateX(
 }
 .udash-recent-item:hover { transform: none !important; }
 
-/* Sidebar links — no shift, just a soft background tint */
 .side-link {
   transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
 }
@@ -732,7 +620,6 @@ html[dir='rtl'] .switch input:checked + .slider::before { transform: translateX(
 }
 html[dir='rtl'] .side-link:not(.active):hover { transform: none !important; }
 
-/* Table rows — very soft warm tint using the brand color */
 .data tbody tr {
   transition: background var(--dur-fast) ease;
 }
@@ -740,7 +627,6 @@ html[dir='rtl'] .side-link:not(.active):hover { transform: none !important; }
   background: var(--bg-sunken);
 }
 
-/* Intro examples — softer & no jitter */
 .intro-example {
   transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
   transform: none !important;
@@ -751,16 +637,12 @@ html[dir='rtl'] .side-link:not(.active):hover { transform: none !important; }
   box-shadow: 0 4px 12px -6px rgba(245, 185, 60, 0.18);
 }
 
-/* ============================================================
-   Layout
-   ============================================================ */
 .app-shell {
   display: grid;
   grid-template-columns: var(--sidebar-w) 1fr;
   min-height: 100vh;
 }
 
-/* Sidebar */
 .sidebar {
   background: var(--bg-surface);
   border-inline-end: 1px solid var(--border);
@@ -820,8 +702,6 @@ html[dir='rtl'] .side-section { text-transform: none; letter-spacing: 0; font-si
 }
 .side-link.active:hover { background: var(--brand-hover); color: #ffffff; }
 
-/* Native <button> variant of .side-link — strips default button chrome so it inherits the
-   nav-link look, and takes the full row width (used for sidebar Sign out in the footer). */
 .side-link-btn {
   width: 100%;
   border: none;
@@ -831,7 +711,6 @@ html[dir='rtl'] .side-section { text-transform: none; letter-spacing: 0; font-si
   text-align: start;
 }
 
-/* Topbar */
 .topbar {
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border);
@@ -929,7 +808,6 @@ html[dir='rtl'] .user-chip-info { align-items: flex-start; }
 }
 .icon-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 
-/* Avatar */
 .avatar {
   --sz: 36px;
   display: inline-flex;
@@ -956,8 +834,6 @@ html[dir='rtl'] .user-chip-info { align-items: flex-start; }
 .avatar-icon {
   width: 60%; height: 60%; opacity: 0.7;
 }
-/* When the avatar has an image, hide the initials underneath. Position relative so the
-   absolutely-positioned image can cover the whole circle. */
 .avatar { position: relative; overflow: hidden; }
 .avatar-initials { position: relative; z-index: 1; }
 .avatar-has-image .avatar-initials { visibility: hidden; }
@@ -971,7 +847,6 @@ html[dir='rtl'] .user-chip-info { align-items: flex-start; }
   z-index: 2;
 }
 
-/* User chip becomes clickable when it opens the profile modal */
 .user-chip.is-button {
   cursor: pointer;
   background: transparent;
@@ -986,7 +861,6 @@ html[dir='rtl'] .user-chip-info { align-items: flex-start; }
   box-shadow: 0 0 0 3px var(--accent-cyan-soft);
 }
 
-/* -------- Profile modal -------- */
 .profile-modal { max-width: 380px; text-align: center; }
 .profile-body { padding: 0.5rem 0 1rem; }
 .profile-avatar-wrap {
@@ -1045,7 +919,6 @@ html[dir='rtl'] .user-chip-info { align-items: flex-start; }
 }
 .profile-error { text-align: start; margin: 0 0 1rem; }
 
-/* -------- Profile page (/profile) -------- */
 .profile-page { padding: 2rem; max-width: 1080px; margin: 0 auto; }
 .profile-page-hero {
   display: flex;
@@ -1140,7 +1013,6 @@ html[dir='rtl'] .user-chip-info { align-items: flex-start; }
 .profile-photo-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 
 
-/* Main content area */
 .main-content { display: flex; flex-direction: column; min-width: 0; }
 .page {
   padding: 2rem;
@@ -1162,9 +1034,6 @@ html[dir='rtl'] .user-chip-info { align-items: flex-start; }
   max-width: 640px;
 }
 
-/* ============================================================
-   Stat cards
-   ============================================================ */
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -1215,9 +1084,7 @@ html[dir='rtl'] .stat-card-label { text-transform: none; letter-spacing: 0; font
 .stat-card-trend.up { color: var(--success); }
 .stat-card-trend.down { color: var(--danger); }
 
-/* Hero stat variants — light-mode pastels; dark overrides live under [data-theme='dark'] */
 .stat-card.hero-yellow {
-  /* Legacy class kept for compat — now a soft cyan wash on light, cyan-navy on dark */
   background: linear-gradient(135deg, var(--accent-cyan-soft) 0%, #eefbfd 100%);
   border-color: var(--accent-cyan-soft);
 }
@@ -1226,7 +1093,6 @@ html[dir='rtl'] .stat-card-label { text-transform: none; letter-spacing: 0; font
   border-color: var(--brand-border);
 }
 .stat-card.hero-amber {
-  /* Prominent hero card — the signature Neurix gradient */
   background: var(--brand-gradient);
   color: var(--accent-deep-text);
   border-color: transparent;
@@ -1236,7 +1102,6 @@ html[dir='rtl'] .stat-card-label { text-transform: none; letter-spacing: 0; font
 .stat-card.hero-amber .stat-card-value { color: var(--accent-deep-text); }
 .stat-card.hero-amber .stat-card-icon { background: rgba(255,255,255,0.18); color: white; }
 
-/* Dark-mode adjustments: pastel washes invert to deep tints of the same hue. */
 :root[data-theme='dark'] .stat-card.hero-yellow {
   background: linear-gradient(135deg, #0f2a35 0%, #0a1e28 100%);
   border-color: #1a3945;
@@ -1249,9 +1114,6 @@ html[dir='rtl'] .stat-card-label { text-transform: none; letter-spacing: 0; font
   box-shadow: 0 8px 24px -12px rgba(15, 95, 209, 0.65);
 }
 
-/* ============================================================
-   Table
-   ============================================================ */
 .table-wrap {
   background: var(--bg-surface);
   border: 1px solid var(--border);
@@ -1282,9 +1144,6 @@ table.data th {
 html[dir='rtl'] table.data th { text-transform: none; letter-spacing: 0; font-size: var(--fs-sm); }
 table.data tr:last-child td { border-bottom: none; }
 table.data tr:hover td { background: var(--bg-hover); }
-/* Actions column — the td keeps normal table-cell layout (vertical-align: middle),
-   the inner div is the flex row for the buttons. Using display:flex on a <td> throws off
-   the row's vertical alignment against neighboring cells; the wrapper avoids that. */
 .actions-cell { text-align: end; white-space: nowrap; }
 .actions-cell-inner {
   display: inline-flex;
@@ -1297,8 +1156,6 @@ html[dir='rtl'] .actions-cell { text-align: start; }
 .actions-col-header { text-align: end; }
 html[dir='rtl'] .actions-col-header { text-align: start; }
 
-/* Compact select inside the actions row — height matches the .btn-sm buttons so the
-   whole row lines up cleanly. */
 .actions-select {
   height: 34px;
   min-height: 34px;
@@ -1313,9 +1170,6 @@ html[dir='rtl'] .actions-col-header { text-align: start; }
   color: var(--text-primary);
 }
 
-/* ============================================================
-   Repeater — the input-row list used in bulk-add modals
-   ============================================================ */
 .repeater {
   display: flex;
   flex-direction: column;
@@ -1370,11 +1224,6 @@ html[dir='rtl'] .actions-col-header { text-align: start; }
 .repeater-add-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .repeater-hint { margin: 0.75rem 0 0; }
 
-/* ============================================================
-   Custom checkbox — refined, brand-aligned, no native chrome
-   The check glyph is drawn with an inline SVG data URL so it renders
-   crisply at any DPR (the old CSS-border trick looked chunky at 2x).
-   ============================================================ */
 .row-check input,
 .dept-card-check input,
 .bulk-action-select-all input {
@@ -1418,10 +1267,6 @@ html[dir='rtl'] .actions-col-header { text-align: start; }
 .bulk-action-select-all input:checked:hover {
   filter: brightness(1.08);
 }
-/* Scales in and stops. The overshoot that used to sit at 60% was doubled by a bounce
-   easing on top of it, and this fires on every row checkbox — including once per visible
-   row when "select all" is hit, which set the whole table wobbling. A tool people spend
-   a shift in should confirm a click, not celebrate it. */
 @keyframes checkPop {
   from { transform: scale(0.7); }
   to   { transform: scale(1); }
@@ -1433,8 +1278,6 @@ html[dir='rtl'] .actions-col-header { text-align: start; }
   box-shadow: 0 0 0 3px var(--brand-soft);
 }
 
-/* Selected row gets a soft brand-tinted background so the whole row reads as selected —
-   not just the checkbox in the leading column. */
 table.data tr:has(.row-check input:checked) td {
   background: var(--brand-soft) !important;
 }
@@ -1445,9 +1288,6 @@ html[dir='rtl'] table.data tr:has(.row-check input:checked) td:first-child {
   box-shadow: inset -3px 0 0 var(--brand);
 }
 
-/* ============================================================
-   Bulk action bar — sticky top bar that appears when rows are selected
-   ============================================================ */
 .bulk-action-bar {
   position: sticky;
   top: 0;
@@ -1478,10 +1318,8 @@ html[dir='rtl'] table.data tr:has(.row-check input:checked) td:first-child {
 }
 .bulk-action-select-all input { width: 16px; height: 16px; accent-color: var(--brand); }
 
-/* Row selection cell — styling for the input lives in the custom-checkbox block above. */
 .row-check { width: 44px; text-align: center; vertical-align: middle; }
 
-/* Card-style selection checkbox (department cards + similar) */
 .dept-card { position: relative; }
 .dept-card.is-selected {
   border-color: var(--brand);
@@ -1503,7 +1341,6 @@ html[dir='rtl'] table.data tr:has(.row-check input:checked) td:first-child {
   backdrop-filter: blur(2px);
 }
 
-/* Multi-value chip picker — used for "which departments are in this project" */
 .chip-picker {
   display: flex;
   flex-wrap: wrap;
@@ -1540,14 +1377,12 @@ html[dir='rtl'] table.data tr:has(.row-check input:checked) td:first-child {
   line-height: 1;
 }
 
-/* Row layout for a stack of department chips inside a table cell */
 .dept-chip-row {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
 }
 
-/* Reusable chip for compact tag-like values (e.g. subcategory in the tickets table) */
 .chip {
   display: inline-block;
   padding: 3px 10px;
@@ -1561,9 +1396,6 @@ html[dir='rtl'] table.data tr:has(.row-check input:checked) td:first-child {
 }
 html[dir='rtl'] .actions-cell { justify-content: flex-start; }
 
-/* ============================================================
-   Status pill + badge
-   ============================================================ */
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -1613,9 +1445,6 @@ html[dir='rtl'] .actions-cell { justify-content: flex-start; }
 }
 .role-badge.role-user { background: var(--success-soft); color: var(--success-soft-text); }
 
-/* ============================================================
-   Toolbar (filters)
-   ============================================================ */
 .toolbar {
   display: flex;
   gap: 0.6rem;
@@ -1637,9 +1466,6 @@ html[dir='rtl'] .actions-cell { justify-content: flex-start; }
   border: 1px solid var(--border);
 }
 
-/* ============================================================
-   Modal / side panel
-   ============================================================ */
 .modal-backdrop {
   position: fixed; inset: 0; background: rgba(20, 22, 31, 0.45);
   backdrop-filter: blur(3px);
@@ -1661,7 +1487,6 @@ html[dir='rtl'] .actions-cell { justify-content: flex-start; }
 }
 html[dir='rtl'] .modal-footer { justify-content: flex-start; }
 
-/* Side panel (slides in from side) */
 .side-panel-backdrop {
   position: fixed; inset: 0; background: rgba(20, 22, 31, 0.45);
   backdrop-filter: blur(3px);
@@ -1705,9 +1530,6 @@ html[dir='rtl'] .side-panel { animation: slideInRtl var(--dur-fast) ease-out; }
 }
 html[dir='rtl'] .side-panel-footer { justify-content: flex-start; }
 
-/* ============================================================
-   Department cards (colored top strip)
-   ============================================================ */
 .dept-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -1731,16 +1553,12 @@ html[dir='rtl'] .side-panel-footer { justify-content: flex-start; }
   transform-origin: top;
   transition: transform var(--dur-base) var(--ease-expo);
 }
-/* On hover / keyboard-focus the identity strip pulses forward — the
-   department is asserting its color at the moment of contact. */
 @media (hover: hover) and (pointer: fine) {
   .dept-card:hover::before { transform: scaleY(1.25); }
 }
 .dept-card:focus-visible::before,
 .dept-card:has(:focus-visible)::before { transform: scaleY(1.25); }
 
-/* Per-color: strip fill + card halo tint. --card-glow feeds --shadow-lift,
-   so changing --dept-color-1 automatically re-tints the lift halo. */
 .dept-card[data-color='1']::before { background: var(--dept-color-1); }
 .dept-card[data-color='2']::before { background: var(--dept-color-2); }
 .dept-card[data-color='3']::before { background: var(--dept-color-3); }
@@ -1755,7 +1573,6 @@ html[dir='rtl'] .side-panel-footer { justify-content: flex-start; }
 .dept-card[data-color='5'] { --card-glow: var(--dept-color-5); }
 .dept-card[data-color='6'] { --card-glow: var(--dept-color-6); }
 
-/* Tint the mini-stats to match the strip color */
 .dept-card[data-color='1'] .dept-mini-stat.tint-a { background: var(--dept-mini-1); }
 .dept-card[data-color='2'] .dept-mini-stat.tint-a { background: var(--dept-mini-2); }
 .dept-card[data-color='3'] .dept-mini-stat.tint-a { background: var(--dept-mini-3); }
@@ -1791,12 +1608,6 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
 .dept-mini-stat-value { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); }
 .dept-card-actions { display: flex; gap: 0.4rem; }
 
-/* ============================================================
-   Auth page — split screen (brand panel + form)
-   Left: deep-navy brand stage with the animated data-flow canvas behind
-   the full Neurix logo, headline, tagline, and features.
-   Right: light form panel with the dark-wordmark logo on top.
-   ============================================================ */
 .auth-shell {
   min-height: 100vh;
   display: grid;
@@ -1816,9 +1627,6 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
   overflow: hidden;
   isolation: isolate;
 }
-/* Ghosted mark — the big N icon sitting behind the animation, centered.
-   It's a background element, so it's blurred and low-opacity; the network
-   canvas draws over it, and the text content sits over both. */
 .auth-brand-mark-bg {
   position: absolute;
   top: 50%;
@@ -1833,7 +1641,6 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
   user-select: none;
   animation: neurixMarkPulse 8s ease-in-out infinite;
 }
-/* Particle-network canvas — above the blurred mark, below the text */
 .auth-brand-canvas {
   position: absolute;
   inset: 0;
@@ -1843,7 +1650,6 @@ html[dir='rtl'] .dept-mini-stat-label { text-transform: none; letter-spacing: 0;
   pointer-events: none;
   opacity: 1;
 }
-/* Soft vignette so text content always has enough contrast over the animation */
 .auth-brand-panel::after {
   content: '';
   position: absolute;
@@ -1911,7 +1717,6 @@ html[dir='rtl'] .auth-brand-features li { animation-name: neurixFadeInRight; }
   animation: neurixFadeUp var(--dur-slow) var(--ease-out) calc(var(--stagger) * 5) both;
 }
 
-/* ---------- Form side ---------- */
 .auth-form-panel {
   display: flex; align-items: center; justify-content: center;
   padding: 2.5rem 1.5rem;
@@ -1947,7 +1752,6 @@ html[dir='rtl'] .auth-brand-features li { animation-name: neurixFadeInRight; }
 @media (max-width: 480px) {
   .auth-form-logo img { height: 60px; }
 }
-/* On dark theme the light form panel is dark too — swap to the light-wordmark logo */
 :root[data-theme='dark'] .auth-form-logo img {
   content: url('/neurix-logo-light.png');
 }
@@ -1996,7 +1800,6 @@ html[dir='rtl'] .auth-brand-features li { animation-name: neurixFadeInRight; }
   animation: neurixSpin 0.7s linear infinite;
 }
 
-/* Small credential-hint card at the bottom of the form */
 .demo-creds {
   margin-top: 1.5rem;
   padding: 0.85rem 1rem;
@@ -2032,7 +1835,6 @@ html[dir='rtl'] .auth-brand-features li { animation-name: neurixFadeInRight; }
   margin-bottom: 0;
 }
 
-/* ---------- Keyframes ---------- */
 @keyframes neurixFadeUp {
   from { opacity: 0; transform: translateY(14px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -2060,17 +1862,11 @@ html[dir='rtl'] .auth-brand-features li { animation-name: neurixFadeInRight; }
   .auth-brand-canvas { display: none; }
 }
 
-/* Mobile: collapse to a single column and hide the brand stage — the form is the whole page. */
 @media (max-width: 900px) {
   .auth-shell { grid-template-columns: 1fr; }
   .auth-brand-panel { display: none; }
 }
 
-/* ============================================================
-   Neurix chat assistant
-   Floating circular trigger + slide-in glass panel with message list,
-   action buttons, and a compact input row.
-   ============================================================ */
 .chat-fab {
   position: fixed;
   bottom: 24px;
@@ -2112,7 +1908,6 @@ html[dir='rtl'] .auth-brand-features li { animation-name: neurixFadeInRight; }
 .chat-fab.is-open {
   background: var(--accent-deep);
 }
-/* Subtle attention pulse — draws the eye without being obnoxious. */
 .chat-fab-pulse {
   position: absolute;
   inset: -4px;
@@ -2127,7 +1922,6 @@ html[dir='rtl'] .auth-brand-features li { animation-name: neurixFadeInRight; }
   100% { transform: scale(1.35); opacity: 0; }
 }
 
-/* The panel */
 .chat-panel {
   position: fixed;
   bottom: 92px;
@@ -2287,7 +2081,6 @@ html[dir='rtl'] .chat-msg-user .chat-bubble {
   border-bottom-left-radius: 4px;
 }
 
-/* Action buttons — cyan-bordered pills below the bot's message */
 .chat-actions {
   display: flex;
   flex-wrap: wrap;
@@ -2314,7 +2107,6 @@ html[dir='rtl'] .chat-msg-user .chat-bubble {
   transform: translateY(-1px);
 }
 
-/* Typing indicator — three dots that scale sequentially */
 .chat-typing {
   display: inline-flex;
   gap: 4px;
@@ -2394,13 +2186,6 @@ html[dir='rtl'] .chat-msg-user .chat-bubble {
   .chat-panel { animation: none !important; }
 }
 
-/* ============================================================
-   Password field with eye toggle
-   The wrapper is a flex row: input + toggle as real siblings. The wrapper
-   owns the border, background, and focus ring — the input inside is
-   transparent and borderless. This avoids any absolute-positioning /
-   stacking-context issue where the toggle could get hidden.
-   ============================================================ */
 .password-field {
   display: flex;
   align-items: stretch;
@@ -2452,11 +2237,6 @@ html[dir='rtl'] .chat-msg-user .chat-bubble {
   background: var(--brand-soft);
 }
 
-/* ============================================================
-   Toast notifications + celebratory confetti
-   Stacked top-center on desktop, full-width on mobile. Success toasts
-   fire a short particle burst behind the pill.
-   ============================================================ */
 .toast-container {
   position: fixed;
   top: 50%;
@@ -2471,7 +2251,6 @@ html[dir='rtl'] .chat-msg-user .chat-bubble {
   max-width: min(460px, calc(100vw - 32px));
   width: 100%;
 }
-/* Semi-transparent scrim behind the centered popup — soft, no click-blocking */
 .toast-container::before {
   content: '';
   position: fixed;
@@ -2515,9 +2294,6 @@ html[dir='rtl'] .chat-msg-user .chat-bubble {
   box-shadow: 0 12px 28px -12px rgba(0, 0, 0, 0.6);
 }
 @keyframes toastIn {
-  /* Shorter travel + less scale-down so the entrance reads as "snap in"
-     rather than "float up" — matters because users often navigate away
-     immediately after the action that triggered the toast. */
   from { opacity: 0; transform: translateY(8px) scale(0.96); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
@@ -2553,7 +2329,6 @@ html[dir='rtl'] .chat-msg-user .chat-bubble {
   outline: none;
   box-shadow: 0 0 0 3px var(--accent-cyan-soft);
 }
-/* Progress bar at the bottom edge that shrinks to zero over the toast's lifetime */
 .toast-progress {
   position: absolute;
   left: 0;
@@ -2574,8 +2349,6 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   from { transform: scaleX(1); }
   to   { transform: scaleX(0); }
 }
-/* Canvas confetti — extends generously above and around the toast so pieces can fly out
-   in all directions before falling. Bigger playfield since the toast is now centered. */
 .toast-confetti {
   position: absolute;
   top: -160px;
@@ -2595,8 +2368,6 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   .toast { border-radius: 12px; }
 }
 
-/* Screen-reader-only text — used for a11y labels that must not appear visually
-   (e.g. loading state on an icon-only button). */
 .sr-only {
   position: absolute;
   width: 1px;
@@ -2609,9 +2380,6 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   border: 0;
 }
 
-/* ============================================================
-   Projects
-   ============================================================ */
 .project-avatar {
   width: 44px; height: 44px;
   border-radius: 50%;
@@ -2676,7 +2444,6 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
 }
 .view-toggle button.active { background: var(--bg-hover); color: var(--text-primary); }
 
-/* Multi-select for members */
 .multi-select {
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -2706,16 +2473,12 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
 }
 .multi-select label input { display: none; }
 
-/* Timeline text formatting inside table */
 .timeline-cell { line-height: 1.35; }
 .timeline-cell .dates { color: var(--text-primary); }
 .timeline-cell .meta { font-size: var(--fs-xs); color: var(--text-tertiary); margin-top: 2px; }
 .timeline-cell .meta.overdue { color: var(--danger); font-weight: 500; }
 .timeline-cell .meta.completed { color: var(--success); font-weight: 500; }
 
-/* ============================================================
-   Charts (bar chart)
-   ============================================================ */
 .bar-chart {
   display: flex;
   align-items: flex-end;
@@ -2747,21 +2510,16 @@ html[dir='rtl'] .toast-progress { transform-origin: right center; }
   font-weight: 500;
 }
 
-/* Progress bar */
 .progress-bar {
   height: 8px;
   background: var(--bg-muted);
   border-radius: var(--radius-pill);
   overflow: hidden;
 }
-/* Driven by `--fill` (0–1), not by `width`. Animating width relayouts the bar and every
-   sibling on each frame; scaleX is composited and stays smooth under a table of them. */
 .progress-bar-fill {
   height: 100%;
   width: 100%;
   background: var(--brand);
-  /* No radius of its own: scaleX would squash it into flat ends at low values.
-     The track is already pill-shaped with overflow:hidden, so it does the rounding. */
   transform: scaleX(var(--fill, 0));
   transform-origin: left center;
   transition: transform var(--dur-slow) var(--ease-out);
@@ -2771,9 +2529,6 @@ html[dir='rtl'] .progress-bar-fill { transform-origin: right center; }
 .progress-bar-fill[data-tone='blue'] { background: var(--status-progress); }
 .progress-bar-fill[data-tone='green'] { background: var(--success); }
 
-/* ============================================================
-   Layout utilities
-   ============================================================ */
 .two-col { display: grid; grid-template-columns: 2fr 1fr; gap: 1.25rem; }
 .two-col.reverse { grid-template-columns: 1fr 2fr; }
 @media (max-width: 1024px) { .two-col, .two-col.reverse { grid-template-columns: 1fr; } }
@@ -2785,7 +2540,6 @@ html[dir='rtl'] .progress-bar-fill { transform-origin: right center; }
   font-size: var(--fs-sm);
 }
 
-/* Utility */
 .row { display: flex; gap: 0.75rem; align-items: center; }
 .row-between { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
 .gap-2 { gap: 0.5rem; }
@@ -2801,7 +2555,6 @@ html[dir='rtl'] .progress-bar-fill { transform-origin: right center; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block;
 }
 
-/* Spinner */
 .route-loading {
   min-height: 100vh;
   display: grid;
@@ -2827,9 +2580,6 @@ html[dir='rtl'] .progress-bar-fill { transform-origin: right center; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ============================================================
-   Submit Ticket page — article cards and form sections
-   ============================================================ */
 
 .form-row { display: flex; gap: 1rem; flex-wrap: wrap; }
 .form-row-end { display: flex; gap: 0.6rem; justify-content: flex-end; margin-top: 1rem; }
@@ -2842,7 +2592,6 @@ html[dir='rtl'] .progress-bar-fill { transform-origin: right center; }
 .textarea-md { min-height: 160px; }
 .textarea-lg { min-height: 220px; }
 
-/* Grouped repeatable rows (resources, documents) inside an article card. */
 .field-group {
   margin-top: 1rem;
   padding-top: 0.75rem;
@@ -2892,9 +2641,6 @@ html[dir='rtl'] .progress-bar-fill { transform-origin: right center; }
   white-space: nowrap;
   max-width: 320px;
 }
-/* Small red badge floated next to the article label when the OTHER tab has a
-   validation error — so a user editing the Content tab still sees that their
-   Attachments tab has a broken link, and vice-versa. */
 .article-card-hidden-badge {
   display: inline-flex;
   align-items: center;
@@ -2910,13 +2656,6 @@ html[dir='rtl'] .progress-bar-fill { transform-origin: right center; }
   flex-shrink: 0;
 }
 
-/* ============================================================
-   Article-mode picker — two big colored cards. The user picks
-   which surface they want to work on (write article vs. attach
-   files) and only THEN does the article form reveal below.
-   Content card owns the brand-blue identity; attachments card
-   owns the cyan accent from the Neurix circuit dots.
-   ============================================================ */
 .article-mode-picker {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2950,8 +2689,6 @@ html[dir='rtl'] .progress-bar-fill { transform-origin: right center; }
   isolation: isolate;
 }
 
-/* Soft accent-tinted wash that fades in on hover / active. Layered under content
-   via z-index so text stays fully legible. */
 .article-mode-card::before {
   content: '';
   position: absolute;
@@ -3025,7 +2762,6 @@ html[dir='rtl'] .progress-bar-fill { transform-origin: right center; }
   line-height: 1.35;
 }
 
-/* Small active-check pip in the top corner of the selected card. */
 .article-mode-card.is-active::after {
   content: '';
   position: absolute;
@@ -3043,8 +2779,6 @@ html[dir='rtl'] .progress-bar-fill { transform-origin: right center; }
   to   { transform: scale(1); opacity: 1; }
 }
 
-/* Panel reveal — the article list is unmounted when no mode is picked, and gets a
-   fresh key on every tab swap. Both cases play this fade-and-lift keyframe. */
 .article-mode-panel {
   animation: articleModeReveal var(--dur-base) var(--ease-expo) both;
 }
@@ -3053,8 +2787,6 @@ html[dir='rtl'] .progress-bar-fill { transform-origin: right center; }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Individual field-groups inside a freshly-mounted card stagger in. Runs off the
-   same key remount that plays the panel keyframe. */
 .article-mode-panel .article-card-section > .field,
 .article-mode-panel .article-card-section > .field-group {
   animation: articleFieldFade var(--dur-base) var(--ease-expo) both;
@@ -3081,13 +2813,6 @@ html[dir='rtl'] .progress-bar-fill { transform-origin: right center; }
   .article-mode-card.is-active::after { animation: none; }
 }
 
-/* ============================================================
-   Extracted images — the gallery of raster images pulled out of
-   an uploaded PDF and shown under an article. Thumbnails link out
-   to the staged URL so the user can verify the image before submit;
-   the caption input carries a rename that becomes the attachment's
-   display name.
-   ============================================================ */
 .extracted-images-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -3147,7 +2872,6 @@ html[dir='rtl'] .progress-bar-fill { transform-origin: right center; }
   gap: 0.4rem;
 }
 
-/* Inline gallery inside the extraction preview dialog — smaller than the article grid. */
 .extracted-images-preview {
   display: flex;
   flex-wrap: wrap;
@@ -3209,9 +2933,6 @@ html[dir='rtl'] .progress-bar-fill { transform-origin: right center; }
 .mb-tight { margin-bottom: 0.35rem; }
 .mt-tight { margin-top: 0.75rem; }
 
-/* ============================================================
-   Intro / "How it works" card — used on pages that need context
-   ============================================================ */
 .intro-card {
   display: flex;
   gap: 1.15rem;
@@ -3286,7 +3007,6 @@ html[dir='rtl'] .progress-bar-fill { transform-origin: right center; }
   .intro-card { flex-direction: column; }
 }
 
-/* Empty-state hero for pages with no data yet */
 .empty-hero {
   text-align: center;
   padding: 3rem 1.5rem;
@@ -3298,9 +3018,6 @@ html[dir='rtl'] .progress-bar-fill { transform-origin: right center; }
 .empty-hero-title { font-size: 1.1rem; font-weight: 700; color: var(--text-primary); margin: 0 0 0.35rem; }
 .empty-hero-text { color: var(--text-secondary); max-width: 480px; margin: 0 auto 1.25rem; line-height: 1.55; }
 
-/* ============================================================
-   User self-dashboard — professional & calming palette
-   ============================================================ */
 
 .udash-page { padding: 1.5rem; }
 
@@ -3310,7 +3027,6 @@ html[dir='rtl'] .progress-bar-fill { transform-origin: right center; }
   align-items: center;
   padding: 1.75rem 2rem;
   margin-bottom: 1.25rem;
-  /* Neurix signature gradient — deep navy through electric blue to cyan */
   background:
     radial-gradient(circle at 100% 0%, rgba(255, 255, 255, 0.16), transparent 55%),
     linear-gradient(135deg, #0a1a3d 0%, #0f5fd1 55%, #22c3d9 100%);
@@ -3376,15 +3092,7 @@ html[dir='rtl'] .progress-bar-fill { transform-origin: right center; }
   position: relative;
   overflow: hidden;
 }
-/* Left accent stripe — very thin, subtle, professional.
-   On hover the stripe reaches full opacity so the KPI's accent asserts itself. */
-/* The 3px accent rail that used to sit here was decoration: every KPI carried one, in a
-   colour the tinted icon chip already states. Two marks for one fact, and the stripe is
-   the one that can't be read. The icon keeps the colour-coding; the card keeps its edge. */
 
-/* Every KPI variant maps --card-glow to its own --accent so the lift halo
-   tracks the accent automatically. --accent-soft uses color-mix so the chip
-   re-tints against light vs dark surfaces without a dark-mode override. */
 .udash-kpi { --card-glow: var(--accent); }
 .udash-kpi[data-accent="blue"]   { --accent: var(--brand);         --accent-soft: color-mix(in srgb, var(--brand) 12%, transparent); }
 .udash-kpi[data-accent="green"]  { --accent: var(--success);       --accent-soft: color-mix(in srgb, var(--success) 12%, transparent); }
@@ -3424,14 +3132,9 @@ html[dir='rtl'] .progress-bar-fill { transform-origin: right center; }
   font-size: 0.75rem;
   font-weight: 600;
 }
-/* Semantic tokens, not a second green. These badges previously used #10b981/#f43f5e —
-   a different green and red from the --success/--danger the rest of the app uses, which
-   read as two palettes on one screen. The soft/soft-text pairs already carry their own
-   dark-theme values, so the manual per-theme overrides that used to sit here are gone. */
 .udash-kpi-trend.up   { background: var(--success-soft); color: var(--success-soft-text); }
 .udash-kpi-trend.down { background: var(--danger-soft);  color: var(--danger-soft-text); }
 .udash-kpi-trend.flat { background: var(--bg-muted);     color: var(--text-secondary); }
-/* Optical: the arrow reads heavier than the numeral beside it at the same size. */
 .udash-kpi-trend-icon { flex-shrink: 0; opacity: 0.85; }
 
 .udash-grid-2 {
@@ -3463,12 +3166,6 @@ html[dir='rtl'] .progress-bar-fill { transform-origin: right center; }
 .udash-panel-title { font-size: 1rem; font-weight: 700; color: var(--text-primary); }
 .udash-panel-sub { color: var(--text-tertiary); font-size: 0.85rem; }
 
-/* ============================================================
-   Trend chart — bars grow in staggered on mount.
-   Uses transform: scaleY() instead of animating height so the
-   animation stays on the compositor thread. Hover / focus on a
-   bar dims the others via a container `.has-active` class.
-   ============================================================ */
 .udash-trend {
   display: flex;
   align-items: flex-end;
@@ -3505,7 +3202,6 @@ html[dir='rtl'] .progress-bar-fill { transform-origin: right center; }
   outline: none;
   box-shadow: 0 0 0 2px var(--accent-cyan-soft);
 }
-/* Dim non-active bars when the container has an active target */
 .udash-trend.has-active .udash-trend-bar { opacity: 0.35; }
 .udash-trend.has-active .udash-trend-bar.is-active { opacity: 1; }
 
@@ -3547,10 +3243,6 @@ html[dir='rtl'] .progress-bar-fill { transform-origin: right center; }
   margin-top: 0.5rem;
 }
 
-/* ============================================================
-   Donut chart — arcs draw in via stroke-dashoffset, hover
-   thickens the active arc, legend items are toggleable pills.
-   ============================================================ */
 .udash-donut-wrap {
   display: flex;
   align-items: center;
@@ -3567,9 +3259,6 @@ html[dir='rtl'] .progress-bar-fill { transform-origin: right center; }
     opacity var(--dur-fast) ease;
   cursor: pointer;
 }
-/* Draw-on: start each arc collapsed, then remove the .is-priming class
-   on the next frame to release the dasharray to its final value.
-   Implemented purely via the JSX props (dasharray transitions cover both). */
 
 .udash-donut-center {
   position: absolute;
@@ -3637,7 +3326,6 @@ html[dir='rtl'] .udash-legend-item.is-hovered { transform: translateX(-2px); }
 .udash-legend-label { flex: 1; font-size: 0.85rem; color: var(--text-secondary); }
 .udash-legend-value { font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
 
-/* Reduced motion: no draw-on, no bar stagger, no lift */
 @media (prefers-reduced-motion: reduce) {
   .udash-trend-bar,
   .udash-donut-arc,
@@ -3648,7 +3336,6 @@ html[dir='rtl'] .udash-legend-item.is-hovered { transform: translateX(-2px); }
   .udash-legend-item.is-hovered { transform: none; }
 }
 
-/* Breakdown bars */
 .udash-breakdown { display: flex; flex-direction: column; gap: 0.75rem; }
 .udash-breakdown-row { display: flex; flex-direction: column; gap: 0.25rem; }
 .udash-breakdown-head {
@@ -3669,8 +3356,6 @@ html[dir='rtl'] .udash-legend-item.is-hovered { transform: translateX(-2px); }
 .udash-breakdown-fill {
   height: 100%;
   width: 100%;
-  /* Was a literal blue→cyan gradient, so it kept light-mode colours on the dark theme.
-     The tokens lift on dark; the bar now moves with them. */
   background: linear-gradient(90deg, var(--brand) 0%, var(--accent-cyan) 100%);
   transform: scaleX(var(--fill, 0));
   transform-origin: left center;
@@ -3681,7 +3366,6 @@ html[dir='rtl'] .udash-breakdown-fill {
   background: linear-gradient(270deg, var(--brand) 0%, var(--accent-cyan) 100%);
 }
 
-/* Recent activity */
 .udash-recent { display: flex; flex-direction: column; gap: 0.5rem; }
 .udash-recent-item {
   display: flex;
@@ -3724,13 +3408,10 @@ html[dir='rtl'] .udash-recent-item:hover { transform: translateX(-4px); }
   font-size: 0.9rem;
 }
 
-/* Wider laptops: 4 KPIs squeeze awkwardly past 900px once the sidebar drawer opens.
-   Step down to a 2×2 grid at that width. */
 @media (max-width: 1100px) {
   .udash-kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .udash-grid-2, .udash-grid-2-alt { grid-template-columns: 1fr; }
 }
-/* Phones: single column so numbers keep their weight instead of shrinking to unreadable */
 @media (max-width: 600px) {
   .udash-kpi-grid { grid-template-columns: 1fr; }
   .udash-hero {
@@ -3743,9 +3424,6 @@ html[dir='rtl'] .udash-recent-item:hover { transform: translateX(-4px); }
   .udash-range-picker button { flex: 1; }
 }
 
-/* ============================================================
-   Mobile menu: hamburger button, backdrop, and slide-in sidebar
-   ============================================================ */
 .app-main { flex: 1; min-width: 0; }
 
 .topbar-menu-btn {
@@ -3803,7 +3481,6 @@ html[dir='rtl'] .udash-recent-item:hover { transform: translateX(-4px); }
   border-top: 1px solid var(--border);
 }
 
-/* ---------------- Large tablets & below (≤ 1100px) ---------------- */
 @media (max-width: 1100px) {
   :root { --sidebar-w: 220px; }
   .page-header {
@@ -3814,11 +3491,9 @@ html[dir='rtl'] .udash-recent-item:hover { transform: translateX(-4px); }
   .topbar-search { max-width: 340px; }
 }
 
-/* ---------------- Tablets (≤ 900px) — sidebar becomes overlay ---------------- */
 @media (max-width: 900px) {
   .app-shell { grid-template-columns: 1fr; }
 
-  /* Sidebar becomes an off-screen drawer */
   .sidebar {
     position: fixed;
     top: 0;
@@ -3835,9 +3510,6 @@ html[dir='rtl'] .udash-recent-item:hover { transform: translateX(-4px); }
     transform: translateX(100%);
     box-shadow: -8px 0 32px -12px rgba(0, 0, 0, 0.25);
   }
-  /* Two rules for the open state — LTR uses `.sidebar.open` (specificity 0,2,0) and RTL needs
-     its own `html[dir='rtl'] .sidebar.open` because the RTL closed-state rule above already
-     matches at 0,2,1 and would otherwise win the cascade, keeping the drawer off-screen. */
   .sidebar.open,
   html[dir='rtl'] .sidebar.open { transform: translateX(0); }
   .app-shell.sidebar-open .sidebar-backdrop { display: block; }
@@ -3857,20 +3529,15 @@ html[dir='rtl'] .udash-recent-item:hover { transform: translateX(-4px); }
   .page { padding: 1.25rem; }
   h1 { font-size: 1.5rem; }
 
-  /* Tables get horizontal scroll starting at the tablet width — the surrounding wrap
-     switches from clipping to scrolling so wide data tables don't force the whole page
-     to scroll horizontally under a narrow sidebar drawer. */
   .table-wrap {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
   .data { min-width: 620px; }
 
-  /* Toolbar rows wrap on tablet before they cram into a single line */
   .toolbar { flex-wrap: wrap; }
 }
 
-/* ---------------- Phones (≤ 640px) ---------------- */
 @media (max-width: 640px) {
   .page { padding: 1rem 0.85rem; }
   h1 { font-size: 1.25rem; }
@@ -3879,15 +3546,11 @@ html[dir='rtl'] .udash-recent-item:hover { transform: translateX(-4px); }
   .topbar-search { display: none; }
   .notification-btn { display: none; }
 
-  /* Sidebar takes almost full width on phones */
   .sidebar { width: 88vw; max-width: 320px; }
 
-  /* Cards & panels — reduce padding */
   .card, .udash-panel, .stat-card, .dept-card, .udash-kpi { padding: 1rem; }
   .udash-hero { padding: 1.25rem 1.15rem; }
 
-  /* Tables — bleed to page edges for extra horizontal room on tight phones. Base
-     horizontal-scroll behaviour already comes from the ≤900 breakpoint above. */
   .table-wrap {
     margin: 0 -0.85rem;
     padding: 0 0.85rem;
@@ -3896,10 +3559,8 @@ html[dir='rtl'] .udash-recent-item:hover { transform: translateX(-4px); }
     border-right: 0;
   }
   .data { min-width: 560px; }
-  /* Tighter cell padding on phones so 5-column tables don't waste space */
   table.data th, table.data td { padding: 0.7rem 0.85rem; }
 
-  /* Modals — full-width on phones */
   .modal {
     width: 96vw;
     max-width: none;
@@ -3908,25 +3569,20 @@ html[dir='rtl'] .udash-recent-item:hover { transform: translateX(-4px); }
   .modal-footer { flex-wrap: wrap; }
   .modal-footer .btn { flex: 1; min-width: 120px; }
 
-  /* Any inline flex "row" collapses */
   .row { flex-wrap: wrap; }
 
-  /* Toolbar / filters — stack neatly */
   .toolbar {
     flex-direction: column;
     align-items: stretch;
   }
   .toolbar > * { width: 100%; }
 
-  /* Dept grid / stat grid — always single column on phone */
   .dept-grid, .stat-grid { grid-template-columns: 1fr !important; }
 
-  /* Auth page — brand panel is hidden on ≤ 900 already; form padding tighter */
   .auth-form-panel { padding: 1.25rem; }
   .auth-card { padding: 1.5rem 1.25rem; }
 }
 
-/* ---------------- Very small phones (≤ 380px) ---------------- */
 @media (max-width: 380px) {
   .page { padding: 0.75rem 0.65rem; }
   .card, .udash-panel { padding: 0.85rem; }
@@ -3934,13 +3590,7 @@ html[dir='rtl'] .udash-recent-item:hover { transform: translateX(-4px); }
   .btn { padding: 0.5rem 0.85rem; font-size: 0.85rem; }
 }
 
-/* ============================================================
-   Super-admin surface additions — scoped tweaks that only apply
-   inside .super-page wrappers so the rest of the app is untouched.
-   ============================================================ */
 
-/* Orange "SUPER ADMIN" mini-badge that appears under the wordmark
-   in the sidebar so the operator knows they're in the cross-team shell. */
 .sidebar-brand .super-tag {
   display: inline-block;
   margin-top: 2px;
@@ -3954,15 +3604,12 @@ html[dir='rtl'] .sidebar-brand .super-tag {
   letter-spacing: 0.02em;
   font-size: 11px;
 }
-/* Two-line brand block so the badge sits directly under the wordmark. */
 .sidebar-brand .brand-lines {
   display: flex;
   flex-direction: column;
   line-height: 1.15;
 }
 
-/* Slightly more generous table typography in super pages so the density
-   reads as "professional dashboard" rather than "database dump". */
 .super-page .data { font-size: 0.92rem; }
 .super-page .data th {
   font-size: 0.72rem;
@@ -3974,7 +3621,6 @@ html[dir='rtl'] .sidebar-brand .super-tag {
 .super-page .data tr:nth-child(even) td { background: rgba(15, 95, 209, 0.015); }
 .super-page .data tr:hover td { background: var(--brand-soft); }
 
-/* Toolbar sitting above a super-page table — search + filter live here. */
 .super-toolbar {
   display: flex;
   gap: 12px;
@@ -4008,7 +3654,6 @@ html[dir='rtl'] .sidebar-brand .super-tag {
   margin-inline-start: auto;
 }
 
-/* Modal form polish — a light description strip and prettier submit row. */
 .super-modal-form { display: grid; gap: 14px; }
 .super-modal-hint {
   background: var(--brand-soft);
@@ -4023,9 +3668,6 @@ html[dir='rtl'] .sidebar-brand .super-tag {
   align-items: flex-start;
 }
 .super-modal-hint svg { flex-shrink: 0; margin-top: 2px; }
-/* Warning variant. Two callers previously reproduced this with inline light-mode hex
-   (#fff7ed / #fed7aa / #9a3412), which survived the theme switch and left an orange
-   card glowing on the dark surface. */
 .super-modal-hint.is-warning {
   background: var(--warning-soft);
   border-color: var(--warning);
@@ -4039,21 +3681,14 @@ html[dir='rtl'] .sidebar-brand .super-tag {
   padding-top: 14px;
   border-top: 1px solid var(--border);
 }
-/* Reduce the awkward whitespace under the last .field inside a super modal. */
 .super-modal-form .field { margin-bottom: 0; }
 
-/* ============================================================
-   Colorful stat cards for super pages — each tint reuses a Neurix
-   dept accent so the grid feels vibrant without leaving the palette.
-   Applied on top of .stat-card, so structure/spacing stay identical.
-   ============================================================ */
 .super-stat {
   position: relative;
   overflow: hidden;
   background: var(--bg-surface);
   isolation: isolate;
 }
-/* Soft tinted wash behind the whole card so the icon isn't the only colour. */
 .super-stat::before {
   content: '';
   position: absolute;
@@ -4062,10 +3697,6 @@ html[dir='rtl'] .sidebar-brand .super-tag {
   opacity: 0.85;
   z-index: -1;
 }
-/* Vertical accent strip on the leading edge — the "identity color" for each card. */
-/* Same call as the KPI rail: the 4px tinted edge that used to sit here repeated the tint
-   the icon chip below already carries. Removed rather than thinned — one statement of a
-   fact is enough, and the stat should be the loudest thing on the card. */
 .super-stat .stat-card-icon {
   background: var(--tint, var(--brand));
   color: #fff;
@@ -4082,8 +3713,6 @@ html[dir='rtl'] .sidebar-brand .super-tag {
   box-shadow: 0 12px 30px -14px var(--tint, var(--brand));
 }
 
-/* Tint variants — pick one per KPI card. Each one sets both the accent
-   colour and the soft wash used for the ::before gradient. */
 .super-stat.tint-brand   { --tint: var(--brand);        --tint-soft: var(--brand-soft); }
 .super-stat.tint-cyan    { --tint: var(--accent-cyan);  --tint-soft: var(--accent-cyan-soft); }
 .super-stat.tint-violet  { --tint: var(--dept-color-3); --tint-soft: var(--dept-mini-3); }
@@ -4092,19 +3721,7 @@ html[dir='rtl'] .sidebar-brand .super-tag {
 .super-stat.tint-amber   { --tint: var(--warning);      --tint-soft: var(--warning-soft); }
 .super-stat.tint-navy    { --tint: var(--accent-deep);  --tint-soft: var(--bg-muted); }
 
-/* ============================================================
-   Reduced motion — global floor
-   ============================================================
-   The per-component `prefers-reduced-motion` blocks earlier in this file each name
-   their own selectors, which means motion added *after* they were written is
-   unguarded by default. This catch-all inverts that: everything is off unless it
-   opts back in, so a new animation is safe the day it ships.
 
-   Escape hatch: `data-motion="essential"` keeps its animation running. Reserved for
-   motion that carries state rather than decoration — a spinner is the whole of the
-   loading affordance, and freezing it reads as a hung UI, not a calm one. Those are
-   slowed rather than stopped, which is what the preference actually asks for.
-   ============================================================ */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -4119,25 +3736,12 @@ html[dir='rtl'] .sidebar-brand .super-tag {
   [data-motion='essential'],
   .spinner,
   .btn.is-loading::after {
-    /* Deliberately off the duration scale, and deliberately slower than the 0.7s these
-       normally run at. The scale describes motion the user opted into; this is the one
-       case where the answer to "less motion" is a calmer version of the same signal. */
     animation-duration: 1.4s !important;
     animation-iteration-count: infinite !important;
   }
 }
 
-/* ============================================================
-   Motion pack — dashboard entrances, card border beam, table
-   row entrances and loading skeletons. Every duration/easing
-   comes from the motion tokens above; the reduced-motion floor
-   at the end of this file guards all of it automatically.
-   ============================================================ */
 
-/* --- Dashboard entrance: cards and panels rise in, staggered. ---
-   `backwards` (not `both`) so the finished animation releases the element back to
-   its normal styles — a `forwards` fill would pin transform/opacity and silently
-   kill the hover lift these cards already have. */
 @keyframes cardRiseIn {
   from { opacity: 0; transform: translateY(14px); }
   to { opacity: 1; transform: translateY(0); }
@@ -4150,17 +3754,9 @@ html[dir='rtl'] .sidebar-brand .super-tag {
 .udash-kpi-grid > *:nth-child(3), .stat-grid > *:nth-child(3) { --rise-i: 2; }
 .udash-kpi-grid > *:nth-child(4), .stat-grid > *:nth-child(4) { --rise-i: 3; }
 .udash-kpi-grid > *:nth-child(5), .stat-grid > *:nth-child(5) { --rise-i: 4; }
-/* Panels below the KPI row arrive just after it. */
 .udash-grid-2 > .udash-panel { --rise-i: 5; }
 .udash-grid-2-alt > .udash-panel { --rise-i: 6; }
 
-/* --- Border beam: a colored line that travels around the card edge. ---
-   A conic-gradient "comet" (cyan head fading through brand blue) painted into a
-   1.5px ring via mask-composite, rotated by animating a registered custom
-   property. Browsers without @property show a static gradient ring instead.
-   The ring sits at inset 0 (inside the card border) because these cards clip
-   overflow. Runs on the dashboard KPI/stat cards only — it is the signature
-   flourish, not a default card style. */
 @property --beam-a {
   syntax: '<angle>';
   inherits: false;
@@ -4189,13 +3785,11 @@ html[dir='rtl'] .sidebar-brand .super-tag {
   transition: opacity var(--dur-base) var(--ease-out);
 }
 .udash-kpi:hover::after, .stat-card:hover::after { opacity: 1; }
-/* Stagger the beams so five cards don't sweep in lockstep. */
 .udash-kpi-grid > *:nth-child(2)::after, .stat-grid > *:nth-child(2)::after { animation-delay: -1.1s; }
 .udash-kpi-grid > *:nth-child(3)::after, .stat-grid > *:nth-child(3)::after { animation-delay: -2.2s; }
 .udash-kpi-grid > *:nth-child(4)::after, .stat-grid > *:nth-child(4)::after { animation-delay: -3.3s; }
 .udash-kpi-grid > *:nth-child(5)::after, .stat-grid > *:nth-child(5)::after { animation-delay: -0.6s; }
 
-/* --- Trend chart: the "today" bar breathes a soft cyan glow. --- */
 @keyframes todayGlow {
   0%, 100% { box-shadow: 0 0 0 0 rgba(34, 195, 217, 0); }
   50% { box-shadow: 0 0 14px 2px rgba(34, 195, 217, 0.4); }
@@ -4203,10 +3797,6 @@ html[dir='rtl'] .sidebar-brand .super-tag {
 .udash-trend-bar.today { animation: todayGlow 3s ease-in-out infinite; }
 .udash-trend.has-active .udash-trend-bar.today { animation: none; }
 
-/* --- Table row entrance: every `table.data` gets it for free. ---
-   One short rise per row on mount; only the first eight rows stagger so a
-   100-row page never waits on a cascade. Replays on sort/filter/pagination,
-   which reads as the table responding to the change. */
 @keyframes rowIn {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
@@ -4220,9 +3810,6 @@ table.data > tbody > tr:nth-child(6) { animation-delay: 150ms; }
 table.data > tbody > tr:nth-child(7) { animation-delay: 180ms; }
 table.data > tbody > tr:nth-child(8) { animation-delay: 210ms; }
 
-/* --- Loading skeletons (SkeletonRows component). ---
-   Shimmer is a transform-only sweep over a token-colored band, so it costs
-   nothing on the layout path and follows the theme in dark mode. */
 .skel-band {
   display: inline-block;
   height: 12px;
@@ -4251,7 +3838,6 @@ html[dir='rtl'] .skel-band::after {
   animation-name: skelSweepRtl;
 }
 
-/* --- Upload progress: shimmer while moving, a check that draws itself when done. --- */
 @keyframes uploadShimmer {
   from { transform: translateX(-160%); }
   to { transform: translateX(160%); }
@@ -4282,9 +3868,6 @@ html[dir='rtl'] .upload-shimmer { animation-name: uploadShimmerRtl; }
 }
 @keyframes uploadCheckDraw { to { stroke-dashoffset: 0; } }
 
-/* --- Trend chart line overlay: draws itself over the bars once they land, ---
-   with a glowing dot popping on the newest point (canvas proposal #1). The
-   overlay matches the bars' content box (the container's 0.5rem v-padding). */
 .udash-trend { position: relative; }
 .udash-trend-overlay {
   position: absolute;
@@ -4299,7 +3882,6 @@ html[dir='rtl'] .upload-shimmer { animation-name: uploadShimmerRtl; }
   height: 100%;
   overflow: visible;
 }
-/* Bars flow with the document direction; the path's coordinates don't. Mirror it. */
 html[dir='rtl'] .udash-trend-line { transform: scaleX(-1); }
 .udash-trend-line path {
   stroke: var(--accent-cyan);
@@ -4323,7 +3905,6 @@ html[dir='rtl'] .udash-trend-line { transform: scaleX(-1); }
 }
 @keyframes trendDotPop { to { transform: translate(-50%, 50%) scale(1); } }
 
-/* --- Notification bell: one swing + badge pop when something new arrives. --- */
 @keyframes bellSwing {
   0% { transform: rotate(0); }
   20% { transform: rotate(13deg); }
@@ -4341,8 +3922,6 @@ html[dir='rtl'] .udash-trend-line { transform: scaleX(-1); }
 }
 .notification-dot { animation: badgePop var(--dur-base) var(--ease-expo); }
 
-/* --- Upload: small spinner ring for in-flight rows, and a shine that keeps ---
-   sweeping the submit button while a batch is uploading. */
 .mini-spinner {
   display: inline-block;
   width: 14px;
@@ -4361,9 +3940,6 @@ html[dir='rtl'] .udash-trend-line { transform: scaleX(-1); }
   animation: btnSheenLoop 2s var(--ease-out) 0.3s infinite;
 }
 
-/* --- Progress ring: a circular meter with the percentage in the middle. One per file ---
-   in the quick-upload modal, and the big batch meter inside the upload HUD. The arc is
-   a dashed SVG circle; only stroke-dashoffset changes, so progress never touches layout. */
 .pring {
   position: relative;
   display: inline-flex;
@@ -4386,7 +3962,6 @@ html[dir='rtl'] .udash-trend-line { transform: scaleX(-1); }
 .pring.is-uploading .pring-arc {
   filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent-cyan) 55%, transparent));
 }
-/* Nothing left to measure on the client, server still working: a short arc that orbits. */
 .pring.is-finalizing .pring-arc {
   transform-box: fill-box;
   transform-origin: center;
@@ -4412,7 +3987,6 @@ html[dir='rtl'] .udash-trend-line { transform: scaleX(-1); }
   100% { transform: scale(1); }
 }
 
-/* --- Upload HUD: ring + title + bytes / speed / time-left. --- */
 @keyframes hudIn {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: none; }

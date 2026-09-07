@@ -1,13 +1,3 @@
-/**
- * Small helper for the "one field, two languages" DTOs the backend exposes: every entity
- * comes with `<field>` (the original text) plus `<field>En` and `<field>Ar` bilingual
- * mirrors. Pages should never read `<field>` directly if a bilingual pair exists — that
- * hardcodes the language and defeats i18n.
- *
- * Usage:
- *   const label = pickLocalized(dept, 'name', lang);
- *   // returns dept.nameAr when lang==='ar' and it's non-empty, else nameEn, else name.
- */
 export type Lang = 'ar' | 'en';
 
 type Suffix<L extends Lang> = L extends 'ar' ? 'Ar' : 'En';

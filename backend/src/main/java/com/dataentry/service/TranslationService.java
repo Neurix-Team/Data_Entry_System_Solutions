@@ -13,8 +13,10 @@ import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
- 
+
 @Service
 public class TranslationService {
 
@@ -28,12 +30,21 @@ public class TranslationService {
 
     private static final Logger log = LoggerFactory.getLogger(TranslationService.class);
 
-    private final RestClient http;   // null when translation is disabled (base-url blank)
+    private final RestClient http;
     private final ObjectMapper mapper = new ObjectMapper();
     private final String baseUrl;
     private final String apiKey;
     private final boolean failOpen;
     private final boolean enabled;
+
+    /**
+     * Process-local cache of "text → translation" so repeat inputs (dashboard labels,
+     * department names, popular ticket templates) don't hit LibreTranslate more than once
+     * per boot. Capped at 10 k entries so an adversarial workload of many-distinct-strings
+     * can't grow the JVM heap unbounded. Cleared on restart — no persistence overhead.
+     */
+    private static final int TRANSLATION_CACHE_MAX = 10_000;
+    private final Map<String, String> translationCache = new ConcurrentHashMap<>();
 
     public TranslationService(
             @Value("${app.translation.base-url:}") String baseUrl,
@@ -42,8 +53,6 @@ public class TranslationService {
             @Value("${app.translation.fail-open:true}") boolean failOpen
     ) {
         String cleaned = baseUrl == null ? "" : baseUrl.trim().replaceAll("/+$", "");
-        // Empty URL is a valid config: translation is turned off — bilingual columns will just
-        // mirror the input.  A non-empty URL must still look like http(s).
         if (!cleaned.isEmpty() && !(cleaned.startsWith("http://") || cleaned.startsWith("https://"))) {
             throw new IllegalStateException(
                     "app.translation.base-url must be a full http(s) URL, got: '" + baseUrl + "'");
@@ -94,6 +103,13 @@ public class TranslationService {
     public String translate(String text, Lang from, Lang to) {
         if (text == null || text.isBlank() || from == to) return text;
         if (!enabled) return text;
+
+        // Cache hit path — cheap, deterministic, avoids the network round trip. Key includes
+        // the language pair so an "en→ar" and "ar→en" of the same text don't collide.
+        String cacheKey = from.code + '' + to.code + '' + text;
+        String cached = translationCache.get(cacheKey);
+        if (cached != null) return cached;
+
         try {
             ObjectNode body = mapper.createObjectNode();
             body.put("q", text);
@@ -115,7 +131,14 @@ public class TranslationService {
                 log.warn("LibreTranslate response missing translatedText: {}", responseBody);
                 return failOpenOr(text);
             }
-            return translated.asText();
+            String result = translated.asText();
+            // Only cache successful translations. A crude size cap keeps the map from
+            // growing unbounded under an adversarial workload; when tripped we simply
+            // stop growing (the existing hits still get cache benefit).
+            if (translationCache.size() < TRANSLATION_CACHE_MAX) {
+                translationCache.put(cacheKey, result);
+            }
+            return result;
         } catch (Exception e) {
             log.warn("Translation failed ({} → {}): {}", from.code, to.code, e.getMessage());
             return failOpenOr(text);

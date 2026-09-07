@@ -10,15 +10,6 @@ import {
 import { useT } from '../../i18n';
 import { DownloadCenter } from './DownloadCenter';
 
-/**
- * Cross-team ticket explorer for SUPER_ADMIN. One table shows every ticket in the
- * install with the uploader, team, project, custom fields, and attachments joined in.
- * Row-click expands the row for details + one-click file downloads.
- *
- * <p>Downloads go through the existing session-authenticated
- * {@code /api/tickets/{ticketId}/documents/{docId}} route — no token required from the
- * UI. External systems use {@code /api/v1/export/*} with a personal-access token.
- */
 export function SuperDataPage() {
   const { t } = useT();
   const [facets, setFacets] = useState<ExplorerFacets | null>(null);
@@ -27,8 +18,6 @@ export function SuperDataPage() {
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
-  // Filters — controlled locally, applied on submit / Enter so a slow query doesn't
-  // fire on every keystroke.
   const [teamId, setTeamId] = useState<string>('');
   const [projectId, setProjectId] = useState<string>('');
   const [userId, setUserId] = useState<string>('');
@@ -36,8 +25,6 @@ export function SuperDataPage() {
   const [to, setTo] = useState<string>('');
   const [search, setSearch] = useState<string>('');
 
-  // Cursor pagination — every "load more" appends to accumulated items so the operator
-  // can scan without losing prior rows.
   const [items, setItems] = useState<ExplorerRow[]>([]);
   const [cursor, setCursor] = useState<number | null>(null);
   const [reloading, setReloading] = useState(false);
@@ -76,7 +63,6 @@ export function SuperDataPage() {
     }
   }, [query, cursor]);
 
-  // First load + refresh whenever filters change.
   useEffect(() => {
     setExpanded(new Set());
     setCursor(null);
@@ -95,8 +81,6 @@ export function SuperDataPage() {
     setExpanded(next);
   }
 
-  // Labels for the active filters, shown inside the download dialog so the operator can
-  // confirm exactly which slice of the data is about to be mirrored.
   const filterLabels = useMemo(() => {
     const labels: string[] = [];
     const name = (list: { id: number; name: string }[] | undefined, id: string) =>
@@ -140,7 +124,6 @@ export function SuperDataPage() {
 
       {error && <div className="alert alert-error">{error}</div>}
 
-      {/* Filter bar */}
       <div className="card" style={{ padding: 16, marginBottom: 16 }}>
         <div style={{
           display: 'grid',

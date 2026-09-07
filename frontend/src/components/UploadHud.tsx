@@ -9,15 +9,9 @@ interface Props {
   progress: UploadProgress | null;
   state: ProgressRingState;
   size?: number;
-  /** Closing line once the work is over, e.g. "Done in 4.2 s". */
   note?: string;
 }
 
-/**
- * The big upload meter: a progress ring beside a title, the bytes moved so far, the
- * current speed and the time left. Used above the file list in the quick-upload modal
- * and above the submit button on the New Entry form.
- */
 export function UploadHud({ lang, title, subtitle, progress, state, size = 64, note }: Props) {
   const ar = lang === 'ar';
   const meta: string[] = [];

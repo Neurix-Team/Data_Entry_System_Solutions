@@ -54,16 +54,6 @@ public class SubcategoryController {
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * Cascading lookup:
-     * <ul>
-     *   <li>{@code departmentId} → active subcategories in that department (any user).</li>
-     *   <li>{@code projectId} → active subcategories from any department in that project.</li>
-     *   <li>Nothing set + USER role → active subcategories from any of the user's
-     *       member projects (fallback to all active if the user isn't a member of any).</li>
-     *   <li>Nothing set + ADMIN → all active subcategories.</li>
-     * </ul>
-     */
     @GetMapping("/subcategories")
     public List<SubcategoryDtos.SubcategoryResponse> userList(
             @RequestParam(required = false) Long departmentId,

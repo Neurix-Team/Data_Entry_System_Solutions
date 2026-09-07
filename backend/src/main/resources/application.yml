@@ -1,14 +1,8 @@
 server:
   port: 8080
   tomcat:
-    # 60 MB gives a small margin over the 50 MB per-file cap in TicketDocumentService so
-    # a legitimate at-the-limit upload isn't rejected by the container before the service
-    # can return a clean 413.
     max-http-form-post-size: 60MB
     max-swallow-size: 60MB
-  # gzip API responses. Dashboard payloads (leaderboards, day-bucket sparklines) shrink 5-10x
-  # over the wire; the JSON is text-heavy and highly compressible. 1 KB minimum avoids wasting
-  # CPU on tiny bodies (e.g. 204s and small error envelopes).
   compression:
     enabled: true
     mime-types: application/json,application/xml,text/html,text/plain,text/css,application/javascript
@@ -16,8 +10,6 @@ server:
 
 spring:
   config:
-    # Lets local Maven/JAR runs consume the git-ignored root .env file. Containers receive
-    # the same values as environment variables from docker-compose.yml.
     import: optional:file:.env[.properties],optional:file:../.env[.properties]
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:dataentry}
@@ -26,19 +18,21 @@ spring:
     password: ${DB_PASSWORD:}
     hikari:
       maximum-pool-size: ${DB_POOL_MAX_SIZE:20}
-      # Keep more connections warm so a bursty page load (dashboard fires ~5 parallel API
-      # calls) doesn't wait on connection creation for each request. The previous default of
-      # 2 idle connections meant the 3rd+ concurrent request paid a ~50-100 ms handshake.
       minimum-idle: ${DB_POOL_MIN_IDLE:10}
       connection-timeout: 30000
       validation-timeout: 5000
       max-lifetime: 1800000
-      # Verify a pooled connection before handing it out only when it's been idle for a
-      # while — cheap keepalive that avoids handing back a stale socket to the request path.
       keepalive-time: 60000
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
+    baseline-description: "Baseline captured from the 2026-09-02 pg_dump plus post-dump entities."
+    locations: classpath:db/migration
+    placeholder-replacement: false
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -50,59 +44,29 @@ spring:
     open-in-view: false
   servlet:
     multipart:
-      # Sized for scanned books (a 1500-page scan runs to hundreds of MB). Files above
-      # file-size-threshold spool to the container's temp dir, never the heap, and the
-      # upload path streams from there to attachment storage — so these caps bound disk,
-      # not memory. Keep in sync with client_max_body_size in frontend/nginx.conf and
-      # app.attachments.max-file-bytes below.
       max-file-size: 500MB
       max-request-size: 520MB
       file-size-threshold: 2MB
-      # Spool location for multipart bodies. Lives INSIDE the attachments volume on
-      # purpose: the upload path then renames the spooled file into the ticket folder
-      # instead of copying it across filesystems (the container temp dir used to cost a
-      # second full write of every book). Must be absolute — Tomcat resolves a relative
-      # path against its own work dir, not the process cwd.
       location: ${app.uploads.incoming-dir}
 
 app:
   jwt:
     secret: ${JWT_SECRET:change-me-in-production-a-very-long-random-secret-key-min-32-chars}
-    expiration-ms: 86400000  # 24 hours
+    expiration-ms: 86400000
   cors:
-    # Comma-separated allowlist of origins that can call this API with credentials.
-    # Set explicitly via APP_CORS_ALLOWED_ORIGINS.  Default is a safe local-dev origin —
-    # DO NOT ship "*" in production; combined with allowCredentials(true) that lets any
-    # site with a logged-in user's browser cookie call the API.
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:8082}
   auth:
-    # Set to false ONLY when running the API over plain HTTP in local dev — browsers refuse to
-    # send Secure cookies over HTTP, so login would silently break.  Docker/prod: leave true.
     cookie-secure: ${APP_AUTH_COOKIE_SECURE:true}
   uploads:
-    # Per-user rolling 24h upload byte cap. Prevents any one agent from filling the disk.
-    # 5 GB ≈ a dozen scanned books a day; a single book scan can run 300–500 MB.
     per-user-daily-bytes: ${APP_UPLOADS_PER_USER_DAILY_BYTES:5368709120}
-    # Chunked, parallel upload (ChunkedUploadService). The browser opens a session, PUTs
-    # fixed-size chunks with several requests in flight, then asks the server to finalize.
-    # Chunks are written straight into a pre-sized payload file under incoming-dir, which
-    # must sit on the same filesystem as app.attachments.dir so finalize is a rename.
-    # 8 MB keeps every request comfortably under any reverse proxy's body limit while
-    # still amortising per-request overhead on fast links.
     incoming-dir: ${APP_UPLOADS_INCOMING_DIR:${app.attachments.dir}/.incoming}
     chunk-bytes: ${APP_UPLOADS_CHUNK_BYTES:8388608}
-    # Abandoned sessions (closed laptop, lost connection) are swept after this long.
     session-ttl-hours: ${APP_UPLOADS_SESSION_TTL_HOURS:24}
   attachments:
-    # Absolute on purpose (see spring.servlet.multipart.location above). ${user.dir} is
-    # /app inside the container, i.e. the dems-data volume mount.
     dir: ${APP_ATTACHMENTS_DIR:${user.dir}/data/attachments}
-    # Hard per-file cap enforced in TicketDocumentService. The upload path streams to
-    # disk, so this bounds storage, not heap. Keep it ≤ multipart max-file-size above.
     max-file-bytes: ${APP_ATTACHMENTS_MAX_FILE_BYTES:524288000}
   security:
     login-rate:
-      # Persist counters in PostgreSQL so restart/scale-out cannot reset brute-force protection.
       storage: ${APP_LOGIN_RATE_STORAGE:database}
       max-attempts: 10
       window-seconds: 300
@@ -110,44 +74,45 @@ app:
     enabled: true
     admin-username: ${APP_SEED_ADMIN_USERNAME:admin}
     admin-password: ${APP_SEED_ADMIN_PASSWORD:admin123}
-    # SUPER_ADMIN is the cross-team operator — sees and manages every team, can "enter" any
-    # team as an impersonated admin. Only one is auto-seeded; extras are created from the
-    # super-admin UI. Rotate these before first prod boot; the seeder logs a loud warning if
-    # they're still the built-in defaults.
     superadmin-username: ${APP_SEED_SUPERADMIN_USERNAME:superadmin}
     superadmin-password: ${APP_SEED_SUPERADMIN_PASSWORD:superadmin123}
   impersonation:
-    # Lifetime of the JWT issued when a super admin "enters" a team. Kept short so an
-    # accidentally leaked cookie doesn't grant long-lived team access.
-    ttl-ms: ${APP_IMPERSONATION_TTL_MS:1800000}  # 30 minutes
+    ttl-ms: ${APP_IMPERSONATION_TTL_MS:1800000}
   pdf:
-    # Bumped from 200k to 2M so a full-length article (e.g. long reports, book chapters,
-    # merged research files) fits without truncation.
     max-chars: 2000000
     output-dir: ${java.io.tmpdir}/dataentry-pdf
-    # Where extracted PDF images sit between /pdf/extract and ticket submit.
-    # Anything older than extractions-ttl-hours is swept lazily on the next extraction.
     extractions-dir: ./data/extractions
     extractions-ttl-hours: 24
     images:
-      # Skip tiny icons/decorations so the user isn't flooded with noise.
       min-side-px: 64
-      # Hard cap per document to keep a pathological PDF from filling disk.
       max-per-doc: 40
   ocr:
     tessdata-path: /usr/share/tesseract-ocr/4.00/tessdata/
     languages: ara+eng
   translation:
-    # LibreTranslate endpoint. Docker-compose wires this to a self-hosted `libretranslate`
-    # service (no key, no rate limit). Leave blank to disable translation entirely — the
-    # bilingual columns will just mirror the original text and no external calls are made.
-    # The public https://libretranslate.com now requires a paid API key, so it's NOT the default.
     base-url: ${TRANSLATION_BASE_URL:}
     api-key: ${TRANSLATION_API_KEY:}
-    timeout-ms: 8000
-    # If translation call fails (network / timeout / 5xx), keep the original text in both
-    # columns instead of erroring the save.
+    # Aggressive per-call timeout so a slow LibreTranslate can't compound into a
+    # multi-second save. `fail-open: true` below means each timeout falls back to
+    # mirroring the input — same shape as a full outage — so bounded latency is
+    # strictly better than best-effort quality here. Previously 8000 ms.
+    timeout-ms: 2000
     fail-open: true
+
+management:
+  server:
+    port: 9090
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+      probes:
+        enabled: true
 
 logging:
   level:

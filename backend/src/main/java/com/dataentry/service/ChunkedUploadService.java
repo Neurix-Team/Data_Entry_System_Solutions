@@ -43,27 +43,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-/**
- * Chunked, parallel, resumable uploads.
- *
- * <p>Why this exists: a scanned book is hundreds of megabytes, and a single multipart
- * request has to push all of it through one TCP stream, through two reverse proxies,
- * and only then does the server start copying and hashing. The client sees a bar that
- * crawls, and any hiccup throws the whole transfer away. Here the browser opens a
- * session, sends fixed-size chunks with several requests in flight at once (which
- * fills the pipe on high-latency links), retries only the chunk that failed, and asks
- * the server to finalize once everything landed.
- *
- * <p>On the server each chunk is written straight into its slot of a pre-sized payload
- * file with a positional write, so there is nothing to concatenate later. A marker
- * file per chunk records receipt without any row contention. Finalize verifies every
- * marker, then hands the payload to the same validate-hash-dedupe-attach path the
- * multipart endpoint uses; because the incoming directory sits inside the attachments
- * volume, the last step is a rename, not a copy.
- *
- * <p>Deliberately not one big {@code @Transactional}: streaming a chunk must never hold
- * a pooled DB connection, or six parallel chunks per user would starve everyone else.
- */
 @Service
 public class ChunkedUploadService {
 
@@ -86,7 +65,6 @@ public class ChunkedUploadService {
     private final long maxFileBytes;
     private final Duration sessionTtl;
 
-    /** Serialises concurrent finalize calls for the same session (double-click, retry). */
     private final Map<String, Object> completionLocks = new ConcurrentHashMap<>();
 
     public ChunkedUploadService(UploadSessionRepository sessions,
@@ -114,7 +92,6 @@ public class ChunkedUploadService {
         }
     }
 
-    // ------------------------------------------------------------------ open
 
     @Transactional
     public UploadSessionDtos.SessionResponse create(User user, UploadSessionDtos.CreateRequest req) {
@@ -160,8 +137,6 @@ public class ChunkedUploadService {
         Path dir = sessionDir(id);
         try {
             Files.createDirectories(dir.resolve(CHUNKS_DIR));
-            // Pre-size the payload so positional chunk writes never race on extending the
-            // file, and so a finished upload is exactly the declared length by construction.
             try (RandomAccessFile raf = new RandomAccessFile(dir.resolve(PAYLOAD_FILE).toFile(), "rw")) {
                 raf.setLength(size);
             }
@@ -191,13 +166,7 @@ public class ChunkedUploadService {
         return toResponse(s, List.of());
     }
 
-    // ------------------------------------------------------------------ feed
 
-    /**
-     * Stream one chunk's bytes into its slot. Reads the request body to EOF and insists
-     * on exactly the expected length — a short or long body means the client and server
-     * disagree about the layout, and the chunk is left unmarked so it gets re-sent.
-     */
     public UploadSessionDtos.ChunkAck writeChunk(User user, String sessionId, int index, InputStream body) {
         UploadSession s = loadOwned(user, sessionId);
         if (index < 0 || index >= s.getTotalChunks()) {
@@ -241,21 +210,12 @@ public class ChunkedUploadService {
         return toResponse(s, new ArrayList<>(receivedChunks(sessionId)));
     }
 
-    // ------------------------------------------------------------------ finish
 
-    /**
-     * Turn a fully-received payload into a ticket attachment. Validation errors (wrong
-     * type, duplicate, over quota) are terminal: the session is discarded and the client
-     * gets the reason. A transient server failure keeps the session so the client can
-     * simply call complete again instead of re-sending the file.
-     */
     public UploadSessionDtos.CompleteResponse complete(User user, String sessionId) {
         UploadSession s = loadOwned(user, sessionId);
         Object lock = completionLocks.computeIfAbsent(sessionId, k -> new Object());
         synchronized (lock) {
             try {
-                // Layout problems keep the session: the client can ask for status and
-                // resend only what's missing instead of starting the whole book over.
                 TreeSet<Integer> received = receivedChunks(sessionId);
                 if (received.size() < s.getTotalChunks()) {
                     throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -288,8 +248,6 @@ public class ChunkedUploadService {
                         result = new UploadSessionDtos.CompleteResponse(UploadTarget.TICKET_DOCUMENT, null, doc);
                     }
                 } catch (ResponseStatusException e) {
-                    // Content rejections (wrong type, duplicate, over quota) are terminal: free
-                    // the disk now. A transient 5xx keeps the session so completing again works.
                     if (!e.getStatusCode().is5xxServerError()) {
                         discard(sessionId);
                     }
@@ -311,14 +269,7 @@ public class ChunkedUploadService {
         discard(sessionId);
     }
 
-    // ------------------------------------------------------------------ housekeeping
 
-    /**
-     * Reclaims abandoned uploads: expired session rows (with their directories) and any
-     * orphaned files in the incoming area older than the session TTL. The multipart
-     * endpoint's temporary files also live here, so stale {@code .tmp}/{@code .part}
-     * leftovers from a crashed request are swept by the same pass.
-     */
     @Scheduled(initialDelayString = "PT10M", fixedDelayString = "PT1H")
     public void sweepExpired() {
         Instant now = Instant.now();
@@ -348,7 +299,6 @@ public class ChunkedUploadService {
         }
     }
 
-    // ------------------------------------------------------------------ internals
 
     private UploadSession loadOwned(User user, String sessionId) {
         if (user == null) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
@@ -357,7 +307,6 @@ public class ChunkedUploadService {
         }
         UploadSession s = sessions.findById(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Upload session not found"));
-        // 404 rather than 403 so a guessed id doesn't confirm that someone else's session exists.
         if (!s.getOwnerId().equals(user.getId())) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Upload session not found");
         }
@@ -392,7 +341,6 @@ public class ChunkedUploadService {
         try {
             Files.createFile(marker);
         } catch (FileAlreadyExistsException ignored) {
-            // A retried chunk overwrote identical bytes — still received.
         } catch (IOException e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not record chunk");
         }
@@ -408,7 +356,6 @@ public class ChunkedUploadService {
                 try {
                     out.add(Integer.parseInt(name.substring(0, name.length() - MARKER_SUFFIX.length())));
                 } catch (NumberFormatException ignored) {
-                    // Not one of ours.
                 }
             }
         } catch (IOException e) {

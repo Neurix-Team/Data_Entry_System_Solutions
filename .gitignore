@@ -1,8 +1,6 @@
-# ===== Java / Maven / Spring Boot =====
 backend/target/
 backend/.mvn/wrapper/maven-wrapper.jar
 backend/data/
-# Local Maven repository cache (populated by containerized builds)
 .m2/
 *.class
 *.jar
@@ -11,7 +9,6 @@ backend/data/
 hs_err_pid*
 replay_pid*
 
-# ===== Node / Vite / npm =====
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
@@ -21,7 +18,6 @@ frontend/yarn-debug.log*
 frontend/yarn-error.log*
 frontend/.pnpm-debug.log*
 
-# ===== Environment / secrets =====
 .env
 .env.*
 !.env.example
@@ -30,7 +26,6 @@ frontend/.pnpm-debug.log*
 *.p12
 *.pfx
 
-# ===== IDEs =====
 .idea/
 .vscode/
 *.iml
@@ -42,34 +37,25 @@ frontend/.pnpm-debug.log*
 nbproject/private/
 build/
 
-# ===== OS =====
 .DS_Store
 Thumbs.db
 desktop.ini
 ehthumbs.db
 
-# ===== Claude Code local artifacts =====
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
 .claude/plans/
 .claude/logs/
 .claude/*.local.json
 .claude/skills/
-# Local design-tooling working directory (screenshots, caches)
 .impeccable/
 
-# ===== Editor backups =====
 *.swp
 *.swo
 *~
 
-# Database dumps produced by scripts/migrate-db-to-container.sh — real production data.
 scripts/.migration/
 
-# ===== docs/ =====
-# docs/ holds repository documentation only. Anything else landing here is output from
-# the super-admin Download Centre — real ticket data and customer files mirrored out of
-# the running app. Allowlist what we actually commit; ignore everything else.
 docs/*
 !docs/FEATURES.md
 !docs/Neurix-Technical-Documentation.pdf
@@ -77,6 +63,5 @@ docs/*
 !docs/preview-cover.png
 !docs/preview-design-system.png
 !docs/video/
-# Rendered promo videos are large binaries; the poster frame is small enough to keep.
 docs/video/*.mp4
 docs/video/*.webm

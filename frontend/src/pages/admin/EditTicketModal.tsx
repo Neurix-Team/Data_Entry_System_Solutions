@@ -17,22 +17,14 @@ import { titleFromFilename } from '../../utils/titleFromFile';
 import { formatBytes } from '../../utils/uploadFormat';
 
 interface Props {
-  /** The entry being edited; null keeps the modal closed. */
   ticket: Ticket | null;
   onClose: () => void;
-  /** Receives the server's updated entry (with any newly attached documents merged in). */
   onSaved: (updated: Ticket) => void;
 }
 
 interface ResourceRowState { id: number; name: string; url: string; }
 interface NewFile { id: number; file: File; name: string; }
 
-/**
- * "Update" for the Data Entry Tasks page. Edits the authored fields of an entry and can
- * attach more files in the same go — the text is saved first, then each new file goes up
- * through the chunked uploader with the progress ring, so a fixed title and a missing
- * scan can be sorted out in one visit.
- */
 export function EditTicketModal({ ticket, onClose, onSaved }: Props) {
   const { t, lang } = useT();
   const toast = useToast();
@@ -89,9 +81,6 @@ export function EditTicketModal({ ticket, onClose, onSaved }: Props) {
           .filter((r) => r.url.length > 0),
       });
 
-      // Text is saved; now the files. Each one leaves the pending list as soon as it lands,
-      // so a failure part-way through can be retried without re-uploading (and tripping the
-      // duplicate check on) the ones that already made it.
       const uploadedDocs: TicketDocument[] = [];
       const pending = [...newFiles];
       for (let i = 0; i < pending.length; i++) {

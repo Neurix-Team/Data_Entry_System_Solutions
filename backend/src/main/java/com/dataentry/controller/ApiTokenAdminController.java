@@ -9,10 +9,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-/**
- * Super-admin CRUD for personal-access tokens used by the external export API.
- * URL-guarded to SUPER_ADMIN by {@code SecurityConfig} ({@code /api/super/**}).
- */
 @RestController
 @RequestMapping("/api/super/api-tokens")
 public class ApiTokenAdminController {

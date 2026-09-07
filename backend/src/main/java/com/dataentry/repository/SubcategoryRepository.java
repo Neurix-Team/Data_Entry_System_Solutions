@@ -24,14 +24,6 @@ public interface SubcategoryRepository extends JpaRepository<Subcategory, Long> 
         long getFieldCount();
     }
 
-    /**
-     * One PostgreSQL round-trip for the complete admin list, including both counters.
-     * The previous entity mapping executed two COUNT queries per subcategory (N+1).
-     *
-     * <p>{@code teamId} may be {@code null} for a SUPER_ADMIN session with no team entered;
-     * every filter degrades to "no team restriction" in that case so cross-team totals surface,
-     * matching the pre-refactor behavior.
-     */
     @Query(value = """
             SELECT s.id AS "id",
                    d.id AS "departmentId",

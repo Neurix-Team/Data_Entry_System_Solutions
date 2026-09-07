@@ -6,8 +6,6 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // Framework code changes far less often than our screens. Keeping it in a separate
-        // hashed file lets returning users reuse the browser cache after routine deployments.
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom', 'axios'],
         },

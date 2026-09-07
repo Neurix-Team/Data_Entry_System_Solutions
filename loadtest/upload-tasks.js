@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-// Uploads the 66-task breakdown to the given ClickUp list, assigned to Neurix AI (uid 308443853).
-// Runs sequentially with a small delay to stay well under ClickUp's 100 req/min rate limit.
 
 const https = require('https');
 
@@ -11,10 +9,7 @@ if (!TOKEN || !LIST_ID || !ASSIGNEE) {
   console.error('Missing CU_TOKEN / CU_LIST_ID / CU_ASSIGNEE'); process.exit(1);
 }
 
-// Task list — trimmed to what fits the ClickUp task shape: name + markdown_description.
-// Grouped by area, ordered same as the breakdown message so ClickUp positions them naturally.
 const TASKS = [
-  // Foundation
   { g: 'Foundation', n: '1. Repository & Build Skeleton',
     d: 'Establish the monorepo layout: `backend/` (Maven, Spring Boot 3.3, Java 17) and `frontend/` (Vite, React 18, TypeScript). Add root `docker-compose.yml`, `.gitignore`, `.env` pattern, and README. Configure the frontend build to output static assets and the backend to package as an executable jar.' },
   { g: 'Foundation', n: '2. Multi-Container Deployment',
@@ -26,7 +21,6 @@ const TASKS = [
   { g: 'Foundation', n: '5. Nginx Frontend Serving',
     d: '`frontend/Dockerfile` builds the Vite bundle in a Node stage and serves it from nginx with a custom `nginx.conf` that supports SPA fallback (all non-file paths route to `index.html`) and proxies `/api` to the backend service.' },
 
-  // Auth & Session
   { g: 'Auth & Session', n: '6. Login API + JWT Issuance',
     d: '**Backend** — `POST /api/auth/login` validates credentials against BCrypt-hashed passwords, returns a signed HS512 JWT with subject/role/uid and its expiry. `JwtService` enforces a minimum 32-byte secret and rejects the built-in placeholder at boot. Configurable expiry (default 24h).' },
   { g: 'Auth & Session', n: '7. JWT Auth Filter',
@@ -40,7 +34,6 @@ const TASKS = [
   { g: 'Auth & Session', n: '11. Login Rate Limiting',
     d: '**Backend** — `LoginRateLimiter` interface with two swappable implementations: `InMemoryLoginRateLimiter` (per-instance, default) and `DatabaseLoginRateLimiter` (shared across replicas via `login_attempts` table with amortized pruning). Selected by `app.security.login-rate.storage=memory|database`. Cap: 10 attempts per 5 minutes per (IP + username). Returns 429 when exceeded.' },
 
-  // User Management
   { g: 'User Management', n: '12. Users CRUD (Admin)',
     d: '**Backend** — `AdminUserController` + `UserService` — create/list/update/delete users. Passwords BCrypt-hashed. Username validated with a strict regex. Prevent self-deletion. Every write recorded to the audit log (password value never included, only a change flag).' },
   { g: 'User Management', n: '13. Admin Users Page',
@@ -48,7 +41,6 @@ const TASKS = [
   { g: 'User Management', n: '14. Self-Profile Endpoint',
     d: '**Backend** — `GET /api/auth/me` returns the currently authenticated user\'s basic profile. Used by the frontend to hydrate the auth context on page load / refresh.' },
 
-  // Domain Modelling
   { g: 'Domain Modelling', n: '15. Departments CRUD',
     d: '**Backend** — `DepartmentController` + `DepartmentService` — create/list/update/deactivate; unique name enforced; deletion blocked when tickets exist. Every write audited. Public list endpoint (`/api/departments`) for the ticket-submit dropdown.' },
   { g: 'Domain Modelling', n: '16. Admin Departments Page + Detail Modal',
@@ -66,7 +58,6 @@ const TASKS = [
   { g: 'Domain Modelling', n: '22. Admin Projects Page',
     d: '**Frontend** — `AdminProjectsPage.tsx` — cards or list, create/edit form with a member picker, progress slider, date pickers, and status pill.' },
 
-  // Ticket Workflow
   { g: 'Ticket Workflow', n: '23. Single Ticket Submission',
     d: '**Backend** — `POST /api/user/tickets` — validates department + subcategory active, required custom fields, URL syntax, email pattern, numeric parsing, SSRF blocklist on website links. Empty-string writes for legacy NOT-NULL columns. Bilingual translation triggered on write.' },
   { g: 'Ticket Workflow', n: '24. Bulk Ticket Submission',
@@ -80,7 +71,6 @@ const TASKS = [
   { g: 'Ticket Workflow', n: '28. Ticket Detail & Status Transitions',
     d: '**Backend** — `GET /api/tickets/{id}` (ownership check for non-admins), `PATCH /api/admin/tickets/{id}/status`, `DELETE /api/admin/tickets/{id}`. Status changes are audited with `old → new`.' },
 
-  // Document Processing
   { g: 'Document Processing', n: '29. Multi-Format Text Extraction',
     d: '**Backend** — `DocumentExtractionService` routes uploads by MIME: PDFs → `PdfExtractionService` with OCR fallback for scanned pages; Images → Tesseract via Tess4J (Arabic + English models); Everything else Tika-supported → `AutoDetectParser`. Returns cleaned text, character count, truncation flag, and warnings.' },
   { g: 'Document Processing', n: '30. XXE Hardening for Office/RTF/ODF',
@@ -92,13 +82,11 @@ const TASKS = [
   { g: 'Document Processing', n: '33. Document Upload Dialog',
     d: '**Frontend** — `DocumentUploadDialog.tsx` — file picker → shows progress → displays extracted text with warnings + character count → user confirms to insert into the article body.' },
 
-  // AI Assistance
   { g: 'AI Assistance', n: '34. Grammar / Formatting Check API',
     d: '**Backend** — `AiCheckController` + `AiCheckService` — heuristic pass (collapses repeated whitespace, normalizes punctuation, capitalizes sentence starts, caps blank-line runs) with a change log. Cap: 50M characters per request. Designed for swap to a real LLM later.' },
   { g: 'AI Assistance', n: '35. AI Check Dialog',
     d: '**Frontend** — `AiCheckDialog.tsx` — sends the article\'s content, displays original vs corrected side-by-side, lists applied rules, one-click "apply corrected".' },
 
-  // Internationalization
   { g: 'Internationalization', n: '36. Bilingual Storage',
     d: '**Backend** — every user-facing name/title/description field has `*_en` and `*_ar` columns alongside the legacy single-column value. Applies to Department, Subcategory, CustomField (label/placeholder/options), Project (name/subtitle), User (display name), Ticket (title/content/website name), TicketFieldValue (translated only for TEXT/TEXTAREA/SELECT types).' },
   { g: 'Internationalization', n: '37. Translation Service',
@@ -114,7 +102,6 @@ const TASKS = [
   { g: 'Internationalization', n: '42. Locale-Header Propagation',
     d: '**Frontend** — axios interceptor reads the stored locale on every request and sets `Accept-Language: ar|en` so the backend picks the right bilingual field.' },
 
-  // Dashboards & Reporting
   { g: 'Dashboards & Reporting', n: '43. Admin Global Stats',
     d: '**Backend** — `GET /api/admin/stats` — totals for tickets, departments, active fields, users, plus status breakdown and today\'s completions.\n**Frontend** — `AdminDashboardPage.tsx` — KPI cards + status donut.' },
   { g: 'Dashboards & Reporting', n: '44. Weekly Report',
@@ -128,7 +115,6 @@ const TASKS = [
   { g: 'Dashboards & Reporting', n: '48. User Self-Dashboard',
     d: '**Backend** — `GET /api/user/dashboard/me` — one-shot bundle of KPIs (today/week/month), current + longest streak, best day, rolling average, 30-day trend, status/department/subcategory breakdowns, 5 most-recent tickets.\n**Frontend** — `UserDashboardPage.tsx` composed from `pages/user/dashboard/`: `KpiCard.tsx` (headline stat cards), `StatusDonut.tsx` (status share chart), `TrendChart.tsx` (daily submissions line/bar chart), `BreakdownList.tsx` (top departments/subcategories), `RecentActivity.tsx` (latest tickets feed).' },
 
-  // Cross-Cutting UI
   { g: 'Cross-Cutting UI', n: '49. App Shell & Navigation',
     d: '**Frontend** — `Layout.tsx` provides the main shell (top bar + side panel + routed content). `SidePanel.tsx` renders role-aware navigation items. Reusable `Avatar.tsx`, `Icons.tsx`, `Modal.tsx`, `StatusPill.tsx` used across pages.' },
   { g: 'Cross-Cutting UI', n: '50. Theme System (Light / Dark)',
@@ -138,13 +124,11 @@ const TASKS = [
   { g: 'Cross-Cutting UI', n: '52. Global Stylesheet & Design Tokens',
     d: '**Frontend** — `styles/global.css` — CSS variables for colors, spacing, radius; per-theme token overrides; RTL-aware rules using logical properties.' },
 
-  // Auditing & Compliance
   { g: 'Auditing & Compliance', n: '53. Admin Action Audit Trail',
     d: '**Backend** — `AuditLog` entity + `AuditService` + `AuditLogRepository`. Every admin CREATE/UPDATE/DELETE/STATUS_CHANGE on Departments, Subcategories, Custom Fields, Projects, Users, and Tickets writes a row (actor id + username, action, entity type + id, short details, timestamp). Passwords never included — only `passwordChanged=true|false`.' },
   { g: 'Auditing & Compliance', n: '54. Audit Log Query API',
     d: '**Backend** — `GET /api/admin/audit-logs?page=&size=&entityType=&entityId=&actorId=` — paginated (size clamped to 200), ordered newest-first.' },
 
-  // Security Hardening
   { g: 'Security Hardening', n: '55. CORS Policy',
     d: '**Backend** — explicit origin allowlist via env var, `allowCredentials(true)`. Documented that `*` is unsafe with credentials.' },
   { g: 'Security Hardening', n: '56. SSRF Blocklist for User URLs',
@@ -158,7 +142,6 @@ const TASKS = [
   { g: 'Security Hardening', n: '60. Fail-Fast Weak-Secret Detection',
     d: '**Backend** — `JwtService` refuses to start if `JWT_SECRET` is missing, still the placeholder, or shorter than 32 bytes.' },
 
-  // Quality & Ops
   { g: 'Quality & Ops', n: '61. Backend Unit + Repository Tests',
     d: '`TicketServiceTest`, `DashboardServiceTest`, `PdfOcrServiceTest`, `TicketRepositoryTest` — 22 tests covering the business rules that matter (validation, authorization, aggregations). H2 in-memory with `MODE=LEGACY;NON_KEYWORDS=VALUE` for schema fidelity.' },
   { g: 'Quality & Ops', n: '62. Frontend Type-Check in CI',

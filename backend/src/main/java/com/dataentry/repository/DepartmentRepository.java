@@ -21,12 +21,6 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
         long getCompleted();
     }
 
-    /**
-     * Dashboard domain cards in one aggregate query instead of per-department counters.
-     *
-     * <p>{@code teamId} may be {@code null} for a SUPER_ADMIN session with no team entered;
-     * in that case aggregates run across every team, matching the pre-refactor behavior.
-     */
     @Query(value = """
             SELECT d.id AS "departmentId",
                    d.name AS "name",
@@ -55,7 +49,6 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
     List<Department> findAllByActiveTrueAndProjectIdOrderByNameAsc(Long projectId);
     List<Department> findAllByActiveTrueAndProjectIdInOrderByNameAsc(java.util.Collection<Long> projectIds);
     List<Department> findAllByProjectId(Long projectId);
-    /** Batch variant used to preload every project's departments in one round-trip. */
     List<Department> findAllByProjectIdIn(java.util.Collection<Long> projectIds);
     boolean existsByNameIgnoreCase(String name);
 }

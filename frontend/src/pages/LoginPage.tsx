@@ -65,7 +65,6 @@ export function LoginPage() {
   const showDemoCreds = import.meta.env.VITE_SHOW_DEMO_CREDS === 'true';
   const hasError = Boolean(error);
 
-  // Split the headline so its final word can be accented in cyan.
   const words = headline.trim().split(' ');
   const headlineHead = words.slice(0, -1).join(' ');
   const headlineTail = words[words.length - 1];

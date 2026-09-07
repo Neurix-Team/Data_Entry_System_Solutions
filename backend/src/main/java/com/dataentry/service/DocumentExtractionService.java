@@ -99,8 +99,6 @@ public class DocumentExtractionService {
 
     private PdfDtos.ExtractedContentResponse extractWithTika(MultipartFile file, String originalName) {
         List<String> warnings = new ArrayList<>();
-        // Cross-check the declared MIME against what Tika actually detects in the bytes — blocks
-        // .exe-renamed-to-.pdf spoofing.  Detection reads the first few KB from a buffered copy.
         String detected;
         try (InputStream detectIn = file.getInputStream()) {
             detected = tika.detect(detectIn, originalName);
@@ -140,8 +138,6 @@ public class DocumentExtractionService {
         }
     }
 
-    /** Runs Tika on the persisted file. Falls back to Tika's parseToString when the
-     *  document exceeds SAX's default limit, matching the previous behaviour. */
     private String parseTikaText(Path file, String declaredContentType, String originalName,
                                  List<String> warnings) {
         try (InputStream in = Files.newInputStream(file)) {
@@ -155,9 +151,6 @@ public class DocumentExtractionService {
             String msg = e.getMessage() == null ? "" : e.getMessage();
             if (msg.contains("Your document contained more than")) {
                 warnings.add("Document is very large — extraction stopped at the internal Tika limit");
-                // Retry with a much larger body handler, but keep the hardened parse context so
-                // external entities and DTDs are still refused. Plain `tika.parseToString` would
-                // reopen the XXE hole exactly on the large-document path most exposed to attack.
                 try (InputStream in = Files.newInputStream(file)) {
                     BodyContentHandler bigHandler = new BodyContentHandler(-1);
                     Metadata metadata = new Metadata();
@@ -179,8 +172,6 @@ public class DocumentExtractionService {
         }
     }
 
-    /** Pull embedded images out of an office document into the staging area, or return
-     *  empty for formats we don't handle. Non-fatal — text is the primary deliverable. */
     private StagedImages extractOfficeImages(File file, String originalName, List<String> warnings) {
         if (!OfficeImageExtractor.supports(originalName)) return StagedImages.empty();
         Long ownerId = currentUserId();
@@ -199,7 +190,7 @@ public class DocumentExtractionService {
                             "/api/user/extractions/" + handle.extractionId() + "/images/" + f.filename(),
                             f.contentType(),
                             f.sizeBytes(),
-                            0,   // page number doesn't apply to office documents
+                            0,
                             f.width(),
                             f.height()))
                     .toList();
@@ -297,10 +288,6 @@ public class DocumentExtractionService {
         return base.length() > 80 ? base.substring(0, 80) : base;
     }
 
-    /**
-     * A ParseContext with a SAX parser factory that refuses to resolve external entities and
-     * DTDs.  Blocks XXE / XML-bomb payloads hidden in Office / OpenDocument / RTF files.
-     */
     private ParseContext hardenedParseContext() {
         ParseContext ctx = new ParseContext();
         try {

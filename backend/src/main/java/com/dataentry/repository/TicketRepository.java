@@ -51,15 +51,6 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
         long getWeekCount();
     }
 
-    /**
-     * All admin KPI counters in one network round-trip.
-     *
-     * <p>{@code teamId} may be {@code null} — that's the SUPER_ADMIN case (no team entered yet),
-     * where the pre-refactor code returned unscoped totals across every team. The
-     * {@code CAST(:teamId AS BIGINT) IS NULL OR ...} predicate reproduces that behavior without
-     * duplicating the query. The cast is required because PostgreSQL cannot infer the parameter
-     * type from a bare {@code IS NULL} check.
-     */
     @Query(value = """
             SELECT
               (SELECT COUNT(*) FROM tickets
@@ -175,14 +166,6 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
 
     List<Ticket> findAllByProjectId(Long projectId);
 
-    // ----- Project Folders view (grouped-by-project ticket lists) -----
-    //
-    // The entity graph deliberately fetches only ONE collection (customValues). Ticket has
-    // three ToMany collections (customValues, resources, documents) — asking Hibernate to
-    // fetch more than one in a single query throws MultipleBagFetchException, which was
-    // showing up as an opaque "Unexpected server error" on the folder page. The remaining
-    // resources/documents collections lazy-load per row inside the @Transactional service
-    // method; the extra queries are bounded by the folder size and preferable to the crash.
 
     @EntityGraph(attributePaths = {"customValues", "customValues.field", "department", "subcategory", "project", "submittedBy"})
     List<Ticket> findAllByProjectIdOrderBySubmittedAtDesc(Long projectId);
@@ -198,13 +181,11 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
 
     long countByProjectIdAndSubmittedByIdAndStatus(Long projectId, Long userId, TicketStatus status);
 
-    // ----- derived-name aggregations (used by AdminStats) -----
 
     long countByStatus(TicketStatus status);
 
     long countByStatusAndSubmittedAtGreaterThanEqual(TicketStatus status, Instant since);
 
-    // ----- typed JPQL aggregations (dashboards) -----
 
     @Query("select new com.dataentry.dto.DashboardDtos$DepartmentCount(t.department.id, count(t)) " +
             "from Ticket t group by t.department.id")
@@ -268,12 +249,10 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     @Query("select count(distinct t.submittedBy.id) from Ticket t where t.submittedAt >= :since")
     long distinctAgentsSince(@Param("since") Instant since);
 
-    // ----- for daily bucketing on report (byDay) -----
 
     @Query("select t.submittedAt from Ticket t where t.submittedAt >= :since order by t.submittedAt")
     List<Instant> submissionTimesSince(@Param("since") Instant since);
 
-    // ----- top performers by status (used by /admin/reports) -----
 
     @Query("select new com.dataentry.dto.DashboardDtos$TopPerformer(" +
             "t.submittedBy.id, t.submittedBy.username, " +

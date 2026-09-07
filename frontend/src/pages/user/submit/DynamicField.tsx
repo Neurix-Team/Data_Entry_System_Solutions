@@ -9,7 +9,6 @@ interface Props {
   error?: string;
 }
 
-/** Renders one custom field (input / textarea / select / etc.) based on its type. */
 export function DynamicField({ field, value, onChange, error }: Props) {
   const { t } = useT();
   const cls = error ? 'has-error' : '';

@@ -20,17 +20,10 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * Endpoints for reading, uploading, and removing a user's profile picture.
- *
- * <p>Public read via {@code GET /api/users/{id}/avatar} — returns the image bytes with the
- * stored MIME type, or 404 if the user has no avatar. Auth-protected write endpoints operate
- * on the currently authenticated user only.</p>
- */
 @RestController
 public class UserAvatarController {
 
-    private static final long MAX_UPLOAD_BYTES = 2L * 1024 * 1024; // 2 MB
+    private static final long MAX_UPLOAD_BYTES = 2L * 1024 * 1024;
     private static final List<String> ALLOWED_TYPES = List.of(
             "image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"
     );
@@ -47,7 +40,6 @@ public class UserAvatarController {
         this.audit = audit;
     }
 
-    // ---------- Serve ----------
 
     @GetMapping("/api/users/{id}/avatar")
     public ResponseEntity<byte[]> serve(@PathVariable Long id) {
@@ -62,15 +54,12 @@ public class UserAvatarController {
         } catch (Exception e) {
             type = MediaType.IMAGE_PNG;
         }
-        // Short cache — the URL is cache-busted with ?v={updatedAt}, so browsers pick up new
-        // uploads on their next render regardless.
         return ResponseEntity.ok()
                 .contentType(type)
                 .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePublic())
                 .body(a.getData());
     }
 
-    // ---------- Upload (self) ----------
 
     @PostMapping(value = "/api/user/me/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<AvatarInfo> upload(@RequestParam("file") MultipartFile file,
@@ -108,7 +97,6 @@ public class UserAvatarController {
         return ResponseEntity.ok(new AvatarInfo(me.getId(), now));
     }
 
-    // ---------- Delete (self) ----------
 
     @DeleteMapping("/api/user/me/avatar")
     public ResponseEntity<Void> remove(@AuthenticationPrincipal User me) {

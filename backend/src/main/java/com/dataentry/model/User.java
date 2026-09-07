@@ -21,18 +21,6 @@ public class User implements TeamOwned {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /**
-     * Owning tenant. Null for SUPER_ADMIN (cross-team) accounts and for the DataSeeder
-     * bootstrap moment before the default team exists. The Hibernate {@code teamFilter}
-     * uses this column to hide users from other teams.
-     *
-     * <p>Eagerly fetched: the User principal is passed out of the JwtAuthFilter's short
-     * transaction and later used in stateless contexts (e.g. AuthController.me, AuthService.toDto)
-     * where a lazy proxy would fail with "no Session". It's one FK lookup — negligible.
-     *
-     * <p>Usernames are globally unique at the PostgreSQL schema level. Enforce per-team
-     * uniqueness at the service layer if that becomes a real requirement.
-     */
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "team_id")
     private Team team;
@@ -70,21 +58,13 @@ public class User implements TeamOwned {
     @Builder.Default
     private Instant createdAt = Instant.now();
 
-    /**
-     * Timestamp of the last avatar upload. Null means no avatar. Kept on the User row
-     * (rather than joining to {@link UserAvatar}) so the frontend can decide whether to
-     * render an avatar image without an extra query, and can cache-bust with ?v={value}.
-     */
     @Column(name = "avatar_updated_at")
     private Instant avatarUpdatedAt;
 
-    /**
-     * True when the user carries admin-level privileges — either a team ADMIN or a
-     * SUPER_ADMIN. The old ADMIN-only check spread across ticket + document controllers
-     * blocked SUPER_ADMINs (whose DB role stays SUPER_ADMIN even while impersonating)
-     * from viewing or uploading against tickets they don't personally own, which showed
-     * up as a bare "403 Forbidden" on the Project Folders page.
-     */
+    @Column(name = "token_version", nullable = false)
+    @Builder.Default
+    private long tokenVersion = 0L;
+
     public boolean isAdminLike() {
         return role == Role.ADMIN || role == Role.SUPER_ADMIN;
     }

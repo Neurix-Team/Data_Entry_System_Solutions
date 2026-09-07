@@ -21,14 +21,6 @@ import java.nio.file.Path;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
-/**
- * Serves images that were pulled out of a user's uploaded PDF and parked in the staging
- * area. Access is gated on the {@code .owner} marker inside the staging folder — a user
- * can only see their own in-flight extractions.
- * <p>
- * Only extension names are permitted in the URL to head off any attempt to fetch the
- * {@code .owner} marker itself.
- */
 @RestController
 @RequestMapping("/api/user/extractions")
 public class ExtractionController {
@@ -47,7 +39,6 @@ public class ExtractionController {
 
         if (current == null) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
 
-        // Only serve images. Blocks a caller from asking for `.owner` or any injected file.
         String lower = filename.toLowerCase(Locale.ROOT);
         if (!(lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg")
                 || lower.endsWith(".webp"))) {

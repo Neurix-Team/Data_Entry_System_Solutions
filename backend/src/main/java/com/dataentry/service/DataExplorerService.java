@@ -20,21 +20,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Unified cross-team ticket view used by both the super-admin data explorer page and the
- * external /api/v1/export/tickets endpoint. Runs with the tenant filter disabled — every
- * consumer of this service is either SUPER_ADMIN or an API token, both of which are meant
- * to see every team.
- *
- * <p>Query strategy: one JPQL for the ticket rows, then a single batched-in-clause fetch
- * for documents and field values. That keeps the round-trip count constant regardless of
- * page size (no N+1 across attachments).
- */
 @Service
 @Transactional(readOnly = true)
 public class DataExplorerService {
 
-    /** Cap page size so a curious caller can't ask for a million rows in one go. */
     private static final int MAX_PAGE_SIZE = 500;
     private static final int DEFAULT_PAGE_SIZE = 50;
 
@@ -47,10 +36,6 @@ public class DataExplorerService {
         this.jdbc = jdbc;
     }
 
-    /**
-     * Paginated cross-team ticket search. {@code cursor} is the id of the last row seen
-     * (rows are ordered by id DESC so the cursor gives "everything older than X").
-     */
     public DataExplorerDtos.Page search(Filters filters, Long cursor, Integer size, String downloadUrlPrefix) {
         int pageSize = clampSize(size);
 
@@ -63,14 +48,12 @@ public class DataExplorerService {
 
         TypedQuery<Tuple> q = em.createQuery(jpql.toString(), Tuple.class);
         params.forEach(q::setParameter);
-        // Fetch one extra to detect "has more" without a second COUNT round trip.
         q.setMaxResults(pageSize + 1);
         List<BaseRow> rows = q.getResultList().stream().map(this::toBaseRow).toList();
 
         boolean hasMore = rows.size() > pageSize;
         if (hasMore) rows = rows.subList(0, pageSize);
 
-        // Batched fetches for docs + field values keyed by ticket id.
         List<Long> ticketIds = rows.stream().map(BaseRow::id).toList();
         Map<Long, List<TicketDocument>> docsByTicket = loadDocuments(ticketIds);
         Map<Long, List<TicketFieldValue>> fieldsByTicket = loadFieldValues(ticketIds);
@@ -89,8 +72,6 @@ public class DataExplorerService {
         return new DataExplorerDtos.Page(items, nextCursor, hasMore, total);
     }
 
-    /** Facet lists for the explorer sidebar. Kept as separate queries so an empty result
-     *  page still shows every possible filter option. */
     public DataExplorerDtos.Facets facets() {
         List<DataExplorerDtos.Named> teams = new ArrayList<>();
         List<DataExplorerDtos.Named> projects = new ArrayList<>();
@@ -107,7 +88,6 @@ public class DataExplorerService {
         return new DataExplorerDtos.Facets(teams, projects, users);
     }
 
-    /** Fetch a single ticket by id — used by the row-expand action in the UI. */
     public DataExplorerDtos.Row byId(Long id, String downloadUrlPrefix) {
         TypedQuery<Tuple> query = em.createQuery(
                 baseRowQuery("where t.id = :id").toString(), Tuple.class);
@@ -125,16 +105,6 @@ public class DataExplorerService {
                 fields.getOrDefault(id, List.of()), downloadUrlPrefix);
     }
 
-    /**
-     * Select scalar values instead of materialising the complete Ticket object graph.
-     *
-     * <p>Some upgraded installations contain legacy tickets whose required user or
-     * department row was removed before foreign-key enforcement was enabled. Fetching a
-     * full entity graph makes Hibernate either drop that ticket from a by-id lookup or
-     * throw while initialising the missing association, which used to turn the entire
-     * explorer page into a 500. Explicit LEFT JOIN scalar projection keeps the historical
-     * ticket visible and reports the missing related metadata as null.</p>
-     */
     private StringBuilder baseRowQuery(String whereClause) {
         return new StringBuilder(
                 "select t.id as id, " +
@@ -183,16 +153,6 @@ public class DataExplorerService {
                 row.get("submittedAt", Instant.class));
     }
 
-    /**
-     * Every attachment that matches {@code filters}, flattened with the ticket, project,
-     * department and subcategory it belongs to. Powers the "download to folder" feature in
-     * the explorer: the browser walks this list and mirrors each file into
-     * {@code Project/Department[/Subcategory]/} on the operator's machine, so it needs the
-     * whole set at once rather than a page.
-     *
-     * @param includeTickets also return every matching ticket's text and custom fields, so
-     *                       the client can write a Markdown sidecar per entry and an index.
-     */
     public DataExplorerDtos.Manifest manifest(Filters filters, boolean includeTickets) {
         StringBuilder jpql = new StringBuilder(
                 "select d.id as docId, d.name as docName, d.originalFilename as originalFilename, " +
@@ -253,7 +213,6 @@ public class DataExplorerService {
         return new DataExplorerDtos.Manifest(files, tickets, files.size(), bytes, totalTickets);
     }
 
-    /** All matching tickets (with or without files) with their text and custom fields. */
     private List<DataExplorerDtos.ManifestTicket> manifestTickets(Filters filters) {
         StringBuilder jpql = baseRowQuery("where 1=1 ");
         Map<String, Object> params = new HashMap<>();
@@ -263,7 +222,6 @@ public class DataExplorerService {
         params.forEach(q::setParameter);
         List<BaseRow> rows = q.getResultList().stream().map(this::toBaseRow).toList();
 
-        // Field values in chunks — a very large filter set must not blow the IN-list limit.
         Map<Long, List<TicketFieldValue>> fields = new HashMap<>();
         List<Long> ids = rows.stream().map(BaseRow::id).toList();
         for (int i = 0; i < ids.size(); i += 500) {
@@ -288,7 +246,6 @@ public class DataExplorerService {
         return out;
     }
 
-    /** Shared WHERE fragment so the page, the count and the manifest always agree. */
     private void appendFilters(StringBuilder jpql, Map<String, Object> params, Filters filters) {
         if (filters.teamId() != null) { jpql.append("and t.team.id = :teamId "); params.put("teamId", filters.teamId()); }
         if (filters.projectId() != null) { jpql.append("and t.project.id = :projectId "); params.put("projectId", filters.projectId()); }

@@ -112,8 +112,6 @@ export function AdminProjectsPage() {
     e.preventDefault();
     setFormError(null);
     if (!form.name.trim()) { setFormError(t('projects.nameRequired')); return; }
-    // Departments no longer required at project-create time — the admin flow is
-    // "create the project first, then add its departments from the Departments page".
 
     setSaving(true);
     try {
@@ -177,7 +175,6 @@ export function AdminProjectsPage() {
     if (!proceed) return;
     setBulkDeleting(true);
     let ok = 0; let fail = 0;
-    // Keep bulk deletes serial so related-row failures are reported per project.
     for (const id of ids) {
       try {
         await projectsApi.remove(id);

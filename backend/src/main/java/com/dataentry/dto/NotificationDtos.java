@@ -16,8 +16,6 @@ public class NotificationDtos {
             Instant readAt
     ) {}
 
-    /** Compact envelope so the caller can render the badge from {@code unread} without
-     *  post-processing the items list. */
     public record Feed(
             List<Item> items,
             long unread

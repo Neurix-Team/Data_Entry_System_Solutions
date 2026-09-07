@@ -35,8 +35,6 @@ class DataExplorerServiceTest {
                 .build());
         em.clear();
 
-        // Reproduce legacy data created before FK enforcement was enabled:
-        // the ticket survived after its submitter and department rows disappeared.
         jdbc.execute("SET REFERENTIAL_INTEGRITY FALSE");
         jdbc.update("""
                 INSERT INTO tickets

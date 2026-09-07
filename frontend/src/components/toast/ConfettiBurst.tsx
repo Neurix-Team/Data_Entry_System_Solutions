@@ -1,13 +1,5 @@
 import { useEffect, useRef } from 'react';
 
-/**
- * Fires a short particle burst that reads as celebration. Colored streamers spawn from the
- * origin (center-top of the parent), get an upward + sideways kick, fall under gravity,
- * spin, and fade out. Whole thing wraps up under a second.
- *
- * Placed absolutely inside a positioned parent (see .toast in global.css). The canvas is
- * pointer-events: none so it never blocks anything underneath.
- */
 
 const COLORS = ['#22c3d9', '#0f5fd1', '#4ed6e6', '#7fe6f0', '#f0a020', '#e04562'];
 const NUM = 42;
@@ -44,7 +36,6 @@ export function ConfettiBurst() {
 
     const width = rect.width;
     const height = rect.height;
-    // Burst origin — top edge, horizontally centered
     const ox = width / 2;
     const oy = 6;
 
@@ -86,7 +77,6 @@ export function ConfettiBurst() {
         p.y += p.vy * dt;
         p.rot += p.vrot * dt;
 
-        // Fade out over the last 30% of life
         const alpha = life > 0.7 ? Math.max(0, 1 - (life - 0.7) / 0.3) : 1;
 
         ctx!.save();

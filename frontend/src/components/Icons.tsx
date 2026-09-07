@@ -1,4 +1,3 @@
-/* Minimal inline SVG icon set — outlined, 1.75px stroke, matches Figma design */
 type IconProps = { size?: number; className?: string };
 const p = (size = 20, className?: string) => ({
   width: size, height: size, viewBox: '0 0 24 24', fill: 'none',
@@ -141,8 +140,6 @@ export const IconTrendDown = ({ size, className }: IconProps) => (
   </svg>
 );
 
-/* Flat counterpart to IconTrendUp/Down — same 24-wide baseline and terminal arrow so a
-   trend row keeps one silhouette whichever direction it reports. */
 export const IconTrendFlat = ({ size, className }: IconProps) => (
   <svg {...p(size, className)}>
     <polyline points="1 12 17 12" />

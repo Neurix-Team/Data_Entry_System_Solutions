@@ -1,5 +1,3 @@
-// Egyptian Arabic edition: scene list (id, on-screen caption, voice-over text) plus the card copy.
-// Technical names are transliterated so the Arabic voice reads them naturally.
 export const VOICE = 'ar-EG-SalmaNeural';
 export const RATE = '+0%';
 export const RTL = true;
@@ -53,7 +51,6 @@ export const SCENES = [
   { id: 'outro', caption: null, text: 'نيوريكس. أدِر إدخال البيانات بثقة.' },
 ];
 
-// Copy for the full-screen cards (intro, chapters, platform, outro).
 export const CARDS = {
   chapterWord: 'الفصل',
   intro: {

@@ -41,15 +41,8 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * Exercises the on-disk half of {@link ChunkedUploadService}: chunks landing out of order
- * into a pre-sized payload, the marker bookkeeping the status/complete calls read, and
- * the cleanup rules around finalize. Repositories and the attach step are mocked so the
- * test sees exactly the bytes the service would hand to {@link TicketDocumentService}.
- */
 class ChunkedUploadServiceTest {
 
-    /** The service clamps chunk size to at least 256 KB, so the test speaks that size. */
     private static final int CHUNK = 256 * 1024;
 
     @TempDir Path tmp;
@@ -126,7 +119,6 @@ class ChunkedUploadServiceTest {
         when(documents.attach(eq(42L), eq("Book"), captor.capture(), eq(owner), eq(false)))
                 .thenAnswer(inv -> {
                     TicketDocumentService.IncomingFile in = inv.getArgument(2);
-                    // The real attach renames the payload away — check the bytes before that.
                     assertArrayEquals(payload, Files.readAllBytes(in.path()));
                     return new TicketDtos.DocumentResponse(
                             1L, "Book", "book.pdf", "application/pdf", in.size(), Instant.now());

@@ -11,16 +11,11 @@ interface ConfirmOptions {
 }
 
 interface ConfirmContextValue {
-  /** Returns a promise that resolves to true if the user confirmed. */
   confirm: (opts: ConfirmOptions) => Promise<boolean>;
 }
 
 const ConfirmContext = createContext<ConfirmContextValue | undefined>(undefined);
 
-/**
- * Replaces `window.confirm` — an accessible, RTL-aware, styled dialog. Renders through
- * the shared Modal so it inherits focus trap + Escape + backdrop dismiss.
- */
 export function ConfirmProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<(ConfirmOptions & { open: boolean }) | null>(null);
   const resolver = useRef<((value: boolean) => void) | null>(null);

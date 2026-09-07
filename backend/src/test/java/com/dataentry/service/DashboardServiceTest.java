@@ -39,7 +39,6 @@ class DashboardServiceTest {
     @Mock TicketRepository.WeeklySummaryProjection weeklyDayOne;
     @Mock TicketRepository.WeeklySummaryProjection weeklyDayTwo;
 
-    /** Fixed clock: 2026-08-09 12:00 UTC — makes every date-based test deterministic. */
     private final Clock fixedClock = Clock.fixed(
             LocalDate.of(2026, 8, 9).atStartOfDay(ZoneOffset.UTC).toInstant(),
             ZoneOffset.UTC);
@@ -83,7 +82,6 @@ class DashboardServiceTest {
 
     @Test
     void report_bucketsSubmissionsAcrossSevenDays() {
-        // Today is 2026-08-09 → week window is 2026-08-03 .. 2026-08-09
         TenantContext.set(1L, Role.ADMIN, 10L, null);
         when(weeklyDayOne.getDay()).thenReturn(LocalDate.of(2026, 8, 5));
         when(weeklyDayOne.getTotal()).thenReturn(2L);

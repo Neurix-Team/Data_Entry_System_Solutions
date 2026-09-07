@@ -19,10 +19,6 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 
 @Service
-// Class-level readOnly so every method runs inside a Spring tx and the TenantFilterAspect
-// enables the tenant filter before any query — without it the filter is skipped and the
-// TeamOwned @PostLoad guard rejects the first cross-team row it sees, turning legitimate
-// list requests into confusing 404s.
 @Transactional(readOnly = true)
 public class SubcategoryService {
 
@@ -51,20 +47,12 @@ public class SubcategoryService {
     }
 
     public List<SubcategoryDtos.SubcategoryResponse> listAll(Long departmentId, boolean activeOnly) {
-        // teamId may be null when a SUPER_ADMIN calls without impersonating a team;
-        // the native query then returns rows across every team (pre-refactor behavior).
         Long teamId = TenantContext.getTeamId();
         return repository.findAdminListRows(teamId, departmentId, activeOnly).stream()
                 .map(this::toDto)
                 .toList();
     }
 
-    /**
-     * All active subcategories whose parent department belongs to any of the given projects.
-     * Used by the submit form to show a user only the categories that live inside a project
-     * they were assigned to, without requiring them to pre-pick a department. Wrapped in a
-     * read-only transaction so the lazy Department.project proxy resolves while filtering.
-     */
     @Transactional(readOnly = true)
     public List<SubcategoryDtos.SubcategoryResponse> listActiveByProjects(java.util.Collection<Long> projectIds) {
         if (projectIds == null || projectIds.isEmpty()) return List.of();
@@ -144,20 +132,11 @@ public class SubcategoryService {
         deleteWithChildren(id);
     }
 
-    /**
-     * Cascade-delete a subcategory along with every custom field and ticket living inside
-     * it. Public so the department cascade path can call it directly — a subcategory that
-     * still had rows attached used to block a department delete with a 409, forcing the
-     * admin to hunt down and hand-clear each child before retrying.
-     */
     @Transactional
     public void deleteWithChildren(Long id) {
         Subcategory s = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Subcategory not found"));
         TenantGuard.assertOwnership(s);
-        // deleteAll(...) tolerates entities that are already gone (e.g. cascaded away by a
-        // prior delete in this same transaction) instead of throwing
-        // EmptyResultDataAccessException the way deleteById does.
         ticketRepository.deleteAll(ticketRepository.findAllBySubcategoryId(id));
         customFieldRepository.deleteAll(
                 customFieldRepository.findAllBySubcategoryIdOrderByDisplayOrderAscIdAsc(id));

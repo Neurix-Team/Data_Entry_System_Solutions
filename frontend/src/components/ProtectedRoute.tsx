@@ -7,7 +7,6 @@ interface Props {
   roles?: Role[];
 }
 
-/** Home route for each role after login / after an unauthorised redirect. */
 function homeFor(role: Role): string {
   if (role === 'SUPER_ADMIN') return '/super';
   if (role === 'ADMIN') return '/admin';

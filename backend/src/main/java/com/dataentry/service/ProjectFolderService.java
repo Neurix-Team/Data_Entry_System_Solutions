@@ -20,17 +20,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-/**
- * Presents projects as folders and their tickets as the folder's contents. Non-admin
- * callers only see tickets they themselves submitted; admins/super-admins see every
- * ticket in the project.
- *
- * <p>Uses the "for folder view" repository queries that skip the {@code members} eager
- * fetch. Legacy data can have cross-team members on a project, and the tenant listener's
- * {@code @PostLoad} would throw NOT_FOUND on any such user — turning the whole folder
- * grid into a 404 for the admin. The folder UI doesn't need members either, so skipping
- * the fetch fixes the bug at the source.
- */
 @Service
 public class ProjectFolderService {
 
@@ -99,19 +88,12 @@ public class ProjectFolderService {
         return out;
     }
 
-    /**
-     * Load a single folder. USER must be a member of the project (checked via a count query
-     * so the members collection isn't hydrated — that would trip the tenant listener on
-     * cross-team member rows). ADMIN/SUPER_ADMIN can open any folder.
-     */
     @Transactional(readOnly = true)
     public ProjectFolderDtos.FolderDetail getFolder(Long projectId, User currentUser) {
         if (currentUser == null) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         boolean isAdmin = currentUser.isAdminLike();
 
         if (!isAdmin && !projectRepository.isMember(projectId, currentUser.getId())) {
-            // Membership check first so a USER poking at a project id they aren't on gets a
-            // clean 404 instead of a partial payload.
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found");
         }
         Project p = projectRepository.findById(projectId)
@@ -136,12 +118,6 @@ public class ProjectFolderService {
         );
     }
 
-    /**
-     * Who may drop files into a folder: USER must be a project member; ADMIN/SUPER_ADMIN
-     * skip. Both failure modes are 404 so a probing user can't tell "not a member" from
-     * "doesn't exist". The isMember query runs as its own repo tx and returns a boolean —
-     * no lazy load, no entity listener trip.
-     */
     public void assertCanUploadTo(Long projectId, User currentUser) {
         if (currentUser == null) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         if (projectId == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Project is required");
@@ -154,27 +130,6 @@ public class ProjectFolderService {
         }
     }
 
-    /**
-     * Multi-file quick-upload into a folder. Each file becomes its own ticket:
-     *   1. Create a REVIEW-status ticket owned by the caller, in the given project.
-     *   2. Attach the file. If the attachment fails, roll back the ticket so we don't
-     *      leave orphan "empty" tickets that the folder view can't distinguish from a
-     *      legitimate write-later ticket.
-     *
-     * <p>Per-file failures don't abort the whole batch — the response reports both what
-     * succeeded and what failed with a reason, so the user isn't left guessing about a
-     * silent partial success.
-     *
-     * <p>Titles are the parallel array to files. If the client passes fewer titles than
-     * files (or none at all), the missing ones are derived from the filename. If it
-     * passes more titles than files, the extras are ignored.
-     *
-     * <p><b>Not @Transactional</b> on purpose: each file's create + upload runs inside
-     * the nested calls' own transactions. Wrapping the batch would let a single per-file
-     * failure taint the outer transaction with "rollback-only", which then throws
-     * UnexpectedRollbackException at commit and buries the partial-success semantics
-     * we want the response to carry.
-     */
     public ProjectFolderDtos.QuickUploadResult quickUpload(Long projectId,
                                                            Long departmentId,
                                                            User currentUser,
@@ -215,11 +170,6 @@ public class ProjectFolderService {
         return new ProjectFolderDtos.QuickUploadResult(ok.size(), failed.size(), ok, failed);
     }
 
-    /**
-     * Chunked-upload finalize: the file already sits on disk. Same create-then-attach
-     * contract as {@link #quickUpload}, for exactly one file, throwing instead of
-     * collecting — the caller has a single session to report on.
-     */
     public TicketDtos.TicketResponse createTicketAndAttach(Long projectId,
                                                            Long departmentId,
                                                            User currentUser,
@@ -238,12 +188,6 @@ public class ProjectFolderService {
         TicketDtos.DocumentResponse attach(Long ticketId);
     }
 
-    /**
-     * Handle one file end-to-end. Every write goes through {@code REQUIRES_NEW}-scoped
-     * methods on TicketService / TicketDocumentService, so a failure is contained: the
-     * ticket is rolled back when its attachment is refused, and the caller gets a
-     * {@link ResponseStatusException} whose reason is safe to show the user.
-     */
     private TicketDtos.TicketResponse createTicketAndAttachWith(Long projectId,
                                                                 Long departmentId,
                                                                 User currentUser,
@@ -274,15 +218,10 @@ public class ProjectFolderService {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Upload failed");
         }
 
-        // Load the fully-hydrated ticket back for the response envelope. Uses the same
-        // getOne path the ticket-view page relies on, so the shape is guaranteed to match
-        // what the frontend already handles. Auth check inside getOne is satisfied because
-        // the caller submitted the ticket themselves (or is an admin).
         try {
             return ticketService.getOne(ticketId, currentUser, currentUser.isAdminLike());
         } catch (RuntimeException e) {
             log.warn("Quick-upload post-load failed for ticket {}: {}", ticketId, e.toString());
-            // The upload itself succeeded — only the response envelope couldn't be built.
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
                     "Uploaded, but folder view refresh failed");
         }

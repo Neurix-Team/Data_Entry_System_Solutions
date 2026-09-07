@@ -1,5 +1,3 @@
-// Picks the narration edition from NX_LANG (en | ar) and exposes the per-language file names
-// shared by tts.mjs, tour.mjs and assemble.mjs. Scene text lives in narration.<lang>.mjs.
 export const LANG = (process.env.NX_LANG || 'en').toLowerCase() === 'ar' ? 'ar' : 'en';
 const edition = await import(`./narration.${LANG}.mjs`);
 

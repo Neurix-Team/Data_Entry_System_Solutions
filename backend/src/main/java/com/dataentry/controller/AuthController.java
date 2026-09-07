@@ -45,9 +45,6 @@ public class AuthController {
         }
         AuthDtos.LoginResponse resp = authService.login(req);
         rateLimiter.reset(key);
-        // Set an httpOnly cookie so the browser doesn't need to touch the token from JS —
-        // shields against XSS-driven token theft. We still return the token in the body for
-        // non-browser callers (CLI, mobile apps) that use the Authorization header.
         ResponseCookie cookie = buildAuthCookie(resp.token(), Duration.ofMillis(resp.expiresInMs()));
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
@@ -56,11 +53,22 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout() {
-        // Clear the cookie by setting Max-Age=0 with the same attributes so browsers accept it.
         ResponseCookie clear = buildAuthCookie("", Duration.ZERO);
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, clear.toString())
                 .build();
+    }
+
+    @PostMapping("/logout-everywhere")
+    public ResponseEntity<AuthDtos.LoginResponse> logoutEverywhere(@AuthenticationPrincipal User user) {
+        if (user == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not signed in.");
+        }
+        AuthDtos.LoginResponse resp = authService.logoutEverywhere(user);
+        ResponseCookie cookie = buildAuthCookie(resp.token(), Duration.ofMillis(resp.expiresInMs()));
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .body(resp);
     }
 
     @GetMapping("/me")
@@ -68,10 +76,6 @@ public class AuthController {
         return ResponseEntity.ok(AuthService.toDto(user, TenantContext.isImpersonating()));
     }
 
-    /**
-     * Self-service profile update — display name / email / phone. Anything more
-     * consequential (role, team, active) still requires an admin flow.
-     */
     @PatchMapping("/me")
     public ResponseEntity<AuthDtos.UserDto> updateMe(
             @AuthenticationPrincipal User user,
@@ -96,19 +100,14 @@ public class AuthController {
 
     private ResponseCookie buildAuthCookie(String value, Duration maxAge) {
         return ResponseCookie.from(JwtAuthFilter.AUTH_COOKIE, value)
-                .httpOnly(true)             // JS cannot read this cookie — XSS can't steal it
-                .secure(cookieSecure)       // only sent over HTTPS in production
-                .sameSite("Lax")            // blocks cross-site POST CSRF while allowing top-level nav
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .sameSite("Lax")
                 .path("/")
                 .maxAge(maxAge)
                 .build();
     }
 
-    /**
-     * IP + lowercased username. Only trust X-Forwarded-For when the direct peer is on a
-     * private subnet — a public client that ships the header itself would otherwise be able
-     * to rotate its perceived IP and bypass the login rate limiter.
-     */
     private String clientKey(HttpServletRequest http, String username) {
         String peer = http.getRemoteAddr();
         String ip = peer;
@@ -125,8 +124,6 @@ public class AuthController {
 
     private static boolean isTrustedProxy(String addr) {
         if (addr == null) return false;
-        // Private IPv4 ranges + loopback + IPv6 loopback + ULA. Requests coming directly
-        // from the public internet will not match, so their XFF is ignored.
         return addr.startsWith("10.")
                 || addr.startsWith("192.168.")
                 || addr.startsWith("127.")

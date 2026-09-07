@@ -24,16 +24,6 @@ import java.util.zip.Deflater;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-/**
- * Streams the explorer's matching attachments as one ZIP laid out as
- * {@code Project/Department[/Subcategory]/file}. This is the fallback for browsers without
- * the File System Access API (Firefox, Safari); Chromium browsers write straight into a
- * folder the operator picks, using the same {@link ExportPaths} naming rules so both paths
- * produce identical trees.
- *
- * <p>Entries are written straight to the servlet output stream — nothing is buffered on
- * disk or in memory, so a multi-gigabyte export costs the server one file at a time.
- */
 @Service
 public class ExplorerArchiveService {
 
@@ -61,8 +51,6 @@ public class ExplorerArchiveService {
         int written = 0, missing = 0;
 
         try (ZipOutputStream zip = new ZipOutputStream(out, StandardCharsets.UTF_8)) {
-            // Attachments are mostly PDFs and images that are already compressed; deflating
-            // them again burns CPU for nothing, so favour throughput.
             zip.setLevel(Deflater.BEST_SPEED);
 
             for (DataExplorerDtos.ManifestEntry e : manifest.files()) {
@@ -95,17 +83,11 @@ public class ExplorerArchiveService {
         log.info("Explorer archive streamed: {} files written, {} missing on disk, filters={}", written, missing, filters);
     }
 
-    /**
-     * Naming rules shared by the ZIP export and (mirrored in TypeScript) the in-browser
-     * folder export. Keep the two in sync — operators expect a ZIP unpacked next to a folder
-     * download to line up file for file.
-     */
     public static final class ExportPaths {
         private ExportPaths() {}
 
         private static final int MAX_SEGMENT = 120;
 
-        /** Windows/macOS-safe path segment: strips reserved characters and trailing dots. */
         public static String safe(String raw, String fallback) {
             if (raw == null) return fallback;
             String s = raw.replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", " ")
@@ -127,7 +109,6 @@ public class ExplorerArchiveService {
             return sb.toString();
         }
 
-        /** Original file name by default; {@code prefixNames} adds "#id - title - " in front. */
         public static String filePath(DataExplorerDtos.ManifestEntry e, boolean subcategoryFolders,
                                       boolean prefixNames, Set<String> used) {
             String original = e.originalFilename() != null && !e.originalFilename().isBlank()

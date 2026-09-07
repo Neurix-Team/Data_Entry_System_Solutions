@@ -54,18 +54,12 @@ class TicketServiceTest {
         agent = User.builder().id(1L).username("agent").role(Role.USER).active(true).build();
         dept = Department.builder().id(10L).name("Marketing").active(true).build();
         sub = Subcategory.builder().id(100L).department(dept).name("Blog").active(true).build();
-        // Translator returns the input unchanged in both languages by default — keeps existing
-        // assertions on title/content/website fields valid without touching them.
         org.mockito.Mockito.lenient()
                 .when(translator.toBoth(org.mockito.ArgumentMatchers.anyString()))
                 .thenAnswer(inv -> new TranslationService.Bilingual(inv.getArgument(0), inv.getArgument(0)));
 
-        // Real preparer wrapping the mocked translator — gives us the actual dedup logic under
-        // test rather than a mock that would silently return empty caches.
         TicketTranslationPreparer preparer = new TicketTranslationPreparer(translator);
 
-        // selfProvider re-enters this same instance so @Transactional self-invocation paths
-        // (create → createTx, createMany → createManyTx) route back into the real object.
         @SuppressWarnings("unchecked")
         ObjectProvider<TicketService> selfProvider = org.mockito.Mockito.mock(ObjectProvider.class);
         @SuppressWarnings("unchecked")
@@ -78,9 +72,6 @@ class TicketServiceTest {
                 projectRepository, customFieldRepository,
                 preparer, translator, localizer, audit,
                 docProvider, notifyProvider, selfProvider);
-        // lenient — tests that go through createAttachmentTicket / deleteByIdUnchecked never
-        // touch the self-invocation path, and Mockito's strict mode would otherwise fail
-        // them for an "unused" stub even though the create/createMany tests do exercise it.
         org.mockito.Mockito.lenient().when(selfProvider.getObject()).thenReturn(ticketService);
     }
 
@@ -89,8 +80,6 @@ class TicketServiceTest {
         Department inactive = Department.builder().id(20L).name("Archive").active(false).build();
         when(departmentRepository.findById(20L)).thenReturn(Optional.of(inactive));
 
-        // subcategoryId = null so the flow doesn't short-circuit on the subcategory lookup
-        // (which now runs before department resolution in createTx).
         TicketDtos.CreateTicketRequest req = new TicketDtos.CreateTicketRequest(
                 20L, null, null, "T", "C", null, null, null, null, Map.of());
 
@@ -117,7 +106,6 @@ class TicketServiceTest {
 
     @Test
     void create_rejectsInvalidWebsiteUrl() {
-        // URL is validated in buildTicket() BEFORE custom-field lookup, so no field stub needed.
         stubDeptAndSub();
 
         TicketDtos.CreateTicketRequest req = new TicketDtos.CreateTicketRequest(
@@ -192,11 +180,6 @@ class TicketServiceTest {
         when(subcategoryRepository.findById(100L)).thenReturn(Optional.of(sub));
     }
 
-    /**
-     * Regression: a fresh project with no departments used to reject uploads with a
-     * "add a department first" 400. It now auto-creates a default one so a user's very
-     * first upload lands without waiting on an admin.
-     */
     @Test
     void createAttachmentTicket_autoCreatesDefaultDepartment_whenProjectHasNone() {
         Project project = Project.builder().id(50L).name("Fresh Project").build();
@@ -221,7 +204,6 @@ class TicketServiceTest {
         assertThat(saved.getId()).isEqualTo(777L);
         assertThat(saved.getDepartment().getName()).isEqualTo("Fresh Project");
         assertThat(saved.getDepartment().isActive()).isTrue();
-        // The legacy pointer must be patched so a follow-up upload skips the empty-project branch.
         assertThat(project.getDepartment()).isNotNull();
         assertThat(project.getDepartment().getName()).isEqualTo("Fresh Project");
     }

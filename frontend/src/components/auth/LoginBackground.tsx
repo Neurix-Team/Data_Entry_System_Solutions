@@ -1,15 +1,5 @@
 import { useEffect, useRef } from 'react';
 
-/**
- * Particle-network background for the login brand panel.
- *
- * Draws a lattice of drifting cyan nodes; whenever two nodes come within
- * MAX_LINK_DISTANCE of each other, a translucent line is drawn between them —
- * the closer they are, the more solid the connection. The effect reads as
- * "linked data" the same way d3-force graphs or classic particles.js scenes do.
- *
- * All motion honors prefers-reduced-motion; when reduced, the canvas is empty.
- */
 
 type Particle = {
   x: number;
@@ -76,7 +66,6 @@ export function LoginBackground() {
       const dt = Math.min(0.05, (now - lastTime) / 1000);
       lastTime = now;
 
-      // Advance particles + bounce off edges
       for (const p of particles) {
         p.x += p.vx * dt * 60;
         p.y += p.vy * dt * 60;
@@ -88,7 +77,6 @@ export function LoginBackground() {
 
       ctx!.clearRect(0, 0, width, height);
 
-      // Draw links (n^2 but n=70 is fine — ~2400 pair checks/frame)
       ctx!.lineWidth = 1;
       for (let i = 0; i < particles.length; i++) {
         const a = particles[i];
@@ -100,7 +88,6 @@ export function LoginBackground() {
           if (distSq > MAX_LINK_DISTANCE * MAX_LINK_DISTANCE) continue;
           const dist = Math.sqrt(distSq);
           const strength = 1 - dist / MAX_LINK_DISTANCE;
-          // Fade out very short + very long links slightly for a more organic look
           const alpha = strength * 0.55;
           ctx!.strokeStyle = `${LINK_BASE}, ${alpha.toFixed(3)})`;
           ctx!.beginPath();
@@ -110,7 +97,6 @@ export function LoginBackground() {
         }
       }
 
-      // Draw nodes with a soft radial glow so they read as "energised"
       for (const p of particles) {
         const glowR = p.radius * 4;
         const grad = ctx!.createRadialGradient(p.x, p.y, 0, p.x, p.y, glowR);

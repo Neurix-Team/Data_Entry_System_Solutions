@@ -26,12 +26,6 @@ public class TicketDtos {
             Map<String, String> customValues
     ) {}
 
-    /**
-     * A reference to an image the server previously wrote into the extractions staging
-     * area. On submit the server moves the file into the ticket's attachments and creates
-     * a matching TicketDocument row; the file then follows the same lifecycle as any other
-     * ticket attachment. The client-visible {@code name} is stored on that document row.
-     */
     public record ExtractedImageRef(
             @NotBlank @Size(max = 250) String name,
             @NotBlank @Size(max = 64) String extractionId,
@@ -59,15 +53,11 @@ public class TicketDtos {
             Instant uploadedAt
     ) {}
 
-    /** A single (name, url) resource attached to an article. */
     public record ResourceRequest(
             @Size(max = 250) String name,
             @NotBlank @Size(max = 500) String url
     ) {}
 
-    /** A single article within a bulk submission. Title and content are optional so a user
-     *  can submit an attachments-only article (files/extracted images with no written body).
-     *  The frontend enforces "at least one of title+content OR attachments" before calling. */
     public record ArticleRequest(
             @Size(max = 500) String title,
             @Size(max = 2000000) String content,
@@ -77,10 +67,6 @@ public class TicketDtos {
             @Valid List<ExtractedImageRef> extractedImages
     ) {}
 
-    /** Bulk-create request: shared metadata + N articles, each becoming its own Ticket.
-     *  {@code departmentId} and {@code subcategoryId} are both optional — when both are
-     *  omitted the ticket is filed against the first active department in the picked
-     *  project so a user with a single scoped project doesn't have to touch either picker. */
     public record BulkCreateRequest(
             Long departmentId,
             Long subcategoryId,
@@ -95,11 +81,6 @@ public class TicketDtos {
             String status
     ) {}
 
-    /**
-     * Admin edit of an entry's authored fields. Resources are replaced wholesale when the
-     * list is present (null leaves them untouched). Department, subcategory, custom values
-     * and attachments have their own flows and are not part of this request.
-     */
     public record UpdateTicketRequest(
             @Size(max = 500) String title,
             @Size(max = 2000000) String content,

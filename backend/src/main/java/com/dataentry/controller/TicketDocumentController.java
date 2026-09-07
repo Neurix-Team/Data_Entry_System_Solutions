@@ -14,7 +14,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
 
-/** Attachments: upload/download/delete files hanging off a specific ticket. */
 @RestController
 @RequestMapping("/api/tickets/{ticketId}/documents")
 public class TicketDocumentController {
@@ -49,8 +48,6 @@ public class TicketDocumentController {
             type = MediaType.APPLICATION_OCTET_STREAM;
         }
 
-        // ContentDisposition.builder handles quoting, RFC 5987 encoding, and CRLF-injection
-        // safety in filenames without manual string glue.
         ContentDisposition cd = ContentDisposition.attachment()
                 .filename(h.filename() == null ? "file" : h.filename(), StandardCharsets.UTF_8)
                 .build();
@@ -59,9 +56,6 @@ public class TicketDocumentController {
                 .contentType(type)
                 .contentLength(h.size())
                 .header(HttpHeaders.CONTENT_DISPOSITION, cd.toString())
-                // Prevent browsers from second-guessing the Content-Type and executing an
-                // HTML/JS response as script. Paired with the attachment disposition above,
-                // this closes the Stored-XSS path for uploaded files.
                 .header("X-Content-Type-Options", "nosniff")
                 .header("Content-Security-Policy", "default-src 'none'; sandbox")
                 .body(h.resource());

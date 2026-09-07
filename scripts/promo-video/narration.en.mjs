@@ -1,4 +1,3 @@
-// English edition: scene list (id, on-screen caption, voice-over text) plus the card copy.
 export const VOICE = 'en-US-AndrewMultilingualNeural';
 export const RATE = '+3%';
 export const RTL = false;
@@ -52,7 +51,6 @@ export const SCENES = [
   { id: 'outro', caption: null, text: 'Neurix. Manage data entry with confidence.' },
 ];
 
-// Copy for the full-screen cards (intro, chapters, platform, outro).
 export const CARDS = {
   chapterWord: 'Chapter',
   intro: {

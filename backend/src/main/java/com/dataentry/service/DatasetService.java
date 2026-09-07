@@ -40,7 +40,6 @@ public class DatasetService {
         this.em = em;
     }
 
-    /** Publish all current source rows. One transaction makes the button all-or-nothing. */
     @Transactional
     public DatasetDtos.PublishResult publish() {
         int scanned = 0, inserted = 0, updated = 0, unchanged = 0;
@@ -99,8 +98,6 @@ public class DatasetService {
         return new DatasetDtos.Page(rows, next, hasMore, repository.count());
     }
 
-    /** Fast counters for the coloured summary cards. Attachment counts come from each
-     * published snapshot, so a file added later appears as pending until Publish runs. */
     @Transactional(readOnly = true)
     public DatasetDtos.Stats stats() {
         long totalRecords = em.createQuery("select count(t) from Ticket t", Long.class)

@@ -7,7 +7,6 @@ export interface ToastItem {
   id: number;
   message: string;
   variant: ToastVariant;
-  /** How long to stay visible in ms. Defaults to 4000 (5500 for errors). */
   duration?: number;
 }
 

@@ -8,11 +8,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-/**
- * Picks the {@link LoginRateLimiter} implementation from configuration.
- *   memory   → per-process counters for isolated development only
- *   database → durable shared counters via the login_attempts table (the default)
- */
 @Configuration
 public class RateLimiterConfig {
 

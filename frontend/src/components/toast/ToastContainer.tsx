@@ -6,10 +6,6 @@ interface Props {
   onDismiss: (id: number) => void;
 }
 
-/**
- * Fixed-position stack of active toasts, top-center on desktop and full-width top on mobile.
- * Success toasts get a confetti burst behind them.
- */
 export function ToastContainer({ items, onDismiss }: Props) {
   if (items.length === 0) return null;
   return (

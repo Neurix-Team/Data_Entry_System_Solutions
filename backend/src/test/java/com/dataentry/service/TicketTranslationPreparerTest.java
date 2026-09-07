@@ -20,11 +20,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-/**
- * Direct coverage of the translation preparer that was pulled out of TicketService. These
- * tests protect the dedup guarantees the ticket flow leans on — every duplicate string
- * translated once, blanks skipped, non-text field types left alone.
- */
 @ExtendWith(MockitoExtension.class)
 class TicketTranslationPreparerTest {
 
@@ -35,8 +30,6 @@ class TicketTranslationPreparerTest {
     @BeforeEach
     void setup() {
         preparer = new TicketTranslationPreparer(translator);
-        // Lenient: several tests here exercise the blank-input paths that shouldn't touch
-        // the translator at all — strict stubbing would then complain about "unused" stub.
         lenient().when(translator.toBoth(anyString()))
                 .thenAnswer(inv -> new TranslationService.Bilingual(
                         "EN:" + inv.getArgument(0), "AR:" + inv.getArgument(0)));
@@ -50,7 +43,6 @@ class TicketTranslationPreparerTest {
 
     @Test
     void prepareForOne_dedupesIdenticalTextAcrossFields() {
-        // Same string reused as content and website name → translator called ONCE.
         Map<String, TranslationService.Bilingual> cache = preparer.prepareForOne(
                 "same", "same", null, List.of());
 
@@ -61,7 +53,6 @@ class TicketTranslationPreparerTest {
     @Test
     void prepareForOne_trimsWhitespaceBeforeCaching() {
         preparer.prepareForOne(" hello ", "hello", null, List.of());
-        // Both entries normalise to "hello" → still a single translator call.
         verify(translator, times(1)).toBoth("hello");
     }
 
@@ -96,7 +87,6 @@ class TicketTranslationPreparerTest {
 
         preparer.prepareForBulk(List.of(a, b), Map.of(), List.of());
 
-        // "Shared" appears as both articles' website name → still just one translator call.
         verify(translator, times(1)).toBoth("Shared");
         verify(translator, times(1)).toBoth("unique A");
         verify(translator, times(1)).toBoth("unique B");
@@ -104,8 +94,6 @@ class TicketTranslationPreparerTest {
 
     @Test
     void prepareForOne_cachesOnlyTheTranslatableFields() {
-        // The title no longer reaches the preparer at all: it is extracted from the attached
-        // file and must survive verbatim, so TicketService mirrors it into both columns.
         Map<String, TranslationService.Bilingual> cache =
                 preparer.prepareForOne("body", null, null, List.of());
 
@@ -133,8 +121,6 @@ class TicketTranslationPreparerTest {
 
     @Test
     void lookup_mirrorsUncachedText() {
-        // Text was never registered — preparer must not error, and must mirror the input in
-        // both languages so downstream .setTitleEn/.setTitleAr calls still succeed.
         TranslationService.Bilingual bi = preparer.lookup(Map.of(), "not in cache");
         assertThat(bi.en()).isEqualTo("not in cache");
         assertThat(bi.ar()).isEqualTo("not in cache");

@@ -1,4 +1,3 @@
-# --- Stage 1: build the React bundle ---
 FROM node:20-alpine AS builder
 
 WORKDIR /app
@@ -12,7 +11,6 @@ COPY src ./src
 
 RUN npm run build
 
-# --- Stage 2: serve with nginx (also proxies /api → backend) ---
 FROM nginx:1.27-alpine
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf

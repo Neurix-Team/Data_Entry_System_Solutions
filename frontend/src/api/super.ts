@@ -85,9 +85,6 @@ export interface CreateTeamAdminRequest {
   email?: string;
 }
 
-/** One-shot: create an admin AND their fresh workspace team in a single call.
- *  Preferred over the two-step (createTeam → createTeamAdmin) flow because every
- *  admin now owns their own isolated team. */
 export interface CreateAdminWithTeamRequest {
   username: string;
   password: string;
@@ -125,7 +122,6 @@ export interface ProjectBreakdown {
   status: string;
 }
 
-// ---------- Data explorer ----------
 
 export interface ExplorerDocument {
   id: number;
@@ -194,7 +190,6 @@ export interface ExplorerQuery {
   size?: number;
 }
 
-/** One attachment plus the folder context needed to mirror it as Project/Department/file. */
 export interface ExplorerManifestEntry {
   ticketId: number;
   ticketTitle: string | null;
@@ -257,7 +252,6 @@ function explorerParams(q: ExplorerQuery): URLSearchParams {
   return p;
 }
 
-// ---------- Published dataset ----------
 
 export interface DatasetRow extends Omit<ExplorerRow, 'id' | 'documents'> {
   id: number;
@@ -291,7 +285,6 @@ export interface DatasetStats {
   totalFiles: number;
 }
 
-// ---------- API tokens ----------
 
 export interface ApiTokenRow {
   id: number;
@@ -308,13 +301,11 @@ export interface ApiTokenRow {
 
 export interface CreateApiTokenRequest {
   name: string;
-  /** Days until the token expires. 0 or null → never expires. */
   expiresInDays?: number | null;
 }
 
 export interface CreateApiTokenResponse {
   token: ApiTokenRow;
-  /** Full plaintext token — shown once, never returned again. */
   plaintext: string;
 }
 
@@ -336,27 +327,23 @@ export const superApi = {
     api.get<TeamAdminRow[]>(`/super/teams/${teamId}/members`).then((r) => r.data),
   createTeamAdmin: (teamId: number, req: CreateTeamAdminRequest) =>
     api.post<TeamAdminRow>(`/super/teams/${teamId}/admins`, req).then((r) => r.data),
-  /** Canonical admin onboarding: fresh team + admin in one call. */
   createAdminWithNewTeam: (req: CreateAdminWithTeamRequest) =>
     api.post<AdminWithTeamResponse>('/super/admins-with-team', req).then((r) => r.data),
 
   projectsBreakdown: () =>
     api.get<ProjectBreakdown[]>('/super/projects-breakdown').then((r) => r.data),
 
-  // Data explorer
   explorerFacets: () =>
     api.get<ExplorerFacets>('/super/data/facets').then((r) => r.data),
   explorerTickets: (q: ExplorerQuery) =>
     api.get<ExplorerPage>('/super/data/tickets', { params: q }).then((r) => r.data),
   explorerTicket: (id: number) =>
     api.get<ExplorerRow>(`/super/data/tickets/${id}`).then((r) => r.data),
-  /** Every attachment matching the filters (no paging) — drives the folder download. */
   explorerManifest: (q: ExplorerQuery, includeText = false) => {
     const p = explorerParams(q);
     if (includeText) p.set('includeText', 'true');
     return api.get<ExplorerManifest>(`/super/data/manifest?${p.toString()}`).then((r) => r.data);
   },
-  /** Session-authenticated ZIP of the same selection, for browsers without folder access. */
   explorerArchiveUrl: (q: ExplorerQuery, opts: ExplorerArchiveOptions) => {
     const p = explorerParams(q);
     if (opts.subcategoryFolders) p.set('subcategoryFolders', 'true');
@@ -372,7 +359,6 @@ export const superApi = {
   datasetStats: () =>
     api.get<DatasetStats>('/super/dataset/stats').then((r) => r.data),
 
-  // API tokens
   apiTokens: () =>
     api.get<ApiTokenRow[]>('/super/api-tokens').then((r) => r.data),
   createApiToken: (req: CreateApiTokenRequest) =>

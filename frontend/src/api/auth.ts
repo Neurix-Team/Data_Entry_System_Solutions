@@ -18,14 +18,11 @@ export const authApi = {
 
   me: (signal?: AbortSignal) => api.get<User>('/auth/me', { signal }).then(r => r.data),
 
-  /** Clears the httpOnly auth cookie on the server. */
   logout: () => api.post('/auth/logout').then(() => undefined),
 
-  /** Update the caller's own display name / email / phone. Returns the fresh User. */
   updateMe: (req: UpdateProfileRequest) =>
     api.patch<User>('/auth/me', req).then(r => r.data),
 
-  /** Change the caller's own password. Server verifies the current password. */
   changePassword: (req: ChangePasswordRequest) =>
     api.post('/auth/me/password', req).then(() => undefined),
 };

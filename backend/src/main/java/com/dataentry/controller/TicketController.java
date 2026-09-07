@@ -51,7 +51,6 @@ public class TicketController {
         return service.listAll(clampPage(page), clampSize(size));
     }
 
-    /** Clamp page inputs so a caller can't request page=-5 or size=1_000_000 and OOM us. */
     private int clampPage(int page) {
         return Math.max(page, 0);
     }
@@ -74,10 +73,6 @@ public class TicketController {
         return service.updateStatus(id, req.status());
     }
 
-    /**
-     * Admin edit of an entry's authored fields (title, content, website, resources).
-     * Attachments are managed through the documents endpoints; status through /status.
-     */
     @PatchMapping("/admin/tickets/{id}")
     public TicketDtos.TicketResponse update(
             @PathVariable Long id,
@@ -85,9 +80,6 @@ public class TicketController {
         return service.updateByAdmin(id, req);
     }
 
-    /** Approve a ticket — sets its status to COMPLETED. Thin alias over updateStatus so
-     *  the Project Folders UI can call one dedicated verb instead of building a status
-     *  payload; auditing and authz land in the same place either way. */
     @PostMapping("/admin/tickets/{id}/approve")
     public TicketDtos.TicketResponse approve(@PathVariable Long id) {
         return service.updateStatus(id, "COMPLETED");
@@ -105,12 +97,6 @@ public class TicketController {
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * User-side delete for tickets the caller owns. Used by the submit form to roll back a
-     * batch when a subsequent attachment upload fails — otherwise the user would be left
-     * with orphan tickets they think succeeded. Admins can also hit this; the service
-     * enforces ownership so a user cannot delete someone else's ticket.
-     */
     @DeleteMapping("/user/tickets/{id}")
     public ResponseEntity<Void> deleteMine(
             @PathVariable Long id,
@@ -119,7 +105,6 @@ public class TicketController {
         return ResponseEntity.noContent().build();
     }
 
-    // ----- Stats & reports (delegate to DashboardService) -----
 
     @GetMapping("/admin/stats")
     public DashboardDtos.AdminStats stats() {

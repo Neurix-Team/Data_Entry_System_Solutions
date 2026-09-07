@@ -4,10 +4,6 @@ export type FieldType = 'TEXT' | 'TEXTAREA' | 'NUMBER' | 'URL' | 'EMAIL' | 'DATE
 
 export type TicketStatus = 'IN_PROGRESS' | 'REVIEW' | 'COMPLETED';
 
-/**
- * Compact team info attached to every login response. SUPER_ADMIN users have {@code team = null}
- * (they operate across every team). Everyone else always has a team.
- */
 export interface TeamRef {
   id: number;
   slug: string;
@@ -24,18 +20,11 @@ export interface User {
   displayNameEn?: string | null;
   displayNameAr?: string | null;
   role: Role;
-  /** Present on the /auth/me payload so the profile page can populate its form. */
   email?: string | null;
   phone?: string | null;
-  /** ISO timestamp of the last avatar upload; null means no avatar. Used both as
-   *  presence check and as a cache-bust value in the avatar URL. */
   avatarUpdatedAt?: string | null;
-  /** When the account itself was created. Shown on the profile page. */
   createdAt?: string | null;
-  /** Owning team. Null only for SUPER_ADMIN accounts. */
   team?: TeamRef | null;
-  /** True while a SUPER_ADMIN is "entered" into a specific team via the header — the UI
-   *  uses this to render the red impersonation banner. */
   impersonating?: boolean;
 }
 
@@ -148,8 +137,6 @@ export interface ResourceInput {
   url: string;
 }
 
-/** Reference to an image the server extracted from an uploaded PDF and parked in staging.
- *  On ticket submit these are moved into the ticket's permanent attachments. */
 export interface ExtractedImageRefInput {
   name: string;
   extractionId: string;
@@ -165,7 +152,6 @@ export interface ArticleInput {
   extractedImages?: ExtractedImageRefInput[];
 }
 
-/** Admin edit of an entry's authored fields. Resources are replaced wholesale. */
 export interface UpdateTicketPayload {
   title: string;
   content: string;
@@ -260,12 +246,10 @@ export interface Project {
   subtitle?: string | null;
   subtitleEn?: string | null;
   subtitleAr?: string | null;
-  /** Legacy primary-department pointer — the first department in {@link departments}. */
   departmentId: number | null;
   departmentName: string | null;
   departmentNameEn?: string | null;
   departmentNameAr?: string | null;
-  /** All departments assigned to this project — source of truth. */
   departments: ProjectDepartment[];
   members: ProjectMember[];
   startDate?: string | null;
@@ -275,7 +259,6 @@ export interface Project {
   status: ProjectStatus;
 }
 
-// --- dashboard ---
 
 export interface DailyCount {
   date: string;
@@ -387,11 +370,9 @@ export interface MyDashboard {
   recent: RecentTicket[];
 }
 
-// --- pdf ---
 
 export interface ExtractedImage {
   filename: string;
-  /** API path served by ExtractionController. Browser can render it directly with the auth cookie. */
   url: string;
   contentType: string;
   sizeBytes: number;
@@ -400,10 +381,7 @@ export interface ExtractedImage {
   height: number;
 }
 
-// --- project folders ---
 
-/** One card in the /project-folders grid. Counts are scoped to the caller (USER sees
- *  only their own tickets; ADMIN sees the project total). */
 export interface ProjectFolderSummary {
   projectId: number;
   projectName: string;
@@ -438,7 +416,6 @@ export interface QuickUploadResult {
   failures: QuickUploadFailure[];
 }
 
-// --- notifications ---
 
 export interface NotificationItem {
   id: number;
@@ -464,13 +441,10 @@ export interface ExtractedPdf {
   truncated: boolean;
   extractedAt: string;
   warnings: string[];
-  /** Present only when the backend staged images. Bundle these back with the article
-   *  on submit so the server promotes them into permanent ticket attachments. */
   extractionId: string | null;
   images: ExtractedImage[];
 }
 
-// --- chunked uploads (/uploads/sessions) ---
 
 export type UploadTarget = 'QUICK_UPLOAD' | 'TICKET_DOCUMENT';
 
@@ -482,7 +456,6 @@ export interface UploadSessionCreateRequest {
   projectId?: number | null;
   departmentId?: number | null;
   ticketId?: number | null;
-  /** Ticket title (QUICK_UPLOAD) or document display name (TICKET_DOCUMENT). */
   title?: string | null;
 }
 
@@ -492,7 +465,6 @@ export interface UploadSession {
   size: number;
   chunkBytes: number;
   totalChunks: number;
-  /** Chunk indices already safely on disk — resume by sending the rest. */
   received: number[];
   expiresAt: string;
 }

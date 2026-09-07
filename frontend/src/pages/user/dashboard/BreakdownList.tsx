@@ -5,7 +5,6 @@ interface Props {
   items: UserBreakdownRow[];
 }
 
-/** Horizontal bar list — used for department & subcategory breakdowns. */
 export function BreakdownList({ items }: Props) {
   const { t } = useT();
   if (items.length === 0) {

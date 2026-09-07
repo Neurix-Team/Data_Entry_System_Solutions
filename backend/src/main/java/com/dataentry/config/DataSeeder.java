@@ -92,14 +92,6 @@ public class DataSeeder implements CommandLineRunner {
         splitMultiAdminTeams();
     }
 
-    /**
-     * Enforces the "one admin per team" invariant on legacy data. Every admin runs their own
-     * isolated workspace, so a team that historically ended up with more than one ADMIN gets
-     * split: the oldest admin (by createdAt) keeps the current team + all its projects,
-     * departments, tickets, and non-admin users, while every other admin is moved into a
-     * fresh empty team named after them. Idempotent — subsequent boots find no violations
-     * and do nothing.
-     */
     private void splitMultiAdminTeams() {
         List<Long> teamsWithMultipleAdmins;
         try {
@@ -123,8 +115,6 @@ public class DataSeeder implements CommandLineRunner {
                     "FROM users WHERE team_id = ? AND role = 'ADMIN' " +
                     "ORDER BY created_at ASC, id ASC",
                     teamId);
-            // Keep the first admin (oldest) with the existing team + all its data. Move
-            // every subsequent admin to a fresh team.
             for (int i = 1; i < admins.size(); i++) {
                 Long adminId = ((Number) admins.get(i).get("id")).longValue();
                 String username = (String) admins.get(i).get("username");
@@ -167,7 +157,6 @@ public class DataSeeder implements CommandLineRunner {
     }
 
     private void cleanOrphanRows() {
-        // Clean up orphaned dependent rows before normal startup work.
         try {
             int fv = jdbc.update("DELETE FROM ticket_field_values WHERE field_id NOT IN (SELECT id FROM custom_fields)");
             int t1 = jdbc.update("DELETE FROM ticket_field_values WHERE ticket_id NOT IN (SELECT id FROM tickets)");
@@ -196,10 +185,6 @@ public class DataSeeder implements CommandLineRunner {
         }
     }
 
-    /**
-     * Ensures a "General" team exists so every legacy row and every new admin/user has a
-     * home. Recovering from a wiped-teams table simply re-creates it on the next boot.
-     */
     private Team seedDefaultTeam() {
         return teamRepository.findBySlug(DEFAULT_TEAM_SLUG).orElseGet(() -> {
             TranslationService.Bilingual bi = translator.toBoth("General");
@@ -217,11 +202,6 @@ public class DataSeeder implements CommandLineRunner {
         });
     }
 
-    /**
-     * Any row that was created before multi-tenancy has {@code team_id IS NULL}. Point every
-     * such row at the default team so the Hibernate filter can find it under the general
-     * admin's session. Idempotent — subsequent runs are no-ops.
-     */
     private void backfillTeamIds(Team defaultTeam) {
         Long teamId = defaultTeam.getId();
         List<String> tables = List.of(
@@ -231,10 +211,6 @@ public class DataSeeder implements CommandLineRunner {
         for (String table : tables) {
             try {
                 if (!columnExists(table, "team_id")) continue;
-                // SUPER_ADMIN accounts MUST keep team_id = NULL — they are cross-team by
-                // design, so accidentally attaching them to a team would (a) leak their
-                // presence in that team's admin/users list and (b) let a team admin
-                // deactivate them via the normal user-management UI.
                 String sql = "users".equals(table)
                         ? "UPDATE users SET team_id = ? WHERE team_id IS NULL AND role != 'SUPER_ADMIN'"
                         : "UPDATE " + table + " SET team_id = ? WHERE team_id IS NULL";
@@ -246,7 +222,6 @@ public class DataSeeder implements CommandLineRunner {
                 log.warn("team_id backfill on {} skipped: {}", table, e.getMessage());
             }
         }
-        // Repair: if a super admin has been mis-stamped by an older seeder run, revert it.
         try {
             int fixed = jdbc.update("UPDATE users SET team_id = NULL WHERE role = 'SUPER_ADMIN' AND team_id IS NOT NULL");
             if (fixed > 0) log.info("Repaired {} SUPER_ADMIN row(s) that had been stamped with a team_id.", fixed);
@@ -254,11 +229,6 @@ public class DataSeeder implements CommandLineRunner {
             log.warn("SUPER_ADMIN team_id repair skipped: {}", e.getMessage());
         }
 
-        // Repair: child rows whose team_id drifted away from their parent's team. The
-        // "seed subcategory into every department" bug in an earlier build stamped the
-        // default team's id on subcategories whose department actually belonged to another
-        // team, which the @PostLoad guard now correctly rejects as a cross-team mismatch —
-        // resulting in 404s on legitimate list pages. Realign to the parent's team_id.
         try {
             int subFix = jdbc.update(
                     "UPDATE subcategories SET team_id = (SELECT team_id FROM departments d WHERE d.id = subcategories.department_id) " +
@@ -278,10 +248,6 @@ public class DataSeeder implements CommandLineRunner {
                             "AND team_id != (SELECT team_id FROM departments d WHERE d.id = tickets.department_id)");
             if (tFix > 0) log.info("Repaired {} ticket row(s) whose team_id had drifted from department.", tFix);
 
-            // Cross-team FK references: null out foreign keys that would let a project/subcategory
-            // point at a row owned by a different team. The Hibernate @PostLoad guard fires when
-            // such an association is lazy-loaded and turns benign list pages into 404s. Nulling
-            // the FK preserves the parent row and just detaches the offending reference.
             int projFk = jdbc.update(
                     "UPDATE projects SET department_id = NULL " +
                             "WHERE department_id IS NOT NULL " +
@@ -303,11 +269,6 @@ public class DataSeeder implements CommandLineRunner {
                             "AND team_id != (SELECT team_id FROM projects p WHERE p.id = tickets.project_id)");
             if (projRefFk > 0) log.info("Nulled {} tickets.project_id cross-team FK(s).", projRefFk);
 
-            // departments.project_id: a department in team X pointing at a project in team Y
-            // would cause DepartmentService.toDto to lazy-load that project on the wrong-team
-            // request, tripping the @PostLoad guard and blowing up the whole /api/admin/departments
-            // response with a "Not found" 404. Nulling the FK detaches the reference so the
-            // department still shows up in its own team, just without the mismatched project link.
             int deptProjFk = jdbc.update(
                     "UPDATE departments SET project_id = NULL " +
                             "WHERE project_id IS NOT NULL " +
@@ -315,8 +276,6 @@ public class DataSeeder implements CommandLineRunner {
                             "AND team_id != (SELECT team_id FROM projects p WHERE p.id = departments.project_id)");
             if (deptProjFk > 0) log.info("Nulled {} departments.project_id cross-team FK(s).", deptProjFk);
 
-            // subcategories.department_id: same story — a subcategory in team X pointing at a
-            // department in team Y trips the guard when the subcategory list serialises.
             int subDeptFk = jdbc.update(
                     "UPDATE subcategories SET department_id = NULL " +
                             "WHERE department_id IS NOT NULL " +
@@ -324,9 +283,6 @@ public class DataSeeder implements CommandLineRunner {
                             "AND team_id != (SELECT team_id FROM departments d WHERE d.id = subcategories.department_id)");
             if (subDeptFk > 0) log.info("Nulled {} subcategories.department_id cross-team FK(s).", subDeptFk);
 
-            // custom_fields.subcategory_id: fields inherit tenancy from their subcategory. A
-            // cross-team FK here would trip the guard when the fields list serialises for
-            // /admin/fields or when a ticket loads its custom values.
             int fieldSubFk = jdbc.update(
                     "UPDATE custom_fields SET subcategory_id = NULL " +
                             "WHERE subcategory_id IS NOT NULL " +
@@ -334,11 +290,6 @@ public class DataSeeder implements CommandLineRunner {
                             "AND team_id != (SELECT team_id FROM subcategories s WHERE s.id = custom_fields.subcategory_id)");
             if (fieldSubFk > 0) log.info("Nulled {} custom_fields.subcategory_id cross-team FK(s).", fieldSubFk);
 
-            // project_members: the many-to-many join between projects and users can hold
-            // cross-team rows from legacy data. The Hibernate teamFilter is not applied to
-            // @ManyToMany lazy loads, so any eager fetch or getMembers() call on the wrong-team
-            // side would trip the PostLoad guard on User and return "Not found". Delete the
-            // mismatched rows so the association only ever contains same-team members.
             int memFix = jdbc.update(
                     "DELETE FROM project_members " +
                             "WHERE EXISTS (" +
@@ -386,11 +337,6 @@ public class DataSeeder implements CommandLineRunner {
         }
     }
 
-    /**
-     * SUPER_ADMIN is intentionally not attached to any team. It's the only role that can
-     * cross tenant boundaries, so an accidental team assignment would let the tenant filter
-     * hide half the system from them. Rotate the credentials on first boot.
-     */
     private void seedSuperAdmin() {
         String username = superAdminUsername == null ? "" : superAdminUsername.trim();
         if (username.isEmpty()) {
@@ -442,12 +388,6 @@ public class DataSeeder implements CommandLineRunner {
         extras.put("Marketing", List.of("Blog", "Social"));
         extras.put("Content Review", List.of("Editorial", "Legal"));
 
-        // Only seed default subcategories on departments the DEFAULT TEAM owns. Iterating
-        // every department was the source of a subtle data-corruption bug: admins in other
-        // teams create their own departments, then on next boot the seeder (running with
-        // no tenant context) auto-added a "General" subcategory to each of those, stamping
-        // the WRONG team_id in the process — the row's team_id ended up as the default
-        // team's id even though the parent department lived in a different team.
         for (Department d : departmentRepository.findAll()) {
             if (d.getTeam() == null || !defaultTeam.getId().equals(d.getTeam().getId())) continue;
             ensureSubcategory(d, DEFAULT_SUBCATEGORY, defaultTeam);
@@ -530,10 +470,6 @@ public class DataSeeder implements CommandLineRunner {
         return f;
     }
 
-    /**
-     * Assigns a default subcategory to any pre-existing row whose subcategory_id is NULL.
-     * Used when upgrading from a schema that predates the Subcategory feature.
-     */
     private void backfillLegacyRows() {
         Long fieldsNullCount = safeCount("select count(*) from custom_fields where subcategory_id is null");
         Long ticketsNullCount = safeCount("select count(*) from tickets where subcategory_id is null");
@@ -573,12 +509,6 @@ public class DataSeeder implements CommandLineRunner {
         }
     }
 
-    /**
-     * One-shot backfill: for rows whose _en / _ar columns are still null after the schema was
-     * upgraded, treat the legacy single column as the source and translate to fill both sides.
-     * Runs every startup but only touches rows that actually need it, so it's cheap after the
-     * first run.
-     */
     private void backfillTranslations() {
         try {
             departmentRepository.findAll().stream()
@@ -628,14 +558,6 @@ public class DataSeeder implements CommandLineRunner {
         }
     }
 
-    /**
-     * An entry's title is the name of the file it came from — its filename, or the title the
-     * document carries inside it — so it has to read back exactly as extracted rather than
-     * machine-translated. Entries created before that rule still hold translated copies in
-     * their bilingual columns, and those are what the dashboard's recent-activity list reads,
-     * so one statement pulls them back in line. Idempotent: once every row mirrors its own
-     * title the update matches nothing.
-     */
     private void unTranslateEntryTitles() {
         try {
             int fixed = jdbc.update(

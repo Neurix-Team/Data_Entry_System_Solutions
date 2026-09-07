@@ -1,5 +1,3 @@
-// Seeds an isolated "Neurix Demo" team with realistic data for the promo video.
-// Everything lives inside the new team; existing teams are untouched.
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -81,7 +79,6 @@ const FIELDS = {
   ],
 };
 
-// ---------- article corpus ----------
 const P = {
   ledgers: [
     ['Wage Ledger of the Delta Spinning Mill, 1934', 'The 1934 wage ledger lists 412 employees across three shifts, with weekly pay recorded in piastres. Overtime entries increase sharply in October, matching the seasonal cotton harvest.\n\nMarginal notes by the foreman record two machinery breakdowns and the hiring of a night-shift supervisor. The ledger is bound in cloth and the last twelve pages show water damage.', { priority: 'High', source_year: '1934', archive_ref: 'TM-1934-017' }],
@@ -135,7 +132,6 @@ const P = {
 const SITES = [['Egyptian National Archives', 'https://www.nationalarchives.gov.eg'], ['IRENA Publications', 'https://www.irena.org/publications'], ['Water Research Portal', 'https://example.org/water-research'], ['Textile History Society', 'https://example.org/textile-history'], ['PV Magazine', 'https://www.pv-magazine.com']];
 
 async function main() {
-  // ---- super admin: team + admin ----
   const sup = new Session();
   await sup.login('superadmin', 'superadmin123');
   let team = (await sup.get('/api/super/teams')).json.find(t => t.slug === 'neurix-demo');
@@ -150,12 +146,10 @@ async function main() {
     console.log('team admin created');
   }
 
-  // ---- team admin ----
   const adm = new Session();
   const admUser = await adm.login(ADMIN.username, ADMIN.password);
   state.adminId = admUser.id;
 
-  // users
   const existing = (await adm.get('/api/admin/users')).json;
   state.agents = {};
   for (const a of AGENTS) {
@@ -165,7 +159,6 @@ async function main() {
   }
   save(); console.log('agents', state.agents);
 
-  // projects -> departments -> subcategories -> fields
   const projList = (await adm.get('/api/admin/projects')).json;
   const deptList = (await adm.get('/api/admin/departments')).json;
   const subList = (await adm.get('/api/admin/subcategories')).json;
@@ -199,13 +192,11 @@ async function main() {
   }
   console.log('fields ok');
 
-  // ---- tickets ----
   if (!state.tickets) {
     state.tickets = [];
     const subToDept = {}; const subToProj = {};
     for (const p of PROJECTS) for (const d of p.departments) for (const s of d.subs) { subToDept[s.key] = d.key; subToProj[s.key] = p.key; }
     const agentNames = AGENTS.map(a => a.username);
-    // weights: some agents more productive
     const weights = { 'omar.hassan': 5, 'layla.ahmed': 4, 'youssef.ali': 3, 'nour.ibrahim': 3, 'karim.fathy': 2, 'mariam.said': 2 };
     const pick = () => { const bag = []; for (const [k, w] of Object.entries(weights)) for (let i = 0; i < w; i++) bag.push(k); return bag[Math.floor(Math.random() * bag.length)]; };
     let si = 0;
@@ -229,7 +220,6 @@ async function main() {
     save(); console.log('\ntickets', state.tickets.length);
   }
 
-  // ---- attachments: each file once per project ----
   if (!state.attached) {
     const files = fs.readdirSync('docs').map(f => path.join('docs', f));
     const byProj = {};
@@ -249,7 +239,6 @@ async function main() {
     state.attached = true; save(); console.log('\nattachments done');
   }
 
-  // ---- quick-upload a few pending files into the Water folder (REVIEW status) ----
   if (!state.quick) {
     const sess = new Session(); await sess.login('nour.ibrahim', AGENT_PW);
     const fd = new FormData();
@@ -264,10 +253,8 @@ async function main() {
     state.quick = true; save();
   }
 
-  // ---- statuses + backdating ----
   if (!state.dated) {
     const ids = state.tickets.map(t => t.id);
-    // Spread over the last 30 days with an upward trend; keep 4 for today.
     const now = new Date();
     const stamps = [];
     for (let i = 0; i < ids.length; i++) {
@@ -281,7 +268,6 @@ async function main() {
     const sql = ids.map((id, i) => `UPDATE tickets SET submitted_at = '${stamps[i]}' WHERE id = ${id} AND team_id = ${state.teamId};`).join('\n');
     const r = spawnSync('docker', ['exec', '-i', 'dems-postgres', 'psql', '-U', 'daleel', '-d', 'dataentry', '-q'], { input: sql, encoding: 'utf8' });
     console.log('backdate', r.status, r.stderr.slice(0, 200));
-    // statuses: oldest mostly completed, recent ones mixed
     for (let i = 0; i < ids.length; i++) {
       const rnd = Math.random();
       let status = 'COMPLETED';

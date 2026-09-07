@@ -2,7 +2,6 @@ import { Component, type ErrorInfo, type ReactNode } from 'react';
 
 interface Props {
   children: ReactNode;
-  /** Rendered instead of `children` when a descendant throws. Receives `reset` to try again. */
   fallback?: (error: Error, reset: () => void) => ReactNode;
 }
 
@@ -10,11 +9,6 @@ interface State {
   error: Error | null;
 }
 
-/**
- * Contains render-time errors so a single broken component does not blank the entire app.
- * Wrap risky subtrees (chat widget, extracted images, page routes) with this and give
- * users a way to retry without a full reload.
- */
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { error: null };
 

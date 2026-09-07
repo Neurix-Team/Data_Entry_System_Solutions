@@ -13,8 +13,6 @@ import java.util.regex.Pattern;
 public class ChatService {
 
     private static final Pattern ARABIC = Pattern.compile("[\\u0600-\\u06FF]");
-    // These two must be declared BEFORE PAGES_NORM's static initializer, because normalize()
-    // reads them and PAGES_NORM's block calls normalize() during class loading.
     private static final Pattern DIACRITICS = Pattern.compile("[ً-ْٰ]");
     private static final Pattern WS = Pattern.compile("\\s+");
 
@@ -84,7 +82,6 @@ public class ChatService {
                     "My tickets", "تذاكري", false)
     );
 
-    /** Pre-normalized keyword banks — computed once at class load, matched against normalized input. */
     private static final List<PageNorm> PAGES_NORM;
 
     static {
@@ -112,7 +109,6 @@ public class ChatService {
 
         String norm = normalize(raw);
 
-        // ---- Small talk (short messages only, to avoid stealing longer navigation intents) ----
         if (isShortAndOnly(norm, GREETING_ALL)) {
             return new ChatResponse(ar
                     ? "أهلاً بك! قولّي على أي صفحة عايز تروحها وأنا هأوديك عليها فوراً."
@@ -130,7 +126,6 @@ public class ChatService {
                     : "Take care! I'll be here whenever you need me.", List.of());
         }
 
-        // ---- Site info ----
         if (matchesAny(norm, SITE_INFO_ALL)) {
             String reply = ar
                     ? "Neurix هو نظام موحّد لإدارة عمليات إدخال البيانات: تنظيم الفرق والأقسام، تسجيل التذاكر ومتابعتها من الإدخال حتى الاعتماد، حقول مخصّصة يديرها المشرف، وتقارير أداء لحظية."
@@ -138,7 +133,6 @@ public class ChatService {
             return new ChatResponse(reply, accessibleQuickLinks(ar, isAdmin));
         }
 
-        // ---- Help / capabilities ----
         if (matchesAny(norm, HELP_ALL)) {
             String reply = ar
                     ? "أقدر أوديك على أي صفحة في التطبيق. اكتب اسم الصفحة أو ميزة وأنا أفهمها. جرب: 'التقارير'، 'المستخدمين'، 'اضف تذكرة'."
@@ -146,7 +140,6 @@ public class ChatService {
             return new ChatResponse(reply, accessibleAllPages(ar, isAdmin));
         }
 
-        // ---- Best-effort page match — always fire ----
         PageNorm best = null;
         int bestScore = 0;
         for (PageNorm pn : PAGES_NORM) {
@@ -196,7 +189,6 @@ public class ChatService {
         for (String p : normPhrases) {
             if (p.isEmpty()) continue;
             if (normInput.equals(p)) return true;
-            // allow trailing punctuation / a single extra word like "there"
             if (normInput.startsWith(p + " ") && normInput.length() - p.length() <= 10) return true;
             if (normInput.endsWith(" " + p) && normInput.length() - p.length() <= 10) return true;
         }
@@ -242,20 +234,6 @@ public class ChatService {
     }
 
  
-    /**
-     * Fold the input so that near-variants match. Applied to both the user's message and
-     * every keyword before comparison.
-     *
-     * <ul>
-     *   <li>Lowercase (English)</li>
-     *   <li>Strip Arabic diacritics (harakat + shadda + sukun): U+064B..U+0652</li>
-     *   <li>Unify hamza forms أ إ آ ء → ا / ئ ؤ → ي / و</li>
-     *   <li>Unify alef-maksura ى → ي</li>
-     *   <li>Unify ta-marbuta ة → ه</li>
-     *   <li>Strip tatweel (kashida) ـ</li>
-     *   <li>Collapse whitespace</li>
-     * </ul>
-     */
     static String normalize(String s) {
         if (s == null) return "";
         String out = s.toLowerCase();

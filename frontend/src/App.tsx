@@ -3,9 +3,6 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { useAuth } from './context/AuthContext';
 
-// Every screen used to be bundled into the first JavaScript download, including all admin
-// and super-admin pages that most users never visit. Route-level imports keep the login and
-// initial shell small; Vite downloads each screen only when the user navigates to it.
 const Layout = lazy(() => import('./components/Layout').then((m) => ({ default: m.Layout })));
 const LoginPage = lazy(() => import('./pages/LoginPage').then((m) => ({ default: m.LoginPage })));
 const ProfilePage = lazy(() => import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })));
@@ -57,7 +54,6 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
 
-      {/* Super admin shell — its own layout so the sidebar clearly signals cross-team scope. */}
       <Route
         element={
           <ProtectedRoute roles={['SUPER_ADMIN']}>
@@ -74,8 +70,6 @@ export default function App() {
         <Route path="/super/admins" element={<SuperAdminsPage />} />
       </Route>
 
-      {/* Admin + user shell — SUPER_ADMIN is also allowed in (they see either cross-team
-          aggregates or scoped data when the impersonation banner is active). */}
       <Route
         element={
           <ProtectedRoute>
@@ -83,7 +77,6 @@ export default function App() {
           </ProtectedRoute>
         }
       >
-        {/* Admin */}
         <Route path="/admin" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><AdminDashboardPage /></ProtectedRoute>} />
         <Route path="/admin/tickets" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><AdminTicketsPage /></ProtectedRoute>} />
         <Route path="/admin/users" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><AdminUsersPage /></ProtectedRoute>} />
@@ -95,14 +88,12 @@ export default function App() {
         <Route path="/admin/project-folders" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><ProjectFoldersPage /></ProtectedRoute>} />
         <Route path="/admin/project-folders/:projectId" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><ProjectFolderDetailPage /></ProtectedRoute>} />
 
-        {/* User (admins can access too) */}
         <Route path="/dashboard" element={<UserDashboardPage />} />
         <Route path="/submit" element={<SubmitTicketPage />} />
         <Route path="/my-tickets" element={<MyTicketsPage />} />
         <Route path="/project-folders" element={<ProjectFoldersPage />} />
         <Route path="/project-folders/:projectId" element={<ProjectFolderDetailPage />} />
 
-        {/* Self-service profile — reachable from the topbar avatar; any signed-in user. */}
         <Route path="/profile" element={<ProfilePage />} />
       </Route>
 

@@ -125,14 +125,12 @@ export function DepartmentDetailModal({ department, onClose, onChanged }: Props)
         <div className="empty-state">{t('common.loading')}</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {/* Status pill */}
           <div>
             <span className={`badge ${department.active ? 'badge-active' : 'badge-inactive'}`}>
               {department.active ? t('common.active') : t('common.inactive')}
             </span>
           </div>
 
-          {/* Stat cards */}
           <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
             <div className="stat-card">
               <div className="stat-card-header">
@@ -154,7 +152,6 @@ export function DepartmentDetailModal({ department, onClose, onChanged }: Props)
             </div>
           </div>
 
-          {/* 30-day chart */}
           <div>
             <div style={{
               fontWeight: 600, color: 'var(--text-secondary)',
@@ -180,7 +177,6 @@ export function DepartmentDetailModal({ department, onClose, onChanged }: Props)
             </div>
           </div>
 
-          {/* Subcategories section */}
           <div>
             <div className="row-between" style={{ alignItems: 'center', marginBottom: 8 }}>
               <div style={{
@@ -241,7 +237,6 @@ export function DepartmentDetailModal({ department, onClose, onChanged }: Props)
         </div>
       )}
 
-      {/* Nested add/edit modal for subcategories */}
       <Modal
         open={addOpen}
         title={subForm.id ? t('admin.subcategories.editTitle') : t('admin.subcategories.createTitle')}

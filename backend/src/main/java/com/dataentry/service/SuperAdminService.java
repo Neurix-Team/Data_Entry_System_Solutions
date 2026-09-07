@@ -26,13 +26,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Backing service for {@code /api/super/*}. Runs exclusively under SUPER_ADMIN auth, so the
- * Hibernate tenant filter is never enabled here — every query sees every team.
- *
- * <p>Aggregation is done in bulk via {@link JdbcTemplate} rather than looping repository
- * calls per team, so the overview page loads in a single round-trip regardless of team count.
- */
 @Service
 @Transactional(readOnly = true)
 public class SuperAdminService {
@@ -61,7 +54,6 @@ public class SuperAdminService {
         this.jwtAuthFilter = jwtAuthFilter;
     }
 
-    // ---------- overview ----------
 
     public SuperAdminDtos.OverviewStats overview() {
         List<Team> teams = teamRepository.findAllByOrderByCreatedAtAsc();
@@ -101,7 +93,6 @@ public class SuperAdminService {
     }
 
     private Map<Long, long[]> loadPerTeamCounts() {
-        // Index: 0=users, 1=admins, 2=projects, 3=departments, 4=tickets
         Map<Long, long[]> out = new HashMap<>();
         loadInto(out, 0, "SELECT team_id, COUNT(*) FROM users WHERE team_id IS NOT NULL GROUP BY team_id");
         loadInto(out, 1, "SELECT team_id, COUNT(*) FROM users WHERE team_id IS NOT NULL AND role = 'ADMIN' GROUP BY team_id");
@@ -119,7 +110,6 @@ public class SuperAdminService {
                 map.computeIfAbsent(teamId, k -> new long[5])[idx] = count;
             });
         } catch (Exception ignored) {
-            // Table may not exist yet on the very first boot before Hibernate creates it.
         }
     }
 
@@ -144,7 +134,6 @@ public class SuperAdminService {
         );
     }
 
-    // ---------- team CRUD ----------
 
     @Transactional
     public SuperAdminDtos.TeamSummary createTeam(SuperAdminDtos.CreateTeamRequest req) {
@@ -179,24 +168,11 @@ public class SuperAdminService {
         if (req.color() != null) team.setColor(req.color());
         if (req.active() != null) team.setActive(req.active());
         teamRepository.save(team);
-        // A team edit (especially deactivation) affects every member's effective session, and
-        // the JWT auth cache holds the User entity with its EAGER-loaded Team snapshot. Drop
-        // the whole cache so the change is honored on the next request instead of after the
-        // 30 s TTL.
         jwtAuthFilter.clearAuthCache();
-        // Re-load counts so the response accurately reflects the team's current size.
         long[] counts = loadPerTeamCounts().getOrDefault(id, new long[5]);
         return toSummary(team, counts, 0);
     }
 
-    /**
-     * Delete a team. Refuses when the team still holds any live business data (users,
-     * projects, departments, subcategories, tickets, custom fields) so history isn't
-     * silently vaporised — the operator is told to deactivate instead. When the team is
-     * empty of business data, this cleans up its {@code audit_logs} rows (their FK is
-     * nullable — history is kept but detached from the deleted team) so the DELETE never
-     * trips the FK constraint that used to surface as an opaque 500.
-     */
     @Transactional
     public void deleteTeam(Long id) {
         Team team = teamRepository.findById(id)
@@ -217,7 +193,6 @@ public class SuperAdminService {
                 count = jdbc.queryForObject(
                         "SELECT COUNT(*) FROM " + b[0] + " WHERE team_id = ?", Long.class, id);
             } catch (Exception ignored) {
-                // Missing/legacy table — skip rather than fail the whole delete on a schema quirk.
             }
             if (count != null && count > 0) {
                 if (message == null) {
@@ -233,8 +208,6 @@ public class SuperAdminService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, message.toString());
         }
 
-        // audit_logs.team_id is nullable by design (SUPER_ADMIN actions have no team) —
-        // detach the historical rows so they survive the team delete instead of blocking it.
         try {
             int detached = jdbc.update("UPDATE audit_logs SET team_id = NULL WHERE team_id = ?", id);
             if (detached > 0) {
@@ -247,12 +220,9 @@ public class SuperAdminService {
         }
 
         teamRepository.delete(team);
-        // Team is gone — any cached auth pointing at it is stale (super admin impersonation
-        // header for this id would silently fall back to no-team on the next request).
         jwtAuthFilter.clearAuthCache();
     }
 
-    // ---------- super-admin management ----------
 
     public List<SuperAdminDtos.SuperAdminRow> listSuperAdmins() {
         return userRepository.findAllByRole(Role.SUPER_ADMIN).stream()
@@ -286,16 +256,8 @@ public class SuperAdminService {
                 saved.isActive(), saved.getCreatedAt());
     }
 
-    // ---------- per-project analytics ----------
 
-    /**
-     * One flat row per project across every team, joined with the team's admins and the
-     * project's own member list plus ticket counts. Built from raw JDBC in three passes so
-     * the whole thing fits in three queries regardless of how many projects/users exist —
-     * a naive per-project loop would N+1 across teams.membership.
-     */
     public List<SuperAdminDtos.ProjectBreakdown> projectsBreakdown() {
-        // Pass 1: base project rows joined to team.
         List<SuperAdminDtos.ProjectBreakdown> rows = new ArrayList<>();
         Map<Long, SuperAdminDtos.ProjectBreakdown> byProjectId = new HashMap<>();
         Map<Long, List<SuperAdminDtos.PersonRef>> membersByProject = new HashMap<>();
@@ -306,8 +268,6 @@ public class SuperAdminService {
         LocalDate today = LocalDate.now(clock);
         Instant weekStart = today.minusDays(6).atStartOfDay(clock.getZone()).toInstant();
 
-        // Team admins — every ADMIN in every team (also captures admins who were seeded later
-        // by other admins, per the user's spec: "even if the admin created another admin").
         try {
             jdbc.query(
                     "SELECT team_id, id, username, COALESCE(display_name, username) " +
@@ -320,7 +280,6 @@ public class SuperAdminService {
                     });
         } catch (Exception ignored) {}
 
-        // Project members via the join table.
         try {
             jdbc.query(
                     "SELECT pm.project_id, u.id, u.username, COALESCE(u.display_name, u.username) " +
@@ -333,9 +292,6 @@ public class SuperAdminService {
                     });
         } catch (Exception ignored) {}
 
-        // Ticket counts per project, both all-time and week-to-date. Explicit RowCallbackHandler
-        // cast — otherwise javac cannot pick between the ResultSetExtractor and
-        // RowCallbackHandler overloads of jdbc.query(String, ...).
         try {
             jdbc.query(
                     "SELECT project_id, COUNT(*) FROM tickets WHERE project_id IS NOT NULL GROUP BY project_id",
@@ -347,8 +303,6 @@ public class SuperAdminService {
             );
         } catch (Exception ignored) {}
 
-        // Projects + their team info. Explicit RowCallbackHandler cast disambiguates from
-        // ResultSetExtractor; getLong+wasNull handles nullable BIGINT columns consistently.
         try {
             jdbc.query(
                     "SELECT p.id, p.name, p.name_en, p.name_ar, p.status, " +
@@ -369,7 +323,7 @@ public class SuperAdminService {
                                 teamId != null
                                         ? adminsByTeam.getOrDefault(teamId, List.of())
                                         : List.of(),
-                                List.of(), // filled in below
+                                List.of(),
                                 0L, 0L,
                                 rs.getString("status")
                         );
@@ -381,11 +335,8 @@ public class SuperAdminService {
                     .warn("projects-breakdown main query failed: {}", e.getMessage());
         }
 
-        // Rebuild rows with member lists + ticket counts merged in.
         List<SuperAdminDtos.ProjectBreakdown> out = new ArrayList<>(rows.size());
         for (SuperAdminDtos.ProjectBreakdown r : rows) {
-            // Wrap in a mutable copy — the default from Map.getOrDefault(..., List.of()) is
-            // immutable and would throw UnsupportedOperationException on the sort below.
             List<SuperAdminDtos.PersonRef> members = new ArrayList<>(
                     membersByProject.getOrDefault(r.projectId(), List.of()));
             members.sort(Comparator.comparing(SuperAdminDtos.PersonRef::username, String.CASE_INSENSITIVE_ORDER));
@@ -402,18 +353,7 @@ public class SuperAdminService {
         return out;
     }
 
-    // ---------- team admin management (from super surface, no impersonation) ----------
 
-    /**
-     * Seed an ADMIN account directly inside a target team. Equivalent to what a super admin
-     * would do by impersonating the team and hitting {@code POST /api/admin/users}, but as a
-     * single call so the "onboard a team" flow reads as one action on the super surface.
-     *
-     * <p>Every team is a single admin's isolated workspace — the tenant filter scopes all
-     * writes and reads by {@code team_id}, and admins never share a workspace. A second
-     * ADMIN into the same team is rejected here so operators fall into the one-shot
-     * {@link #createAdminWithNewTeam(SuperAdminDtos.CreateAdminWithTeamRequest)} flow.
-     */
     @Transactional
     public SuperAdminDtos.TeamAdminRow createTeamAdmin(Long teamId, SuperAdminDtos.CreateTeamAdminRequest req) {
         Team team = teamRepository.findById(teamId)
@@ -441,8 +381,6 @@ public class SuperAdminService {
                 .displayNameAr(bi.ar())
                 .email(req.email())
                 .role(Role.ADMIN)
-                // Explicit team on write — the TenantEntityListener would otherwise skip
-                // because we're operating as SUPER_ADMIN (context.isSuperAdmin() = true).
                 .team(team)
                 .active(true)
                 .build());
@@ -451,11 +389,6 @@ public class SuperAdminService {
                 saved.getRole().name(), saved.isActive(), saved.getCreatedAt());
     }
 
-    /**
-     * One-shot: spin up a fresh team + drop a new ADMIN into it. This is the canonical way
-     * to onboard an admin now that every admin runs their own isolated workspace. The
-     * generated slug is derived from the admin's username so it's stable and readable in URLs.
-     */
     @Transactional
     public SuperAdminDtos.AdminWithTeamResponse createAdminWithNewTeam(
             SuperAdminDtos.CreateAdminWithTeamRequest req) {
@@ -516,8 +449,6 @@ public class SuperAdminService {
         while (teamRepository.existsBySlugIgnoreCase(candidate)) {
             candidate = desired + "-" + i++;
             if (i > 500) {
-                // Extremely unlikely in practice; break rather than loop forever if slugs
-                // somehow saturate under an odd naming convention.
                 throw new ResponseStatusException(HttpStatus.CONFLICT,
                         "Could not derive a free team slug from '" + desired + "'.");
             }
@@ -530,9 +461,7 @@ public class SuperAdminService {
         return base + "'s workspace";
     }
 
-    /** List all members of a specific team — useful on the Teams page for a quick roster peek. */
     public List<SuperAdminDtos.TeamAdminRow> listTeamMembers(Long teamId) {
-        // findById to validate existence + get a clean 404 rather than an empty list for a bad id.
         teamRepository.findById(teamId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found"));
         return userRepository.findAllByTeamIdOrderByCreatedAtDesc(teamId).stream()
@@ -542,14 +471,7 @@ public class SuperAdminService {
                 .toList();
     }
 
-    // ---------- impersonation ----------
 
-    /**
-     * Confirms the target team exists + is active and returns a small envelope the frontend
-     * uses to remember which team to send in the impersonation header. No JWT is minted —
-     * the existing SUPER_ADMIN cookie plus the {@code X-Impersonate-Team-Id} header are
-     * what {@link com.dataentry.security.JwtAuthFilter} looks for.
-     */
     public SuperAdminDtos.EnterTeamResponse enterTeam(Long teamId) {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found"));

@@ -2,7 +2,6 @@ interface AvatarProps {
   name?: string | null;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   hue?: number;
-  /** If set, an <img> is rendered; the initials show through only if the image errors out. */
   src?: string | null;
 }
 
@@ -30,8 +29,6 @@ export function Avatar({ name, size = 'md', hue, src }: AvatarProps) {
       aria-label={label}
     >
       {src ? (
-        // The image sits on top of the colored plate; if it fails to load we hide it and
-        // the initials underneath become visible again.
         <img
           className="avatar-img"
           src={src}

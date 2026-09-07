@@ -22,10 +22,8 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    /** Safe generic message for 500s so we never leak stack traces / DB errors to clients. */
     private static final String GENERIC_500_MESSAGE = "Unexpected server error. Please try again later.";
 
-    /** Mirrors app.attachments.max-file-bytes so the 413 text never drifts from the real cap. */
     private final long maxFileBytes;
 
     public GlobalExceptionHandler(
@@ -43,10 +41,6 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<Map<String, Object>> handleStatus(ResponseStatusException ex) {
-        // Debug-level stack trace on 4xx/5xx from ResponseStatusException so we can trace
-        // opaque "Not found" errors thrown deep in the persistence layer (e.g. the tenant
-        // guard's PostLoad hook) back to the actual origin. Enable
-        // com.dataentry.config.GlobalExceptionHandler=DEBUG to see them.
         if (log.isDebugEnabled()) {
             log.debug("ResponseStatusException handled: {} \"{}\"",
                     ex.getStatusCode(), ex.getReason(), ex);
@@ -66,12 +60,6 @@ public class GlobalExceptionHandler {
                         + (maxFileBytes / (1024 * 1024)) + " MB.", null);
     }
 
-    /**
-     * Return the semantically-correct 415 when a client sends the wrong Content-Type (e.g.
-     * JSON to a multipart-only endpoint). Without this handler the exception would fall
-     * through to {@link #handleOther} and surface as an opaque 500 "Unexpected server error"
-     * — which is exactly what tripped up the axios FormData upload bug.
-     */
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
     public ResponseEntity<Map<String, Object>> handleUnsupportedMediaType(
             HttpMediaTypeNotSupportedException ex) {
@@ -81,11 +69,6 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.UNSUPPORTED_MEDIA_TYPE, detail, null);
     }
 
-    /**
-     * Any unhandled exception. Log the full stack trace server-side, but return a generic
-     * message to the client — never expose ex.getMessage() (may contain stack fragments,
-     * DB constraint text, file paths, etc.).
-     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleOther(Exception ex) {
         log.error("Unhandled exception: {}", ex.getMessage(), ex);

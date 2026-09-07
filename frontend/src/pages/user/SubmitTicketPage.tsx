@@ -38,12 +38,6 @@ import { DocumentUploadDialog } from './submit/DocumentUploadDialog';
 import { useArticles } from './submit/useArticles';
 import { useSubmitTicketData } from './submit/useSubmitTicketData';
 
-/**
- * Self-contained ticking clock. Kept as its own component so the setInterval only
- * re-renders this tiny leaf — if it lived in {@link SubmitTicketPage} the entire form
- * (including every focused input) would re-render every second, which was causing
- * input focus loss on Arabic keyboards and slow devices.
- */
 function LiveDateInput() {
   const { lang } = useT();
   const [now, setNow] = useState(() => new Date());
@@ -68,8 +62,6 @@ export function SubmitTicketPage() {
   const { t, lang } = useT();
   const toast = useToast();
 
-  // Reference data (dropdowns + custom fields) lives in a dedicated hook so this component
-  // stays focused on the submit/validate flow.
   const {
     projects, departments, subcategories, fields,
     loading, loadError,
@@ -79,7 +71,6 @@ export function SubmitTicketPage() {
 
   const [customValues, setCustomValues] = useState<Record<string, string>>({});
 
-  // Reset field values when subcategory changes — the field set they belong to no longer applies.
   useEffect(() => {
     setCustomValues({});
   }, [subcategoryId]);
@@ -100,38 +91,28 @@ export function SubmitTicketPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Live meter for the attachment uploads that follow a successful submit. Null when idle.
   const [uploadHud, setUploadHud] = useState<{
     name: string; index: number; count: number; progress: UploadProgress;
   } | null>(null);
 
-  // Titles this page filled in from an attached file, keyed by article id. Lets a later
-  // attachment (or a better PDF-metadata title) replace an auto-filled title without ever
-  // overwriting something the user typed themselves.
   const autoTitles = useRef<Map<number, string>>(new Map());
   const articlesRef = useRef(articles);
   articlesRef.current = articles;
 
-  // Which half of the article form is visible. Null on first render — nothing shows
-  // until the user picks a mode from the two big picker cards. Once picked they can
-  // switch freely; there is no "back to unpicked" state, only a swap.
   const [articleMode, setArticleMode] = useState<ArticleMode | null>(null);
 
-  // -- AI check dialog --
   const [aiOpen, setAiOpen] = useState(false);
   const [aiTargetId, setAiTargetId] = useState<number | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState<AiResult | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
 
-  // -- document extract dialog (legacy — extracts text into an article) --
   const [docOpen, setDocOpen] = useState(false);
   const [docTargetId, setDocTargetId] = useState<number | null>(null);
   const [docLoading, setDocLoading] = useState(false);
   const [docResult, setDocResult] = useState<ExtractedPdf | null>(null);
   const [docError, setDocError] = useState<string | null>(null);
 
-  // ---- validation ----
 
   function validate(): boolean {
     const errs: Record<string, string> = {};
@@ -153,12 +134,6 @@ export function SubmitTicketPage() {
     }
 
     for (const a of articles) {
-      // The two tabs are independent submission surfaces:
-      //   • 'content' tab       → the article is written text; require title + content.
-      //   • 'attachments' tab   → the article is a file bundle; the text fields are
-      //                            invisible on this tab and are NOT enforced.
-      // The user explicitly asked that submitting from one tab never trigger errors in
-      // the other tab. We still block a totally empty article as a last-line sanity check.
       if (articleMode === 'content') {
         if (!a.title.trim()) errs[articleErrorKey(a.id, 'title')] = t('user.submit.errTitle');
         if (!a.content.trim()) errs[articleErrorKey(a.id, 'content')] = t('user.submit.errContent');
@@ -169,9 +144,6 @@ export function SubmitTicketPage() {
           errs[resourceErrorKey(a.id, r.id, 'link')] = t('user.submit.errUrlInvalid');
         }
       }
-      // In attachments mode a completely empty article (no file, no image, no resource)
-      // would create a ghost ticket — flag it on the first document slot so the message
-      // lands where the user is looking.
       if (articleMode === 'attachments') {
         const hasAttachments =
           a.documents.some((d) => d.file != null) || a.extractedImages.length > 0;
@@ -189,13 +161,10 @@ export function SubmitTicketPage() {
     return Object.keys(errs).length === 0;
   }
 
-  /** Validation is now mode-scoped: the tab the user is looking at is the ONLY tab that
-   *  can generate errors, so there is never anything hidden in the other half to warn about. */
   function hiddenErrorFor(_: ArticleRow): boolean {
     return false;
   }
 
-  // ---- submit ----
 
   function buildResources(row: ArticleRow): ResourceInput[] {
     return row.resources
@@ -211,15 +180,6 @@ export function SubmitTicketPage() {
     };
   }
 
-  /**
-   * Uploads every document for one ticket. Throws on the first failure so the caller can
-   * roll the ticket back — partial success would leave orphan tickets with no attachments,
-   * which the user cannot distinguish from a working ticket.
-   *
-   * <p>Files go through the chunked uploader (parallel chunks, per-chunk retry, live
-   * percentage in the HUD above the submit button). A backend without the session
-   * endpoints is detected on the first request and the classic multipart path takes over.
-   */
   async function uploadArticleDocumentsAllOrNothing(
     ticketId: number, docs: DocumentRow[], counter: { index: number; count: number },
   ): Promise<number> {
@@ -285,8 +245,6 @@ export function SubmitTicketPage() {
         customValues: trimmedCustom,
       });
 
-      // Upload documents per article. If any upload fails, roll back every ticket in this
-      // batch so the user isn't left with orphan rows they think succeeded.
       let uploaded = 0;
       const counter = {
         index: 0,
@@ -299,8 +257,6 @@ export function SubmitTicketPage() {
           );
         }
       } catch (uploadErr) {
-        // Best-effort rollback; if one delete also fails, keep trying the rest so we
-        // clean up as much as we can before surfacing the original failure to the user.
         await Promise.allSettled(res.tickets.map((tk) => ticketsApi.removeMine(tk.id)));
         throw uploadErr;
       }
@@ -322,12 +278,6 @@ export function SubmitTicketPage() {
     }
   }
 
-  /**
-   * A file was attached to an article row: give the article a title from it (the way
-   * the multi-file button already does) unless the user has typed their own, and name
-   * the document row when it's still blank. The PDF-metadata pass is asynchronous, so a
-   * "scan0001.pdf" that carries a real title inside gets that one instead.
-   */
   async function autoTitleFromAttachment(articleId: number, documentId: number, file: File) {
     const title = await extractTitleFromFile(file);
     if (!title) return;
@@ -345,7 +295,6 @@ export function SubmitTicketPage() {
     }
   }
 
-  // ---- AI dialog ----
 
   function openAiCheck(articleId: number) {
     const target = articles.find((a) => a.id === articleId);
@@ -368,7 +317,6 @@ export function SubmitTicketPage() {
     setAiOpen(false);
   }
 
-  // ---- doc dialog ----
 
   function openDocModalFor(articleId: number) {
     setDocTargetId(articleId);
@@ -400,7 +348,6 @@ export function SubmitTicketPage() {
       title: target.title.trim() ? target.title : suggestedTitle,
       content: target.content.trim() ? `${target.content}\n\n${docResult.text}` : docResult.text,
     });
-    // Fold the extracted images into the article so they travel with the submission.
     if (docResult.extractionId && docResult.images.length > 0) {
       appendExtractedImages(
         docTargetId,
@@ -412,7 +359,6 @@ export function SubmitTicketPage() {
     setDocOpen(false);
   }
 
-  // ---- render ----
 
   if (loading) {
     return (
@@ -555,9 +501,6 @@ export function SubmitTicketPage() {
               onChange={(e) => {
                 if (e.target.files && e.target.files.length > 0) {
                   addArticlesFromFiles(Array.from(e.target.files));
-                  // Attachments mode is the one that actually shows the file rows — flip to it
-                  // so the freshly-added articles are visible instead of being hidden under the
-                  // "content" tab where the file inputs don't render.
                   setArticleMode('attachments');
                 }
                 e.target.value = '';
@@ -565,10 +508,6 @@ export function SubmitTicketPage() {
             />
           </div>
 
-          {/* Two big picker cards — one per view. On first load neither is selected
-              and the article form stays collapsed, so the page opens quiet and the
-              user's first decision is which surface they want to work on. Once
-              picked, the cards stay visible as an active/inactive pair for switching. */}
           <div
             className="article-mode-picker"
             role="tablist"
@@ -606,8 +545,6 @@ export function SubmitTicketPage() {
             </button>
           </div>
 
-          {/* The article list only mounts after the user has picked a mode.
-              key={articleMode} makes the reveal animation replay on tab swap too. */}
           {articleMode !== null && (
             <div className="article-mode-panel" data-mode={articleMode} key={articleMode}>
               {articles.map((a: ArticleRow, idx: number) => (

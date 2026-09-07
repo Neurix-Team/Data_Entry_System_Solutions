@@ -24,7 +24,6 @@ public class DepartmentController {
         this.projectRepository = projectRepository;
     }
 
-    // Admin: full list including inactive
     @GetMapping("/admin/departments")
     public List<DepartmentDtos.DepartmentResponse> adminList() {
         return service.listAll();
@@ -49,12 +48,6 @@ public class DepartmentController {
         return ResponseEntity.noContent().build();
     }
 
-    // Any authenticated user: only active departments for use in the form.
-    // Cascading filters:
-    //   - projectId given             → only departments of that project (scoped to member for USER)
-    //   - ADMIN with no projectId     → all active departments
-    //   - USER member of ≥1 project   → union of departments of the user's member projects
-    //   - USER member of no projects  → empty list (admin hasn't scoped them yet)
     @GetMapping("/departments")
     public List<DepartmentDtos.DepartmentResponse> userList(
             @RequestParam(required = false) Long projectId,

@@ -16,9 +16,6 @@ import java.util.List;
 import java.util.Objects;
 
 @Service
-// Class-level readOnly so read methods sit inside a Spring tx and the TenantFilterAspect
-// enables the tenant filter before Hibernate runs the JPQL — otherwise the TeamOwned
-// @PostLoad guard would 404 on the first field from another team.
 @Transactional(readOnly = true)
 public class CustomFieldService {
 
@@ -88,7 +85,6 @@ public class CustomFieldService {
         if (movedSub && repository.existsBySubcategoryIdAndFieldKeyIgnoreCase(sub.getId(), f.getFieldKey())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Field key already exists in the target subcategory");
         }
-        // fieldKey immutable to keep referential integrity in ticket_field_values
         f.setSubcategory(sub);
         boolean labelChanged = !Objects.equals(f.getLabel(), req.label().trim());
         boolean placeholderChanged = !Objects.equals(f.getPlaceholder(), req.placeholder());

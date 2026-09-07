@@ -150,7 +150,6 @@ export function AdminTicketsPage() {
     if (!proceed) return;
     setBulkDeleting(true);
     let ok = 0; let fail = 0;
-    // Keep bulk deletes serial so each ticket result is deterministic.
     for (const id of ids) {
       try {
         await ticketsApi.remove(id);

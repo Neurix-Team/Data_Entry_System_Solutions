@@ -1,12 +1,3 @@
-// k6 load-test for the data-entry app. Runs the endpoints most users hit:
-// login → list departments → list tickets → self-dashboard, mixed EN/AR locales.
-//
-// Ramps to 30 concurrent users, holds for a minute, ramps down. Fails the run if
-// - any request errors above 1%
-// - p95 latency on any endpoint exceeds 800ms
-//
-// Run:  docker run --rm --network host -v $PWD:/scripts grafana/k6 run /scripts/dems-load.js
-
 import http from 'k6/http';
 import { check, group, sleep } from 'k6';
 import { Trend, Rate } from 'k6/metrics';
@@ -60,7 +51,6 @@ export default function () {
   const token = login();
   if (!token) { sleep(1); return; }
 
-  // Alternate the locale so we exercise both name_en and name_ar output paths.
   const lang = (__VU % 2 === 0) ? 'ar' : 'en';
   const headers = { Authorization: `Bearer ${token}`, 'Accept-Language': lang };
 

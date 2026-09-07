@@ -1,0 +1,108 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "graphTooltip": 1,
+  "title": "DEMS Backend Overview",
+  "uid": "dems-backend-overview",
+  "version": 1,
+  "refresh": "15s",
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {},
+  "templating": {"list": []},
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Uptime",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "targets": [{"expr": "process_uptime_seconds{job=\"dems-backend\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Heap used",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "targets": [{"expr": "sum(jvm_memory_used_bytes{area=\"heap\",job=\"dems-backend\"})", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "bytes"}}
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Hikari active",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+      "targets": [{"expr": "hikaricp_connections_active{job=\"dems-backend\"}", "refId": "A"}]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Requests / min",
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+      "targets": [{"expr": "sum(rate(http_server_requests_seconds_count{job=\"dems-backend\"}[5m]))*60", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "reqpm"}}
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "HTTP p50/p95/p99 latency (s)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "targets": [
+        {"expr": "histogram_quantile(0.5, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"dems-backend\"}[5m])))", "refId": "p50", "legendFormat": "p50"},
+        {"expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"dems-backend\"}[5m])))", "refId": "p95", "legendFormat": "p95"},
+        {"expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"dems-backend\"}[5m])))", "refId": "p99", "legendFormat": "p99"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "HTTP status class rate",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "targets": [
+        {"expr": "sum by (status) (rate(http_server_requests_seconds_count{job=\"dems-backend\"}[5m]))", "refId": "A", "legendFormat": "{{status}}"}
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "JVM heap by pool",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "targets": [
+        {"expr": "jvm_memory_used_bytes{area=\"heap\",job=\"dems-backend\"}", "refId": "A", "legendFormat": "{{id}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "bytes"}}
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "HikariCP pool state",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "targets": [
+        {"expr": "hikaricp_connections_active{job=\"dems-backend\"}", "refId": "A", "legendFormat": "active"},
+        {"expr": "hikaricp_connections_idle{job=\"dems-backend\"}", "refId": "B", "legendFormat": "idle"},
+        {"expr": "hikaricp_connections_pending{job=\"dems-backend\"}", "refId": "C", "legendFormat": "pending"}
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "GC pause time (rate)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20},
+      "targets": [
+        {"expr": "rate(jvm_gc_pause_seconds_sum{job=\"dems-backend\"}[5m])", "refId": "A", "legendFormat": "{{action}} {{cause}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Threads",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20},
+      "targets": [
+        {"expr": "jvm_threads_live_threads{job=\"dems-backend\"}", "refId": "A", "legendFormat": "live"},
+        {"expr": "jvm_threads_daemon_threads{job=\"dems-backend\"}", "refId": "B", "legendFormat": "daemon"},
+        {"expr": "jvm_threads_peak_threads{job=\"dems-backend\"}", "refId": "C", "legendFormat": "peak"}
+      ]
+    }
+  ]
+}

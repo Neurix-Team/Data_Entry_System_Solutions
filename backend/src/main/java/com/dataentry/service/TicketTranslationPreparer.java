@@ -11,18 +11,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Builds the dedup'd translation cache for a ticket (or a batch of them) before we enter the
- * DB transaction. Split out of {@link TicketService} so the translation walk lives on its own
- * and can be tested in isolation.
- *
- * <p>Only text/textarea/select custom fields are translated — numbers, dates and URLs are
- * mirrored back untouched by the caller.
- *
- * <p>The entry title is deliberately absent. It is extracted from the attached file — its
- * filename, or the document's own embedded title — and has to reach both language columns
- * verbatim, so the caller mirrors it instead of looking it up here.
- */
 @Component
 public class TicketTranslationPreparer {
 
@@ -35,7 +23,6 @@ public class TicketTranslationPreparer {
         this.translator = translator;
     }
 
-    /** Translation cache for a single-ticket create. The title is not part of it. */
     public Map<String, TranslationService.Bilingual> prepareForOne(
             String content, String websiteName,
             Map<String, String> customValues, List<CustomField> fields) {
@@ -46,8 +33,6 @@ public class TicketTranslationPreparer {
         return out;
     }
 
-    /** Translation cache spanning every article + the shared custom values in a bulk request.
-     *  Article titles are skipped for the same reason {@link #prepareForOne} skips its own. */
     public Map<String, TranslationService.Bilingual> prepareForBulk(
             List<TicketDtos.ArticleRequest> articles,
             Map<String, String> customValues, List<CustomField> fields) {
@@ -62,11 +47,6 @@ public class TicketTranslationPreparer {
         return out;
     }
 
-    /**
-     * Retrieve a cached bilingual pair. Blank inputs collapse to empty strings so callers
-     * don't need to null-check; texts not in the cache (edge cases, later mutations) mirror
-     * the input into both languages instead of erroring — the row still saves.
-     */
     public TranslationService.Bilingual lookup(
             Map<String, TranslationService.Bilingual> cache, String text) {
         if (text == null || text.isBlank()) return new TranslationService.Bilingual("", "");

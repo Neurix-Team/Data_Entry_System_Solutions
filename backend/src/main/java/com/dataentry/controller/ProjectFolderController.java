@@ -16,11 +16,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
-/**
- * Read endpoints for the "Project Folders" UI. Mounted under the shared /api/ prefix
- * (rather than /api/admin or /api/user) so both USER and ADMIN can hit it — role-based
- * scoping happens inside the service.
- */
 @RestController
 @RequestMapping("/api/project-folders")
 public class ProjectFolderController {
@@ -43,28 +38,11 @@ public class ProjectFolderController {
         return service.getFolder(projectId, current);
     }
 
-    /**
-     * Multi-file upload into one folder. Each file becomes its own REVIEW-status ticket
-     * with the given title (or a filename-derived one if the title is blank). Reports
-     * partial success — the response tells the client both what landed and what failed.
-     *
-     * <p>Body: {@code multipart/form-data} with:
-     * <ul>
-     *   <li>{@code files}   — 1..N binary parts (one per file)</li>
-     *   <li>{@code titles}  — 0..N text parts, positionally paired with files. Blank or
-     *                         missing entries fall back to a filename-derived title.</li>
-     * </ul>
-     */
     @PostMapping(path = "/{projectId}/quick-upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ProjectFolderDtos.QuickUploadResult quickUpload(
             @PathVariable Long projectId,
             @RequestPart("files") List<MultipartFile> files,
-            // Titles bind as multi-valued form fields (not multipart parts), so a plain string
-            // form input works regardless of Content-Type — using @RequestPart on List<String>
-            // rejects text/plain parts with 415 "Content-Type is not supported".
             @RequestParam(value = "titles", required = false) List<String> titles,
-            // Optional: id of the department the caller picked in the modal so every ticket
-            // in this batch lands in the right section instead of the auto-picked default.
             @RequestParam(value = "departmentId", required = false) Long departmentId,
             @AuthenticationPrincipal User current) {
         return service.quickUpload(projectId, departmentId, current, files, titles);

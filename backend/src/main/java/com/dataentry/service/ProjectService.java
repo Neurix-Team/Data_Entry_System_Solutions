@@ -63,22 +63,12 @@ public class ProjectService {
         return toDtos(repository.findAllByOrderByCreatedAtDesc());
     }
 
-    /** Only the projects a specific user is a member of. Returns [] for null userId. */
     @Transactional(readOnly = true)
     public List<ProjectDtos.ProjectResponse> listForMember(Long userId) {
         if (userId == null) return List.of();
         return toDtos(repository.findAllByMemberId(userId));
     }
 
-    /** Batched serialisation for list endpoints — one query for every project's
-     *  departments (and members) regardless of list size, instead of one per row.
-     *
-     *  <p>Members are preloaded via a team-scoped query rather than the raw
-     *  {@code project.members} collection: legacy data can contain cross-team users on that
-     *  association, and the Hibernate {@code teamFilter} isn't automatically applied to
-     *  {@code @ManyToMany} lazy loads, so touching {@code p.getMembers()} used to blow up
-     *  the whole list with a 404 from the {@link com.dataentry.model.TenantEntityListener}
-     *  {@code PostLoad} guard. */
     private List<ProjectDtos.ProjectResponse> toDtos(List<Project> projects) {
         if (projects.isEmpty()) return List.of();
         List<Long> ids = projects.stream().map(Project::getId).toList();
@@ -96,9 +86,6 @@ public class ProjectService {
                 .toList();
     }
 
-    /** Preload the team-scoped members for every project in the batch. Groups by the
-     *  project's own team id so a rogue project attributed to another team still gets
-     *  its own team's members (rather than the caller's). */
     private Map<Long, List<User>> preloadMembers(List<Project> projects, List<Long> ids) {
         Map<Long, List<Long>> projectsByTeam = new HashMap<>();
         for (Project p : projects) {
@@ -121,9 +108,6 @@ public class ProjectService {
 
     @Transactional
     public ProjectDtos.ProjectResponse create(ProjectDtos.UpsertProjectRequest req) {
-        // Projects can now be created before their departments exist — the admin flow is
-        // "create the project first, then go add its departments". A non-empty picker is
-        // still honoured (existing departments are re-parented onto this project).
         List<Long> deptIds = effectiveDepartmentIds(req);
         List<Department> depts = deptIds.isEmpty() ? List.of() : loadDepartments(deptIds);
         Set<User> members = resolveMembers(req.memberIds());
@@ -167,12 +151,9 @@ public class ProjectService {
         p.setName(newName);
         p.setSubtitle(newSubtitle);
 
-        // Departments: replace the current set with the requested set. Any department that
-        // used to belong to this project but isn't in the new list is unassigned (set to null).
         List<Long> targetIds = effectiveDepartmentIds(req);
         if (!targetIds.isEmpty()) {
             List<Department> targets = loadDepartments(targetIds);
-            // Was findAll().stream().filter — now a targeted indexed lookup.
             List<Department> current = departmentRepository.findAllByProjectId(id);
             Set<Long> targetIdSet = new HashSet<>(targetIds);
             for (Department d : current) {
@@ -182,7 +163,6 @@ public class ProjectService {
                 }
             }
             assignDepartmentsToProject(targets, p);
-            // Keep the legacy pointer aligned with the first selected dept.
             p.setDepartment(targets.get(0));
         }
 
@@ -215,13 +195,6 @@ public class ProjectService {
         }
     }
 
-    /**
-     * Delete a project and everything living inside it: its departments, each department's
-     * subcategories and custom fields, and every ticket (with attachments) submitted under
-     * any of them. The whole tree used to be preserved with the departments merely detached
-     * from the project, which left behind orphan sections that the admin then had to hunt
-     * down manually — the user asked for a single-click purge instead.
-     */
     @Transactional
     public void delete(Long id) {
         Project p = repository.findById(id)
@@ -234,9 +207,6 @@ public class ProjectService {
             deptSvc.deleteWithChildren(d.getId());
         }
 
-        // Any tickets that were attached at the project level but whose department has
-        // already been unlinked (legacy rows) still need to go. deleteAll tolerates rows
-        // that got cascaded away by the department pass above.
         ticketRepository.deleteAll(ticketRepository.findAllByProjectId(id));
 
         repository.deleteById(p.getId());
@@ -244,13 +214,11 @@ public class ProjectService {
                 id, "cascade=" + children.size() + " departments");
     }
 
-    // ---------- helpers ----------
 
     private List<Long> effectiveDepartmentIds(ProjectDtos.UpsertProjectRequest req) {
         if (req.departmentIds() != null && !req.departmentIds().isEmpty()) {
             return req.departmentIds().stream().distinct().toList();
         }
-        // Backward compat: an old client that still sends the single departmentId.
         if (req.departmentId() != null) return List.of(req.departmentId());
         return List.of();
     }
@@ -262,7 +230,6 @@ public class ProjectService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "One or more departments not found");
         }
         found.forEach(TenantGuard::assertOwnership);
-        // Preserve request order so the first ID becomes the legacy primary.
         found.sort(Comparator.comparingInt(d -> ids.indexOf(d.getId())));
         return found;
     }
@@ -281,8 +248,6 @@ public class ProjectService {
         return new HashSet<>(found);
     }
 
-    /** Single-project entrypoint used by create/update/get. Runs one department query
-     *  and one team-scoped members query so the create/update response matches list(). */
     private ProjectDtos.ProjectResponse toDto(Project p) {
         Long teamId = p.getTeam() == null ? null : p.getTeam().getId();
         List<User> members = teamId == null

@@ -4,9 +4,6 @@
 <meta charset="utf-8" />
 <title>Neurix — Technical Documentation</title>
 <style>
-  /* --------------------------------------------------------------
-     Design tokens — Neurix identity applied to a print document
-     -------------------------------------------------------------- */
   :root {
     --navy-900: #050a1b;
     --navy-800: #0a1a3d;
@@ -36,9 +33,6 @@
     --font-mono:  'JetBrains Mono', 'Fira Code', 'Consolas', 'Cascadia Code', monospace;
   }
 
-  /* --------------------------------------------------------------
-     Page setup — A4, comfortable margins, running footer
-     -------------------------------------------------------------- */
   @page {
     size: A4;
     margin: 20mm 18mm 22mm 18mm;
@@ -57,13 +51,9 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Sections that own a page-break */
   .page-break { page-break-before: always; }
   .no-break   { page-break-inside: avoid; }
 
-  /* --------------------------------------------------------------
-     Cover page
-     -------------------------------------------------------------- */
   .cover {
     page: cover;
     page-break-after: always;
@@ -155,9 +145,6 @@
   .cover-meta dd { margin: 0; font-size: 12pt; font-weight: 600; color: #ffffff; }
   .cover-meta dd .muted { color: rgba(234, 240, 255, 0.65); font-weight: 400; font-size: 10.5pt; }
 
-  /* --------------------------------------------------------------
-     Typography rhythm
-     -------------------------------------------------------------- */
   h1, h2, h3, h4 { color: var(--ink); font-weight: 700; letter-spacing: -0.015em; }
   h1 { font-size: 22pt; margin: 0 0 6mm; }
   h2 { font-size: 15pt; margin: 12mm 0 4mm; color: var(--blue-600); }
@@ -169,7 +156,6 @@
 
   section { page-break-inside: auto; }
 
-  /* Chapter opener */
   .chapter { page-break-before: always; }
   .chapter-num {
     display: inline-block;
@@ -203,9 +189,6 @@
     margin: 0 0 8mm;
   }
 
-  /* --------------------------------------------------------------
-     Building blocks
-     -------------------------------------------------------------- */
   ul, ol { padding-inline-start: 5mm; margin: 0 0 4mm; }
   li { margin-bottom: 1.5mm; }
 
@@ -309,7 +292,6 @@
   .swatch-body strong { display: block; font-size: 9.5pt; color: var(--ink); }
   .swatch-body code { background: transparent; border: 0; padding: 0; color: var(--ink-mid); font-size: 8pt; }
 
-  /* Two-column list for feature bullets */
   .two-col {
     columns: 2;
     column-gap: 8mm;
@@ -317,7 +299,6 @@
   }
   .two-col li { break-inside: avoid; }
 
-  /* TOC */
   .toc { list-style: none; padding: 0; margin: 4mm 0 0; }
   .toc > li {
     display: grid;
@@ -338,7 +319,6 @@
     margin-top: 1mm;
   }
 
-  /* Architecture diagram (pure CSS/HTML boxes) */
   .diagram {
     background: var(--paper-warm);
     border: 1px solid var(--line);
@@ -370,7 +350,6 @@
     letter-spacing: 0.5em;
   }
 
-  /* Quote / voice block for cover-adjacent commentary */
   blockquote {
     margin: 4mm 0 6mm;
     padding: 4mm 5mm;
@@ -393,7 +372,6 @@
 
   .lede { font-size: 12pt; color: var(--ink-mid); }
 
-  /* Small stat grid used in the executive summary */
   .stat-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -429,7 +407,6 @@
     padding-top: 8mm;
   }
 
-  /* Section header with mark */
   .section-header {
     display: flex;
     align-items: center;
@@ -442,10 +419,6 @@
     border-radius: 50%;
   }
 
-  /* --------------------------------------------------------------
-     Component demo styles — used inside the Design System chapter
-     to render live examples of the Neurix UI components on paper.
-     -------------------------------------------------------------- */
   .demo {
     border: 1px solid var(--line);
     border-radius: 8px;
@@ -471,7 +444,6 @@
   }
   .demo-row:last-child { margin-bottom: 0; }
 
-  /* Button demos */
   .btn-demo {
     display: inline-flex;
     align-items: center;
@@ -497,7 +469,6 @@
   .btn-demo.gradient  { background: linear-gradient(135deg, #0a3f9c 0%, #0f5fd1 55%, #22c3d9 100%); color: #fff; border: none; }
   .btn-demo.sm { padding: 5px 12px; font-size: 8pt; min-height: 26px; }
 
-  /* Input demos */
   .input-demo {
     padding: 8px 12px;
     border: 1px solid var(--line);
@@ -532,7 +503,6 @@
     margin-top: 3px;
   }
 
-  /* Card demo */
   .card-demo {
     background: #fff;
     border: 1px solid var(--line);
@@ -544,7 +514,6 @@
   .card-demo .card-title { font-weight: 700; color: var(--ink); font-size: 10pt; margin-bottom: 2mm; }
   .card-demo .card-body  { color: var(--ink-mid); font-size: 8.5pt; }
 
-  /* Status pill demos */
   .pill-demo {
     display: inline-flex;
     align-items: center;
@@ -560,7 +529,6 @@
   .pill-demo.completed   { background: #dcf5ec; color: #0a6b52; }
   .pill-demo.overdue     { background: #fde8ec; color: #a1233b; }
 
-  /* Alert demos */
   .alert-demo {
     padding: 8px 12px;
     border-radius: 8px;
@@ -574,7 +542,6 @@
   .alert-demo.warn    { background: #fdf1d9; border-color: #f0d590; color: #7c5a10; }
   .alert-demo.error   { background: #fde8ec; border-color: #f4c4cf; color: #a1233b; }
 
-  /* Avatar demos */
   .avatar-demo {
     width: 32px; height: 32px;
     border-radius: 50%;
@@ -593,14 +560,12 @@
   .avatar-demo.h5 { background: #fce0e6; color: #a01a35; }
   .avatar-demo.h6 { background: #fceecd; color: #8a5a0e; }
 
-  /* Table demo */
   .table-demo { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 8.5pt; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
   .table-demo th { background: #f7f9fd; color: var(--ink-mid); text-transform: uppercase; font-size: 7pt; letter-spacing: 0.08em; padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--line); }
   .table-demo td { padding: 8px; border-bottom: 1px solid var(--line); }
   .table-demo tr:last-child td { border-bottom: 0; }
   .table-demo tr:nth-child(even) td { background: #f7f9fd; }
 
-  /* Elevation demos */
   .shadow-scale { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4mm; }
   .shadow-card {
     background: #fff;
@@ -617,7 +582,6 @@
   .shadow-card.s3 { box-shadow: 0 12px 32px rgba(20,22,31,0.08); }
   .shadow-card strong { display: block; font-size: 9pt; color: var(--ink); margin-bottom: 2mm; }
 
-  /* Type scale */
   .type-scale { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
   .type-scale-row {
     display: grid;
@@ -632,14 +596,12 @@
   .type-scale-row .label { font-size: 8pt; font-weight: 600; color: var(--ink-mid); text-transform: uppercase; letter-spacing: 0.06em; }
   .type-scale-row .meta  { font-family: var(--font-mono); font-size: 8pt; color: var(--ink-soft); }
 
-  /* Motion tokens */
   .motion-scale { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; }
   .motion-token { padding: 3mm; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
   .motion-token strong { display: block; color: var(--blue-600); font-size: 9.5pt; font-family: var(--font-mono); }
   .motion-token .desc { font-size: 8pt; color: var(--ink-mid); margin-top: 1mm; }
   .motion-token .use  { font-size: 8pt; color: var(--ink-soft); margin-top: 2mm; font-style: italic; }
 
-  /* Do/Don't */
   .dodont { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin: 3mm 0 5mm; }
   .dodont-panel { border: 1px solid var(--line); border-radius: 8px; padding: 4mm; background: #fff; }
   .dodont-panel.do    { border-color: #b0e0cf; background: #f4fbf8; }
@@ -649,7 +611,6 @@
   .dodont-panel.dont  .title { color: #a1233b; }
   .dodont-panel ul { margin: 0; padding-inline-start: 4mm; font-size: 8.5pt; color: var(--ink-mid); }
 
-  /* Chat bubble demo */
   .chat-demo { max-width: 90mm; }
   .chat-demo-row { display: flex; align-items: flex-end; gap: 2mm; margin-bottom: 2mm; }
   .chat-demo-row.user { justify-content: flex-end; }
@@ -660,13 +621,11 @@
   .chat-demo-actions .btn { padding: 3px 9px; border-radius: 999px; background: var(--accent-soft); color: #0a3f9c; border: 1px solid #b6d0f5; font-size: 7.5pt; font-weight: 600; }
   .chat-demo-avatar { width: 20px; height: 20px; border-radius: 50%; background: linear-gradient(135deg,#0a3f9c,#22c3d9); flex-shrink: 0; }
 
-  /* Icon grid */
   .icon-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3mm; }
   .icon-cell { border: 1px solid var(--line); border-radius: 6px; padding: 4mm 2mm; text-align: center; background: #fff; }
   .icon-cell .glyph { display: block; margin-bottom: 2mm; color: var(--blue-600); }
   .icon-cell .name  { font-size: 7.5pt; color: var(--ink-mid); font-family: var(--font-mono); }
 
-  /* Spacing scale */
   .spacing-scale { display: flex; align-items: flex-end; gap: 4mm; }
   .spacing-block { background: var(--cyan-500); border-radius: 3px; text-align: center; color: #fff; font-family: var(--font-mono); font-size: 7pt; padding-top: 2mm; }
   .spacing-block .label { display: block; color: var(--ink-mid); margin-top: 2mm; font-family: var(--font-body); font-weight: 600; font-size: 8pt; }
@@ -675,9 +634,6 @@
 </head>
 <body>
 
-<!-- ============================================================
-     COVER PAGE
-     ============================================================ -->
 <section class="cover">
   <div class="cover-grid"></div>
   <img class="cover-mark" src="../frontend/public/neurix-mark.png" alt="" />
@@ -714,9 +670,6 @@
   </dl>
 </section>
 
-<!-- ============================================================
-     TABLE OF CONTENTS
-     ============================================================ -->
 <section class="chapter">
   <span class="chapter-num">Contents</span>
   <h1 class="chapter-title">What's inside.</h1>
@@ -769,9 +722,6 @@
   </ul>
 </section>
 
-<!-- ============================================================
-     01 — ABOUT THIS DOCUMENT
-     ============================================================ -->
 <section class="chapter">
   <span class="chapter-num">Chapter 01</span>
   <h1 class="chapter-title">About this document.</h1>
@@ -813,9 +763,6 @@
   <p>I've also skipped over the standard boilerplate — <code>package.json</code> scripts you can read yourself, <code>@Autowired</code> plumbing that looks the same in every Spring project. Where a decision was interesting I've written about it; where it was a default I've stayed quiet.</p>
 </section>
 
-<!-- ============================================================
-     02 — EXECUTIVE SUMMARY
-     ============================================================ -->
 <section class="chapter">
   <span class="chapter-num">Chapter 02</span>
   <h1 class="chapter-title">Executive summary.</h1>
@@ -860,9 +807,6 @@
   </div>
 </section>
 
-<!-- ============================================================
-     03 — SYSTEM ARCHITECTURE
-     ============================================================ -->
 <section class="chapter">
   <span class="chapter-num">Chapter 03</span>
   <h1 class="chapter-title">System architecture.</h1>
@@ -944,9 +888,6 @@
   <p>Every write path in the app follows this same skeleton. Once you've internalized the six pieces — <em>API wrapper → interceptor → nginx → security filter → controller → service → repository</em> — the whole backend reads the same way.</p>
 </section>
 
-<!-- ============================================================
-     04 — TECH STACK
-     ============================================================ -->
 <section class="chapter">
   <span class="chapter-num">Chapter 04</span>
   <h1 class="chapter-title">Tech stack &amp; rationale.</h1>
@@ -1038,9 +979,6 @@
   </ul>
 </section>
 
-<!-- ============================================================
-     05 — FEATURE WALKTHROUGH
-     ============================================================ -->
 <section class="chapter">
   <span class="chapter-num">Chapter 05</span>
   <h1 class="chapter-title">Feature walkthrough.</h1>
@@ -1148,9 +1086,6 @@
   <p>Theme toggle is next to the language toggle. The dark palette is a full re-derivation of the light palette — every token has a dark counterpart in <code>global.css</code>, not just a naive color-invert. Both modes use the Neurix identity; dark just lifts the primary blue and cyan for contrast against the deep-navy surfaces.</p>
 </section>
 
-<!-- ============================================================
-     06 — DESIGN SYSTEM (expanded to a full component reference)
-     ============================================================ -->
 <section class="chapter">
   <span class="chapter-num">Chapter 06</span>
   <h1 class="chapter-title">Design system.</h1>
@@ -1529,9 +1464,6 @@
   </ul>
 </section>
 
-<!-- ============================================================
-     07 — API REFERENCE
-     ============================================================ -->
 <section class="chapter">
   <span class="chapter-num">Chapter 07</span>
   <h1 class="chapter-title">API reference.</h1>
@@ -1632,9 +1564,6 @@
   </div>
 </section>
 
-<!-- ============================================================
-     08 — DATABASE SCHEMA
-     ============================================================ -->
 <section class="chapter">
   <span class="chapter-num">Chapter 08</span>
   <h1 class="chapter-title">Database schema.</h1>
@@ -1692,9 +1621,6 @@ User        1 ── * AuditLog</div>
   </ul>
 </section>
 
-<!-- ============================================================
-     09 — SECURITY
-     ============================================================ -->
 <section class="chapter">
   <span class="chapter-num">Chapter 09</span>
   <h1 class="chapter-title">Security.</h1>
@@ -1751,9 +1677,6 @@ User        1 ── * AuditLog</div>
   </ul>
 </section>
 
-<!-- ============================================================
-     10 — DEPLOYMENT
-     ============================================================ -->
 <section class="chapter">
   <span class="chapter-num">Chapter 10</span>
   <h1 class="chapter-title">Deployment.</h1>
@@ -1811,9 +1734,6 @@ User        1 ── * AuditLog</div>
 <pre><code>pg_dump --format=custom --dbname="$SPRING_DATASOURCE_URL" --file=dataentry.dump</code></pre>
 </section>
 
-<!-- ============================================================
-     11 — DEVELOPMENT SETUP
-     ============================================================ -->
 <section class="chapter">
   <span class="chapter-num">Chapter 11</span>
   <h1 class="chapter-title">Development setup.</h1>
@@ -1875,9 +1795,6 @@ mvn -B test -Dtest=TicketBulkSubmitMvcTest</code></pre>
   <p>If you're using the Impeccable skill, the design detector runs after every edit to a UI file. It flags common anti-patterns (gradient text, oversaturated palettes, decoration for its own sake). The rules live in the skill config; per-file suppressions go in <code>.impeccable/config.json</code>.</p>
 </section>
 
-<!-- ============================================================
-     12 — USER GUIDES
-     ============================================================ -->
 <section class="chapter">
   <span class="chapter-num">Chapter 12</span>
   <h1 class="chapter-title">User guides.</h1>
@@ -1974,9 +1891,6 @@ mvn -B test -Dtest=TicketBulkSubmitMvcTest</code></pre>
   </div>
 </section>
 
-<!-- ============================================================
-     13 — TROUBLESHOOTING
-     ============================================================ -->
 <section class="chapter">
   <span class="chapter-num">Chapter 13</span>
   <h1 class="chapter-title">Troubleshooting.</h1>
@@ -2052,9 +1966,6 @@ lsof -ti:5173 | xargs kill</code></pre>
   <p><strong>Fix.</strong> Rebuild and redeploy in one shot: <code>docker compose build frontend &amp;&amp; docker compose up -d frontend</code>. Don't skip the <code>--build</code> or you'll deploy the old image again.</p>
 </section>
 
-<!-- ============================================================
-     14 — ROADMAP
-     ============================================================ -->
 <section class="chapter">
   <span class="chapter-num">Chapter 14</span>
   <h1 class="chapter-title">Roadmap &amp; known limitations.</h1>
@@ -2101,9 +2012,6 @@ lsof -ti:5173 | xargs kill</code></pre>
   </ul>
 </section>
 
-<!-- ============================================================
-     APPENDIX
-     ============================================================ -->
 <section class="chapter">
   <span class="chapter-num">Appendix A</span>
   <h1 class="chapter-title">File layout.</h1>
@@ -2178,9 +2086,6 @@ lsof -ti:5173 | xargs kill</code></pre>
   </div>
 </section>
 
-<!-- ============================================================
-     APPENDIX B — GLOSSARY
-     ============================================================ -->
 <section class="chapter">
   <span class="chapter-num">Appendix B</span>
   <h1 class="chapter-title">Glossary.</h1>

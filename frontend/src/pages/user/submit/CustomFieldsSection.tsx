@@ -9,7 +9,6 @@ interface Props {
   onChange: (next: Record<string, string>) => void;
 }
 
-/** Shared custom fields (rendered once per submission, values applied to every article). */
 export function CustomFieldsSection({ fields, values, errors, onChange }: Props) {
   const { t } = useT();
   if (fields.length === 0) return null;

@@ -5,20 +5,12 @@ import { useT } from '../i18n';
 interface Props {
   open: boolean;
   title: string;
-  /** Placeholder shown in every empty input row. */
   placeholder?: string;
-  /** Optional helper line under the input list (e.g. "will be added under X department"). */
   hint?: string;
-  /** Extra fields (usually a select the caller needs answered before it can build each row's
-   *  payload) rendered above the repeater. */
   headerContent?: ReactNode;
-  /** Optional guard — when false the Save button stays disabled even if rows are filled.
-   *  Use this for prerequisites like "the caller hasn't picked their required parent yet". */
   canSubmit?: boolean;
   onClose: () => void;
-  /** Called once per non-empty row. Throw on failure — the modal collects errors. */
   onCreateEach: (name: string) => Promise<void>;
-  /** Fires after the whole batch is attempted. */
   onDone: (result: { created: number; failed: number; failures: string[] }) => void;
 }
 
@@ -30,11 +22,6 @@ interface Row {
 let rowKey = 1;
 const newRow = (): Row => ({ key: rowKey++, value: '' });
 
-/**
- * Repeater "add many" modal. Starts with one text input; a leading + button appends another
- * empty row so the user can enter as many as they want. Each row has a × button to remove
- * it. Save walks the list and creates each non-empty row sequentially.
- */
 export function BulkAddModal({
   open, title, placeholder, hint, headerContent, canSubmit = true,
   onClose, onCreateEach, onDone,
@@ -46,7 +33,6 @@ export function BulkAddModal({
   const [busy, setBusy] = useState(false);
   const inputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
-  // Reset the form each time the modal opens so it starts clean.
   useEffect(() => {
     if (open) {
       setRows([newRow()]);
@@ -64,7 +50,6 @@ export function BulkAddModal({
   function addRow() {
     const r = newRow();
     setRows((rs) => [...rs, r]);
-    // Focus the new row on the next tick.
     setTimeout(() => inputRefs.current[r.key]?.focus(), 0);
   }
 
@@ -126,7 +111,6 @@ export function BulkAddModal({
                 disabled={busy}
                 autoFocus={idx === 0}
                 onKeyDown={(e) => {
-                  // Enter on the last row adds a new one so the user can keep typing.
                   if (e.key === 'Enter' && idx === rows.length - 1) {
                     e.preventDefault();
                     if (r.value.trim().length > 0) addRow();

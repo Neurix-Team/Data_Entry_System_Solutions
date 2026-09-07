@@ -1,0 +1,57 @@
+groups:
+  - name: dems-backend
+    interval: 30s
+    rules:
+      - alert: BackendDown
+        expr: up{job="dems-backend"} == 0
+        for: 2m
+        labels:
+          severity: page
+        annotations:
+          summary: "dems-backend is not answering scrapes"
+          description: "Prometheus has been unable to scrape /actuator/prometheus for 2 minutes. Check `docker compose ps` and `docker compose logs --tail=100 backend` on {{ $labels.instance }}."
+
+      - alert: PostgresConnectionsExhausted
+        expr: hikaricp_connections_pending{job="dems-backend"} > 0
+        for: 1m
+        labels:
+          severity: page
+        annotations:
+          summary: "HikariCP pool exhausted — requests are waiting for DB connections"
+          description: "Pending connections have been >0 for 1 minute. Either the DB is slow (check pg CPU / locks) or the app is leaking connections."
+
+      - alert: DiskSpaceLow
+        expr: disk_free_bytes{job="dems-backend"} < 2 * 1024 * 1024 * 1024
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Disk free < 2 GB on the backend container's data volume"
+          description: "The backend's /app/data has less than 2 GB free. See RUNBOOK.md `Disk full`."
+
+      - alert: High5xxRate
+        expr: sum(rate(http_server_requests_seconds_count{job="dems-backend",status=~"5.."}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warn
+        annotations:
+          summary: "5xx error rate elevated"
+          description: "Backend has been returning 5xx at > 0.05 req/s for 5 minutes. Check logs and top offending endpoints."
+
+      - alert: HighP95Latency
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job="dems-backend"}[5m]))) > 2
+        for: 5m
+        labels:
+          severity: warn
+        annotations:
+          summary: "p95 request latency > 2 s"
+          description: "The 95th percentile response time has been above 2 seconds for 5 minutes. Likely a slow endpoint or DB pressure."
+
+      - alert: JvmHeapPressure
+        expr: sum(jvm_memory_used_bytes{job="dems-backend",area="heap"}) / sum(jvm_memory_max_bytes{job="dems-backend",area="heap"}) > 0.9
+        for: 10m
+        labels:
+          severity: warn
+        annotations:
+          summary: "JVM heap usage > 90% for 10 minutes"
+          description: "Consider capturing a heap dump (see RUNBOOK.md `High CPU or memory`)."

@@ -19,7 +19,6 @@ interface Props {
   onInsert: () => void;
 }
 
-/** Upload a PDF / Word / Excel / image and extract its text for insertion into an article. */
 export function DocumentUploadDialog({
   open, loading, result, error, articleIndex,
   onClose, onFileChosen, onInsert,

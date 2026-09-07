@@ -41,20 +41,14 @@ public class JwtService {
         this.expirationMs = expirationMs;
     }
 
-    /**
-     * Standard login token — 24h lifetime, carries role and (for scoped roles) the team id.
-     * SUPER_ADMIN tokens omit {@code tid} so any request they make bypasses the tenant filter
-     * unless they opt in to impersonation via the {@code X-Impersonate-Team-Id} header.
-     */
-    public String generateToken(String username, String role, Long userId, Long teamId) {
+    public String generateToken(String username, String role, Long userId, Long teamId, long tokenVersion) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + expirationMs);
         Map<String, Object> claims = new HashMap<>();
         claims.put("role", role);
         claims.put("uid", userId);
-        // Omit tid entirely for cross-tenant roles so a stale token can't accidentally scope
-        // a SUPER_ADMIN to a specific team.
         if (teamId != null) claims.put("tid", teamId);
+        claims.put("tv", tokenVersion);
         return Jwts.builder()
                 .subject(username)
                 .claims(claims)

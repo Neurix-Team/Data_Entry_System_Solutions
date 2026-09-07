@@ -1,4 +1,3 @@
-// Procedural royalty-free "modern tech / corporate" music bed. Writes music.wav (stereo 44.1k 16-bit).
 const fs = require('fs');
 const SR = 44100, BPM = 100, BEAT = 60 / BPM, BAR = BEAT * 4, SIXTEENTH = BEAT / 4;
 const BARS = Number(process.env.MUSIC_BARS) || 172; // 172 bars ≈ 6:53 at 100 BPM; raise MUSIC_BARS for longer narrations
@@ -7,7 +6,6 @@ const L = new Float32Array(N), R = new Float32Array(N);
 const sendL = new Float32Array(N), sendR = new Float32Array(N); // reverb send
 const arpL = new Float32Array(N), arpR = new Float32Array(N);   // delay bus
 
-// ---- wavetables ----
 const TBL = 4096;
 function table(fn) { const t = new Float32Array(TBL); for (let i = 0; i < TBL; i++) t[i] = fn(i / TBL * 2 * Math.PI); return t; }
 const tSine = table(x => Math.sin(x));
@@ -15,7 +13,6 @@ const tSoftSaw = table(x => { let s = 0; for (let n = 1; n <= 10; n++) s += Math
 const tPluck = table(x => Math.sin(x) + 0.35 * Math.sin(2 * x) + 0.12 * Math.sin(3 * x));
 function midi(m) { return 440 * Math.pow(2, (m - 69) / 12); }
 
-// Add a note: tbl, freq, start(s), dur(s), envelope {a,d,s,r}, gain, pan(-1..1), dest arrays, detune (cents)
 function note(tbl, freq, start, dur, env, gain, pan, dl, dr, detune = 0) {
   const f = freq * Math.pow(2, detune / 1200);
   const inc = f * TBL / SR;
@@ -71,7 +68,6 @@ function clap(start, gain) {
   }
 }
 
-// ---- harmony: Am F C G (vi IV I V) ----
 const chords = [
   { root: 45, tones: [45, 52, 57, 60, 64] }, // A2 E3 A3 C4 E4
   { root: 41, tones: [41, 48, 53, 57, 60] }, // F2 C3 F3 A3 C4
@@ -96,14 +92,12 @@ const leadEnv = { a: 0.05, d: 0.4, s: 0.5, r: 0.5 };
 
 for (let bar = 0; bar < BARS; bar++) {
   const ch = chords[bar % 4]; const t0 = bar * BAR; const sec = section(bar);
-  // pads: two detuned soft saws per tone, wide stereo
   if (sec.pad) for (const m of ch.tones) {
     const g = 0.028 * (m < 50 ? 0.7 : 1);
     note(tSoftSaw, midi(m), t0, BAR - 0.05, padEnv, g, -0.55, L, R, -6);
     note(tSoftSaw, midi(m), t0, BAR - 0.05, padEnv, g, 0.55, L, R, +6);
     note(tSoftSaw, midi(m), t0, BAR - 0.05, padEnv, g * 0.9, 0, sendL, sendR, 0);
   }
-  // bass
   if (sec.bass) {
     const f = midi(ch.root - 12);
     for (const b of [0, 1.5, 2, 3.5]) {
@@ -112,7 +106,6 @@ for (let bar = 0; bar < BARS; bar++) {
       note(tPluck, f * 2, t0 + b * BEAT, dur, bassEnv, 0.05, 0, L, R);
     }
   }
-  // arpeggio: 16ths over the upper chord tones
   if (sec.arp) {
     const seq = [ch.tones[1] + 12, ch.tones[2] + 12, ch.tones[3] + 12, ch.tones[4] + 12, ch.tones[3] + 12, ch.tones[2] + 12, ch.tones[4] + 12, ch.tones[1] + 24];
     for (let s = 0; s < 16; s++) {
@@ -122,7 +115,6 @@ for (let bar = 0; bar < BARS; bar++) {
       note(tPluck, midi(m), t0 + s * SIXTEENTH, SIXTEENTH * 0.6, arpEnv, g, (s % 2 ? 0.35 : -0.35), arpL, arpR);
     }
   }
-  // lead: sparse melodic phrase every other bar
   if (sec.lead && bar % 2 === 0) {
     const phrases = [[[0, 76, 1], [1.5, 79, 0.5], [2, 81, 2]], [[0, 79, 1], [1, 76, 0.5], [1.5, 77, 0.5], [2, 79, 2]], [[0, 84, 1.5], [1.5, 83, 0.5], [2, 79, 2]], [[0, 83, 0.5], [0.5, 81, 0.5], [1, 79, 1], [2, 81, 2]]];
     for (const [b, m, len] of phrases[(bar / 2) % 4 | 0]) {
@@ -130,13 +122,11 @@ for (let bar = 0; bar < BARS; bar++) {
       note(tSine, midi(m), t0 + b * BEAT, len * BEAT * 0.9, leadEnv, 0.05, -0.1, L, R);
     }
   }
-  // drums
   if (sec.kick) { for (const b of [0, 1, 2, 3]) kick(t0 + b * BEAT, 0.5); if (bar % 4 === 3) kick(t0 + 3.5 * BEAT, 0.35); }
   if (sec.clap) for (const b of [1, 3]) clap(t0 + b * BEAT, 0.07);
   if (sec.hat) for (let s = 0; s < 16; s++) { const off = s % 2 === 1; hat(t0 + s * SIXTEENTH, off ? 0.06 : 0.025, off ? 0.07 : 0.03); }
 }
 
-// ---- ping-pong delay on arp bus ----
 {
   const D = Math.round(3 * SIXTEENTH * SR); const fb = 0.42, wet = 0.35;
   const bufL = new Float32Array(D), bufR = new Float32Array(D); let w = 0;
@@ -148,7 +138,6 @@ for (let bar = 0; bar < BARS; bar++) {
     L[i] += outL; R[i] += outR; sendL[i] += outL * 0.4; sendR[i] += outR * 0.4;
   }
 }
-// ---- reverb (Freeverb-lite) on send bus ----
 function reverb(input, output, seedOffset) {
   const combs = [1557, 1617, 1491, 1422, 1277, 1356].map(d => ({ d: d + seedOffset, buf: new Float32Array(d + seedOffset), i: 0, f: 0 }));
   const aps = [225, 556, 441].map(d => ({ d, buf: new Float32Array(d), i: 0 }));
@@ -163,7 +152,6 @@ function reverb(input, output, seedOffset) {
 }
 reverb(sendL, L, 0); reverb(sendR, R, 23);
 
-// ---- master: gentle fade-in, soft clip, normalize ----
 let peak = 0; for (let i = 0; i < N; i++) { peak = Math.max(peak, Math.abs(L[i]), Math.abs(R[i])); }
 const norm = 0.85 / peak;
 const out = Buffer.alloc(44 + N * 4);

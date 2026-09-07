@@ -32,7 +32,6 @@ public class PdfController {
         this.quota = quota;
     }
 
-    /** Legacy PDF-only endpoint — kept for callers pinned to /pdf/extract. */
     @PostMapping(value = "/pdf/extract", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public PdfDtos.ExtractedContentResponse extractPdf(@RequestPart("file") MultipartFile file,
                                                        @AuthenticationPrincipal User user) {
@@ -40,7 +39,6 @@ public class PdfController {
         return runSafely(() -> pdfService.extract(file), safeName(file));
     }
 
-    /** Unified endpoint: PDF, Word, Excel, PowerPoint, images, plain text. */
     @PostMapping(value = "/documents/extract", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public PdfDtos.ExtractedContentResponse extractDocument(@RequestPart("file") MultipartFile file,
                                                             @AuthenticationPrincipal User user) {
@@ -48,12 +46,6 @@ public class PdfController {
         return runSafely(() -> documentService.extract(file), safeName(file));
     }
 
-    /**
-     * Wraps an extraction call so any unexpected exception surfaces to the client as a
-     * targeted 422 with the file name and exception type, instead of the generic 500
-     * "Unexpected server error" from {@code GlobalExceptionHandler}. The full stack trace
-     * is still logged server-side for diagnosis.
-     */
     private PdfDtos.ExtractedContentResponse runSafely(
             java.util.function.Supplier<PdfDtos.ExtractedContentResponse> op, String fileLabel) {
         try {

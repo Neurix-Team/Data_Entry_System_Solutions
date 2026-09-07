@@ -163,7 +163,6 @@ export function AdminDepartmentsPage() {
 
     setBulkDeleting(true);
     let ok = 0; let fail = 0;
-    // Keep bulk deletes serial so failures are isolated and progress remains predictable.
     for (const id of ids) {
       try {
         await departmentsApi.remove(id);
@@ -200,7 +199,6 @@ export function AdminDepartmentsPage() {
 
       {error && <div className="alert alert-error">{error}</div>}
 
-      {/* Sticky bulk-action bar — appears only when at least one row is selected */}
       {selected.size > 0 && (
         <div className="bulk-action-bar">
           <label className="bulk-action-select-all">
@@ -228,7 +226,6 @@ export function AdminDepartmentsPage() {
         </div>
       )}
 
-      {/* Project scope filter — helps admins narrow a long list when many projects exist. */}
       {projects.length > 0 && (
         <div className="card" style={{ padding: '0.75rem 1rem', marginBottom: '1rem', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <label className="field-label" style={{ margin: 0 }}>

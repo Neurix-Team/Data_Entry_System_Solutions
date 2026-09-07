@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-// Appends the 19 small / library-specific tasks I missed on the first pass.
-// Uses the same script pattern as upload-tasks.js — token/list/assignee via env.
 
 const https = require('https');
 
@@ -12,7 +10,6 @@ if (!TOKEN || !LIST_ID || !ASSIGNEE) {
 }
 
 const TASKS = [
-  // ---------- PDF & document library integrations ----------
   { g: 'PDF Libraries', n: '67. opendataloader-pdf Integration',
     d: '**Backend** — `org.opendataloader:opendataloader-pdf-core:2.5.0`, wired in `PdfExtractionService`. The library writes its output to a folder rather than returning it, so each request runs against an isolated temp folder under `app.pdf.output-dir` (default: `${java.io.tmpdir}/dataentry-pdf`); the generated markdown/text is read back and the folder deleted. `@PreDestroy` cleans up any leftover temp trees. Configurable `app.pdf.max-chars` (default 200,000) caps the returned text.' },
 
@@ -25,21 +22,18 @@ const TASKS = [
   { g: 'PDF Libraries', n: '70. Apache Tika Integration',
     d: '**Backend** — `org.apache.tika:tika-core` + `tika-parsers-standard-package:2.9.2`. Powers extraction for everything that isn\'t a PDF or image: Word (doc/docx/docm), Excel (xls/xlsx/xlsm/xlsb/csv), PowerPoint (ppt/pptx/pptm), OpenDocument (odt/ods/odp), RTF, EPUB, HTML/XML/JSON, plain text/markdown. Uses `AutoDetectParser` for format detection and `Tika.detect()` for magic-byte cross-check before parsing. Bounded body handler with `Math.max(maxChars * 4, 1_000_000)` char cap; falls back to `tika.parseToString()` when the primary handler bails on very large docs.' },
 
-  // ---------- Password + time abstractions ----------
   { g: 'Foundation', n: '71. BCrypt Password Hashing',
     d: '**Backend** — `PasswordEncoder` bean in `SecurityConfig` is a `BCryptPasswordEncoder` (default work factor). Every password write (`UserService.create`, `UserService.update`, `DataSeeder` admin+agent seed) goes through `passwordEncoder.encode(...)`. `AuthService.login` matches with `passwordEncoder.matches(raw, hash)`. Plaintext passwords are never persisted or logged — the audit log records only `passwordChanged=true|false`.' },
 
   { g: 'Foundation', n: '72. Injectable Clock for Testability',
     d: '**Backend** — `AppConfig` exposes a `Clock` bean (`Clock.systemDefaultZone()`) that `ProjectService` and `DashboardService` inject instead of calling `Instant.now()` / `LocalDate.now()` directly. Tests can swap in `Clock.fixed(...)` so every date-based assertion (streaks, days-left, sparklines, "today" counters) is deterministic across runs.' },
 
-  // ---------- Data + backfill ----------
   { g: 'Data Bootstrap', n: '73. Default Data Seeding',
     d: '**Backend** — `DataSeeder` (CommandLineRunner) runs on every boot when `app.seed.enabled=true`. Creates: default admin (username + password from env), sample `agent1` user, 5 departments (`Marketing`, `Sales`, `Content Review`, `Compliance`, `Research`), a `General` subcategory under each, `Blog` + `Social` under Marketing, `Editorial` + `Legal` under Content Review, and two example custom fields (`priority` SELECT + `reference_id` TEXT). Idempotent — only inserts when the row doesn\'t already exist. Emits a loud SECURITY warning if the admin password is still the default `admin123`.' },
 
   { g: 'Data Bootstrap', n: '74. Legacy Schema Backfill',
     d: '**Backend** — `DataSeeder.backfillLegacyRows` catches databases that predate the Subcategory feature. Any `custom_fields` or `tickets` row whose `subcategory_id` is `NULL` gets auto-assigned to a `General` subcategory under the appropriate department, via a direct `JdbcTemplate` update so no JPA cascade side-effects fire. Uses `safeCount` probes so it\'s safe to run against fresh schemas that don\'t have the legacy columns.' },
 
-  // ---------- Frontend HTTP plumbing ----------
   { g: 'Frontend Plumbing', n: '75. Axios 401 Auto-Logout Hook',
     d: '**Frontend** — `client.ts` exposes `setUnauthorizedHandler(fn)` and installs a response interceptor that fires the handler on any 401. `AuthContext` registers a handler that clears the in-memory token and resets the user state, so an expired JWT anywhere in the app instantly kicks the user back to `/login` without a manual refresh.' },
 
@@ -49,7 +43,6 @@ const TASKS = [
   { g: 'Frontend Plumbing', n: '77. Vite Dev-Server API Proxy',
     d: '**Frontend** — `vite.config.ts` proxies `/api` to the local backend on port 8083 during dev so the SPA can hit `/api/...` without CORS or hardcoded hostnames. `API_BASE` in `client.ts` respects `VITE_API_BASE` for prod builds where nginx handles the proxy instead.' },
 
-  // ---------- Container images & serving ----------
   { g: 'Container Images', n: '78. Multi-Stage Frontend Docker Build',
     d: '**Ops** — `frontend/Dockerfile` builds the Vite bundle in a `node:22-alpine` builder stage (installs deps, runs `npm run build`), then copies the `dist/` output into a slim `nginx:alpine` runtime stage. Result: no Node in the runtime image, ~30 MB final size.' },
 
@@ -59,15 +52,12 @@ const TASKS = [
   { g: 'Container Images', n: '80. Backend Docker Image',
     d: '**Ops** — `backend/Dockerfile` uses `eclipse-temurin:17-jre` as the base, copies the Maven-built fat jar, exposes 8080, runs as a non-root `app` user with a dedicated `/app/data` writable directory for uploads and extraction artifacts. Includes system Tesseract (`tesseract-ocr`, `tesseract-ocr-ara`, `tesseract-ocr-eng`) + fonts so OCR runs out of the box.' },
 
-  // ---------- Repo hygiene ----------
   { g: 'Foundation', n: '81. .gitignore Hardening',
     d: 'Ignores generated build artifacts (`backend/target/`, `frontend/dist/`, `frontend/node_modules/`, `frontend/.vite/`, `tsconfig.tsbuildinfo`), OS junk (`.DS_Store`, `Thumbs.db`, `desktop.ini`), IDE metadata (`.idea/`, `.vscode/`, `*.iml`), and — critically — secrets: `.env`, `.env.*` (with `!.env.example` escape hatch), and private keys (`*.pem`, `*.key`, `*.p12`, `*.pfx`). Also excludes the Claude Code local scratch dir (`.claude/settings.local.json`, `.claude/plans/`, `.claude/logs/`).' },
 
-  // ---------- Ops small stuff ----------
   { g: 'Container Images', n: '82. LibreTranslate Healthcheck',
     d: '**Ops** — `dems-libretranslate` service has a docker healthcheck `wget -qO- http://localhost:5000/languages` every 30s with a 120s `start_period` to cover the first-boot model download. Compose surfaces `unhealthy` states so operators can see when the translator hasn\'t finished warming up yet.' },
 
-  // ---------- Small backend defenses ----------
   { g: 'Backend Defenses', n: '83. Audit Log Detail Truncation',
     d: '**Backend** — `AuditService.truncate` clamps every `details` string to 2000 chars before persisting so a caller with a huge title / long list of changed fields can\'t bloat the audit table. Combined with the 2000-char column length, this bounds the per-row size regardless of what the caller sends.' },
 

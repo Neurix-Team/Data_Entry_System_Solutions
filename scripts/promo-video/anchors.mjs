@@ -1,8 +1,3 @@
-// Measures where known visual events land in the raw recording and prints the ANCHORS the assembler
-// needs to line the narration up with the drifting recorder clock (tour seconds → video seconds).
-//   pass 1: the full-screen cards (chapters, platform) — deep blue frames
-//   pass 2: the lower-third caption swap at every scene start — the caption box blinks out for ~0.4 s
-// usage: node anchors.mjs [rec/tour.webm] [timeline.json]
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -38,7 +33,6 @@ function runsOf(frames, pred, minLen) {
   return runs.filter(x => x.end - x.start >= minLen);
 }
 
-// ---- pass 1: cards ----
 const CARD_FADE_LEAD = 0.35; // the card fades in over 0.7 s; the classifier trips about this long after the request
 const full = stats('scale=192:108', 10);
 const cardRuns = runsOf(full, f => f.y < 90 && f.u > 133 && f.v < 126, 1.5);
@@ -61,8 +55,6 @@ const coarse = (t) => {
   const l = a[a.length - 1]; return l[1] + (t - l[0]);
 };
 
-// ---- pass 2: caption swaps ----
-// __nxCaption(): fade out 0.45 s, swap at 0.38 s, fade in 0.45 s → the box is gone around t0 + 0.4 s.
 const SWAP_MID = 0.4;
 const box = stats('crop=240:44:840:992', 20);
 for (let i = 1; i < timeline.scenes.length; i++) {
@@ -82,7 +74,6 @@ for (let i = 1; i < timeline.scenes.length; i++) {
   anchors.push([+(s.start + SWAP_MID).toFixed(2), +best.mid.toFixed(2), s.id]);
 }
 
-// ---- merge, sanity-check, print ----
 anchors.sort((a, b) => a[0] - b[0]);
 const clean = [anchors[0]];
 for (const a of anchors.slice(1)) {

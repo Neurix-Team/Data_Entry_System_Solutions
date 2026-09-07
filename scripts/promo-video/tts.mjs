@@ -1,5 +1,3 @@
-// Generates one MP3 per scene with Edge neural TTS (cached by text hash) and measures durations.
-// The language comes from NX_LANG (see narration.mjs); clips land in tts/<lang>/.
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
@@ -32,7 +30,6 @@ for (const s of SCENES) {
       try { await synth(s.text, mp3); ok = true; } catch (e) { console.error('retry', s.id, e.message); tts = null; }
     }
     if (!ok) throw new Error('TTS failed for ' + s.id);
-    // decode to raw PCM s16le 48k mono for exact placement later
     const r = spawnSync(ff, ['-y', '-i', mp3, '-f', 's16le', '-ac', '1', '-ar', '48000', raw], { encoding: 'utf8' });
     if (r.status !== 0) throw new Error(r.stderr.slice(-300));
     const duration = fs.statSync(raw).size / (48000 * 2);

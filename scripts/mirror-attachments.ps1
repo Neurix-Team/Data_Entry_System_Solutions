@@ -1,15 +1,10 @@
 #Requires -Version 5.1
-<#
-Mirrors every attachment reachable through /api/v1/export into a local folder,
-verifying SHA-256 as it goes and writing a manifest that mirrors the server's
-ticket_documents table shape. Rate-limited to stay under the token's 120 req/min cap.
-#>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)] [string] $Token,
     [Parameter(Mandatory=$true)] [string] $BaseUrl,
     [Parameter(Mandatory=$true)] [string] $OutDir,
-    [int] $ThrottleMs = 550,          # 550 ms ⇒ ~109 req/min, safely under 120
+    [int] $ThrottleMs = 550,
     [int] $MaxRetries = 3
 )
 
@@ -25,7 +20,6 @@ $logPath      = Join-Path $OutDir 'mirror.log'
 
 $headers = @{ Authorization = "Bearer $Token" }
 
-# ---- 1. paginate the ticket listing ----------------------------------------
 $tickets = New-Object System.Collections.Generic.List[object]
 $cursor  = $null
 $pages   = 0
@@ -44,7 +38,6 @@ $docCount = ($tickets | ForEach-Object { $_.documents } | Where-Object { $_ }).C
 Add-Content -Path $logPath -Value "listing: $($tickets.Count) tickets, $docCount documents, $pages pages"
 Write-Host "listing: $($tickets.Count) tickets, $docCount documents"
 
-# ---- 2. download each attachment -------------------------------------------
 $rows      = New-Object System.Collections.Generic.List[object]
 $ok        = 0
 $hashOk    = 0
@@ -61,17 +54,15 @@ foreach ($t in $tickets) {
         $ticketDir = Join-Path $attachDir ([string]$t.id)
         if (-not (Test-Path $ticketDir)) { New-Item -ItemType Directory -Path $ticketDir -Force | Out-Null }
 
-        # Sanitize filename for Windows and dodge collisions per-ticket-dir.
         $safe = $d.originalFilename
         foreach ($ch in $invalidChars) { $safe = $safe.Replace($ch, '_') }
         if ([string]::IsNullOrWhiteSpace($safe)) { $safe = "doc-$($d.id)" }
-        $safe = "$($d.id)__$safe"          # id-prefix keeps every entry unique
+        $safe = "$($d.id)__$safe"
         $target = Join-Path $ticketDir $safe
 
         $status = 'ok'
         $localHash = $null
         if (Test-Path $target) {
-            # Resume: skip if size + hash already match. Cheap re-run guard.
             $existing = Get-Item $target
             if ($existing.Length -eq $d.sizeBytes) {
                 $existingHash = (Get-FileHash $target -Algorithm SHA256).Hash.ToLower()
@@ -97,7 +88,7 @@ foreach ($t in $tickets) {
                     $code = 0
                     if ($_.Exception.Response) { $code = [int]$_.Exception.Response.StatusCode.value__ }
                     if ($code -eq 429) {
-                        Start-Sleep -Seconds 60         # honour Retry-After from ApiTokenAuthFilter
+                        Start-Sleep -Seconds 60
                     } elseif ($code -eq 404) {
                         $status = 'missing-on-server'
                         $done = $true
@@ -121,7 +112,7 @@ foreach ($t in $tickets) {
                     if ($localHash -eq $d.contentHash) { $hashOk++ } else { $status = 'hash-mismatch'; $errors++ }
                     $ok++
                 } else {
-                    $hashSkip++       # server row has null contentHash (old data)
+                    $hashSkip++
                     $ok++
                 }
             } elseif ($status -eq 'missing-on-server') {
@@ -153,7 +144,6 @@ foreach ($t in $tickets) {
     }
 }
 
-# ---- 3. write manifest ------------------------------------------------------
 $manifest = [pscustomobject]@{
     generatedAt  = (Get-Date).ToString('o')
     source       = $BaseUrl

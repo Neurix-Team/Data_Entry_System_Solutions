@@ -1,29 +1,15 @@
-/**
- * Turning an attached file into an entry title.
- *
- * The filename is the primary source — it is what the user named the thing. A PDF's own
- * metadata title is consulted only when the filename is a scanner/camera default
- * ("scan0001.pdf", "IMG_2041.pdf", "document.pdf") and the document carries a real title
- * in its Info dictionary or XMP packet. At most 1 MB of the file is read, never the
- * whole book, and every failure falls back to the filename.
- */
 
-/** Filename → title: extension stripped, separators normalised. */
 export function titleFromFilename(name: string): string {
   const withoutExt = name.replace(/\.[^./\\]+$/, '');
   const cleaned = withoutExt.replace(/[_\-.]+/g, ' ').replace(/\s+/g, ' ').trim();
   return cleaned || name;
 }
 
-/** Scanner and camera defaults that say nothing about the content. */
 const MEANINGLESS = /^(?:scan|scanned|img|image|dsc|dcim|document|doc|file|untitled|new document|pdf|book|photo)?[\s_-]*\d*$/i;
 
 export function isMeaninglessTitle(title: string): boolean {
   const t = title.trim();
   if (t.length < 3) return true;
-  // A bare date-time stamp — "20260906 112233" off a phone camera, "2026 09 06 11 22" off a
-  // scanner — carries no letter in any script, so there is nothing in it that could name the
-  // document. The prefix list below only catches the ones that lead with a word.
   if (!/\p{L}/u.test(t)) return true;
   return MEANINGLESS.test(t);
 }
@@ -39,12 +25,10 @@ export async function extractTitleFromFile(file: File): Promise<string> {
     const meta = await readPdfMetadataTitle(file);
     if (meta && !isMeaninglessTitle(meta)) return meta.slice(0, 200);
   } catch {
-    // Unreadable slice or an odd encoding — the filename is still a fine title.
   }
   return fromName;
 }
 
-/** The Info dictionary usually sits near the end of the file, XMP near the start. */
 async function readPdfMetadataTitle(file: File): Promise<string | null> {
   const slices: string[] = [];
   slices.push(latin1(await file.slice(0, Math.min(HEAD_BYTES, file.size)).arrayBuffer()));
@@ -63,13 +47,11 @@ function latin1(buf: ArrayBuffer): string {
 }
 
 function titleFromInfoDict(text: string): string | null {
-  // /Title (literal) — parentheses may be escaped, bytes may be \ddd octal escapes.
   const literal = /\/Title\s*\(((?:\\.|[^\\)])*)\)/.exec(text);
   if (literal) {
     const decoded = decodePdfLiteral(literal[1]).trim();
     if (decoded) return decoded;
   }
-  // /Title <hex> — typically UTF-16BE with a byte-order mark.
   const hex = /\/Title\s*<([0-9A-Fa-f\s]+)>/.exec(text);
   if (hex) {
     const decoded = decodePdfHex(hex[1]).trim();
@@ -114,7 +96,6 @@ function decodePdfHex(h: string): string {
   return bytesToText(bytes);
 }
 
-/** PDF text strings are UTF-16BE with a BOM, UTF-8 with a BOM, or PDFDocEncoding (≈ latin1). */
 function bytesToText(bytes: Uint8Array): string {
   if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
     return new TextDecoder('utf-16be').decode(bytes.subarray(2));
@@ -135,7 +116,6 @@ function titleFromXmp(text: string): string | null {
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;|&apos;/g, "'");
-  // XMP is UTF-8 but the slice was decoded as latin1 — re-decode so Arabic titles survive.
   const fixed = utf8FromLatin1(raw).trim();
   return fixed || null;
 }

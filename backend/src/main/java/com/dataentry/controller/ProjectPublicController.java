@@ -11,12 +11,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * Read-only project listing exposed to any authenticated user — used by the ticket
- * submission form so agents can attach their entries to a project. USER role sees
- * only projects they are a member of; ADMIN sees the full list. Writes stay under
- * the admin controller.
- */
 @RestController
 @RequestMapping("/api/projects")
 public class ProjectPublicController {

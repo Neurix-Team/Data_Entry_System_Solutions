@@ -13,11 +13,10 @@ public class ChatDtos {
             String lang
     ) {}
 
-    /** Suggested action attached to the assistant's reply. */
     public record ChatAction(
-            String type,   // "navigate"
-            String path,   // e.g. "/admin/users"
-            String label   // localized button label
+            String type,
+            String path,
+            String label
     ) {}
 
     public record ChatResponse(

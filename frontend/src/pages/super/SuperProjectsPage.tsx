@@ -4,14 +4,6 @@ import { superApi, type PersonRef, type ProjectBreakdown } from '../../api/super
 import { IconChart, IconFolder, IconSearch } from '../../components/Icons';
 import { useT } from '../../i18n';
 
-/**
- * Cross-team project analytics — one row per project with owning team, every admin of
- * that team, the project's own member roster, and ticket counts. Uses the same
- * {@code page / card / table} shell as the rest of the admin surface so the operator
- * doesn't context-switch visual language just because they're one level up.
- *
- * <p>Clicking a row expands it in-place to show the full admin + member lists.
- */
 export function SuperProjectsPage() {
   const { t } = useT();
   const [rows, setRows] = useState<ProjectBreakdown[] | null>(null);

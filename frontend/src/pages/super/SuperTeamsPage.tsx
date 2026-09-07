@@ -10,12 +10,6 @@ import { useConfirm } from '../../components/ConfirmDialog';
 import { IconBuilding, IconMembers, IconSearch } from '../../components/Icons';
 import { useT } from '../../i18n';
 
-/**
- * Team CRUD in the app's classical admin style — page shell + table, no bespoke hero.
- * Row actions inline: add an admin to the team, view its member roster, edit, delete.
- * Deliberately mirrors AdminUsersPage's layout so a super admin doesn't have to relearn
- * a whole new visual language just because they're one level up.
- */
 export function SuperTeamsPage() {
   const { t } = useT();
   const [teams, setTeams] = useState<TeamSummary[] | null>(null);
@@ -264,7 +258,6 @@ function StatusPill({ active, labelActive, labelInactive }: { active: boolean; l
   );
 }
 
-// ---------- Modals ----------
 
 function TeamFormModal({
   title, team, onClose, onSaved,

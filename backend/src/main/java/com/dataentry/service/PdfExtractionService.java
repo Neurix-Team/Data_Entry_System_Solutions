@@ -20,11 +20,6 @@ import java.time.Instant;
 import java.util.*;
 import java.util.stream.Stream;
 
-/**
- * Bridges Spring uploads to opendataloader-pdf. Because the library writes its output to a folder
- * rather than returning it, we run each request against an isolated temp folder, read back the
- * generated markdown/text, then delete the folder.
- */
 @Service
 public class PdfExtractionService {
 
@@ -88,11 +83,8 @@ public class PdfExtractionService {
             boolean usedOcr = false;
 
             if (markdown != null && !markdown.isBlank() && !PdfOcrService.containsRtl(markdown)) {
-                // Text extraction worked and the text is not RTL — use it as-is.
                 plain = stripMarkdown(markdown);
             } else {
-                // Either extraction failed OR the text is RTL and likely reversed by
-                // opendataloader-pdf. Fall back to rendering pages as images + OCR.
                 String reason = (markdown == null || markdown.isBlank())
                         ? "opendataloader-pdf produced no text"
                         : "opendataloader-pdf produced RTL text that may be reversed";
@@ -128,9 +120,6 @@ public class PdfExtractionService {
                 warnings.add("Text was truncated to " + maxChars + " characters");
             }
 
-            // Pull embedded raster images out to the staging area regardless of which
-            // text path we took. Failures here are non-fatal — the extracted text is the
-            // primary deliverable; images are a nice-to-have.
             String extractionId = null;
             List<PdfDtos.ExtractedImage> images = List.of();
             try {
@@ -140,7 +129,6 @@ public class PdfExtractionService {
                     List<PdfImageExtractor.Extracted> found =
                             imageExtractor.extractInto(input.toFile(), handle.directory());
                     if (found.isEmpty()) {
-                        // Nothing to stage — clean up the empty folder so we don't leak dirs.
                         staging.discard(handle.extractionId());
                     } else {
                         extractionId = handle.extractionId();
@@ -158,7 +146,6 @@ public class PdfExtractionService {
                     }
                 }
             } catch (Exception e) {
-                // Do not fail the whole request if image extraction hits an unexpected snag.
                 log.warn("Image extraction failed for '{}' — continuing with text only: {}",
                         originalName, e.getMessage());
                 warnings.add("Could not extract images from this PDF");
@@ -192,7 +179,6 @@ public class PdfExtractionService {
         }
     }
 
-    /** Pulls the authenticated user's id off the security context; null for anonymous callers. */
     private Long currentUserId() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) return null;
@@ -213,10 +199,6 @@ public class PdfExtractionService {
         }
     }
 
-    /**
-     * Reflection-based call so a version bump on opendataloader-pdf that renames a Config method
-     * only fails the request (with a helpful log) instead of the whole app.
-     */
     private void invokeLibrary(Path input, Path outputDir, List<String> warnings) {
         try {
             Class<?> configCls = Class.forName("org.opendataloader.pdf.api.Config");
@@ -256,7 +238,6 @@ public class PdfExtractionService {
             Method m = target.getClass().getMethod(method, paramType);
             m.invoke(target, value);
         } catch (NoSuchMethodException ignored) {
-            // this Config version does not expose the setter; ignore
         } catch (ReflectiveOperationException e) {
             log.debug("Config setter {} failed: {}", method, e.getMessage());
         }
@@ -274,7 +255,6 @@ public class PdfExtractionService {
     }
 
     private String stripMarkdown(String md) {
-        // Light-touch cleanup so the content field reads naturally.
         return md
                 .replaceAll("(?m)^#{1,6}\\s+", "")
                 .replaceAll("!\\[[^\\]]*\\]\\([^)]*\\)", "")

@@ -11,13 +11,6 @@ import { useT } from '../i18n';
 const MAX_MB = 2;
 const ALLOWED = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif'];
 
-/**
- * Full profile page reachable from the topbar avatar. Split into three cards:
- *   1. Photo — upload / remove avatar
- *   2. Account details — editable displayName / email / phone, readonly username / role
- *   3. Change password — current + new + confirm (backend verifies current)
- * The right column shows account metadata (team, member-since, role).
- */
 export function ProfilePage() {
   const { user, refresh } = useAuth();
   const { t, lang } = useT();
@@ -48,7 +41,6 @@ export function ProfilePage() {
   if (!user) return null;
 
   const displayFinal = displayName.trim() || user.username;
-  // Compare against the freshest stored values so an empty edit doesn't hit the server.
   const dirty =
     (displayName.trim() || '') !== (user.displayName ?? '') ||
     (email.trim() || '') !== (user.email ?? '') ||
@@ -180,9 +172,7 @@ export function ProfilePage() {
       </div>
 
       <div className="profile-grid">
-        {/* ---- LEFT: editable sections ---- */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {/* Photo */}
           <section className="profile-card">
             <h3>{t('profile.photoSection')}</h3>
             <p className="card-hint">{t('profile.photoHint')}</p>
@@ -225,7 +215,6 @@ export function ProfilePage() {
             />
           </section>
 
-          {/* Account details */}
           <section className="profile-card">
             <h3>{t('profile.accountSection')}</h3>
             <p className="card-hint">{t('profile.subtitle')}</p>
@@ -287,7 +276,6 @@ export function ProfilePage() {
             </form>
           </section>
 
-          {/* Change password */}
           <section className="profile-card">
             <h3>{t('profile.passwordSection')}</h3>
             {passwordError && (
@@ -345,7 +333,6 @@ export function ProfilePage() {
           </section>
         </div>
 
-        {/* ---- RIGHT: read-only metadata ---- */}
         <aside className="profile-card" style={{ alignSelf: 'flex-start' }}>
           <h3>{t('profile.accountSection')}</h3>
           <ul className="profile-meta-list">

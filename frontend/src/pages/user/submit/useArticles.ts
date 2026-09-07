@@ -13,8 +13,6 @@ function newRow(id: number, resourceId: number, documentId: number): ArticleRow 
   };
 }
 
-/** Manages the list of articles (and each article's resources & documents) being submitted.
- *  Keeps stable ID counters across renders so React keys stay stable. */
 export function useArticles() {
   const nextArticleId = useRef(1);
   const nextResourceId = useRef(2);
@@ -87,8 +85,6 @@ export function useArticles() {
     []
   );
 
-  /** Merge a batch of freshly-extracted images into an article. Called from
-   *  SubmitTicketPage when the user inserts a PDF extraction result. */
   const appendExtractedImages = useCallback(
     (articleId: number, extractionId: string, images: ExtractedImage[], suggestedNamePrefix: string) => {
       if (images.length === 0) return;
@@ -127,13 +123,6 @@ export function useArticles() {
     []
   );
 
-  /**
-     * Bulk-add multiple files as new articles in one go. Each file becomes its own
-     * article with the title auto-extracted from the filename (extension stripped and
-     * separators normalised) and a pre-populated document row carrying the file itself.
-     * Powers the "Upload multiple files" button on the submit form — the user picks N
-     * files, gets N titled article rows they can still edit before submitting.
-     */
   const addArticlesFromFiles = useCallback((files: File[]) => {
     if (files.length === 0) return;
     const rows: ArticleRow[] = files.map((file) => {
@@ -152,7 +141,6 @@ export function useArticles() {
       };
     });
     setArticles((prev) => {
-      // If the only existing row is the default blank one, replace it; otherwise append.
       const isBlank = prev.length === 1
         && prev[0].title === ''
         && prev[0].content === ''

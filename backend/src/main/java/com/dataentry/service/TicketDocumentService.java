@@ -33,14 +33,11 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 
-/** Persists uploaded files attached to a ticket. Bytes go on disk, metadata to DB. */
 @Service
 public class TicketDocumentService {
 
     private static final Logger log = LoggerFactory.getLogger(TicketDocumentService.class);
 
-    /** Extensions we explicitly refuse — executables, scripts, and other risky types.
-     *  Compared case-insensitively against the trailing suffix of the original filename. */
     private static final Set<String> BLOCKED_EXTENSIONS = Set.of(
             "exe", "com", "bat", "cmd", "sh", "bash", "zsh", "ps1", "psm1", "vbs", "vbe",
             "js", "jse", "jar", "msi", "msp", "scr", "cpl", "dll", "so", "dylib",
@@ -48,12 +45,6 @@ public class TicketDocumentService {
             "reg", "hta", "chm", "lnk", "url", "wsf", "wsh"
     );
 
-    /**
-     * Narrow allowlist. `text/html`, `image/svg+xml`, `application/xhtml+xml`, and other
-     * script-carrying types are intentionally absent — attachments are served back on the
-     * API origin, so allowing HTML would let a user store a script that runs with any
-     * viewer's session (Stored XSS).
-     */
     private static final Set<String> ALLOWED_MIME_TYPES = Set.of(
             "image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp", "image/tiff",
             "audio/mpeg", "audio/mp4", "audio/ogg", "audio/wav", "audio/webm",
@@ -79,15 +70,8 @@ public class TicketDocumentService {
             "application/gzip"
     );
 
-    /** Tika instance for magic-byte detection. Safe to share — Tika.detect is thread-safe. */
     private static final Tika TIKA = new Tika();
 
-    /**
-     * A file that already sits on local disk, ready to be validated and attached. Produced
-     * by the multipart path (after the container spooled it) and by the chunked-upload
-     * finalize. The caller owns {@code path} until {@link #attach} renames it into the
-     * ticket folder, and must remove it if attach rejects the file.
-     */
     public record IncomingFile(Path path, String originalFilename, long size) {}
 
     private final TicketRepository ticketRepository;
@@ -96,14 +80,8 @@ public class TicketDocumentService {
     private final ExtractionStagingService staging;
     private final Path baseDir;
 
-    /**
-     * Where uploads land before they're attached. Sits inside {@link #baseDir} so the final
-     * step is a same-filesystem rename — the old flow copied every book from the container's
-     * temp dir into the attachments volume, a second full write of hundreds of MB.
-     */
     private final Path incomingDir;
 
-    /** Per-file cap. The payload never sits in memory, so this bounds disk, not RAM. */
     private final long maxFileBytes;
 
     public TicketDocumentService(TicketRepository ticketRepository,
@@ -129,12 +107,6 @@ public class TicketDocumentService {
         }
     }
 
-    /**
-     * Classic single-request multipart upload. The servlet container has already spooled
-     * the part into {@link #incomingDir} (see {@code spring.servlet.multipart.location}), so
-     * {@code transferTo} is a rename and the bytes are written to disk exactly once — by
-     * the container, as they arrive off the socket.
-     */
     @Transactional
     public TicketDtos.DocumentResponse upload(Long ticketId, String name, MultipartFile file, User currentUser, boolean isAdmin) {
         if (file == null || file.isEmpty()) {
@@ -145,7 +117,6 @@ public class TicketDocumentService {
                     "File exceeds " + (maxFileBytes / (1024 * 1024)) + " MB limit");
         }
         String originalFilename = sanitiseFilename(file.getOriginalFilename());
-        // Reject risky extensions before touching the disk — cheap and covers the obvious cases.
         assertExtensionAllowed(originalFilename);
 
         Path temp = incomingDir.resolve(UUID.randomUUID() + ".part");
@@ -155,7 +126,6 @@ public class TicketDocumentService {
             } catch (IOException | IllegalStateException e) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Could not read file");
             }
-            // Trust the bytes on disk, not the Content-Length the client declared.
             long actualSize;
             try {
                 actualSize = Files.size(temp);
@@ -164,8 +134,6 @@ public class TicketDocumentService {
             }
             return attach(ticketId, name, new IncomingFile(temp, originalFilename, actualSize), currentUser, isAdmin);
         } finally {
-            // No-op on success (attach renamed the file away); on any rejection above it
-            // removes the half-landed payload so aborted uploads can't fill the disk.
             try {
                 Files.deleteIfExists(temp);
             } catch (IOException e) {
@@ -174,12 +142,6 @@ public class TicketDocumentService {
         }
     }
 
-    /**
-     * Validate a file that is already on disk and attach it to the ticket: type sniffing,
-     * duplicate detection, quota, then a rename into the ticket folder and a DB row. Shared
-     * by the multipart endpoint and the chunked-upload finalize so both enforce exactly the
-     * same rules.
-     */
     @Transactional
     public TicketDtos.DocumentResponse attach(Long ticketId, String name, IncomingFile incoming,
                                               User currentUser, boolean isAdmin) {
@@ -200,9 +162,6 @@ public class TicketDocumentService {
         }
         Path source = incoming.path();
 
-        // Sniff the real MIME by content, not the header the browser sent. This is what
-        // catches a `.jpg`-renamed HTML payload that would otherwise be served as an image.
-        // Tika only reads the head of the stream, so this doesn't rescan the whole file.
         String detectedMime;
         try (InputStream sniff = new BufferedInputStream(Files.newInputStream(source))) {
             detectedMime = TIKA.detect(sniff, originalFilename).toLowerCase(Locale.ROOT);
@@ -214,10 +173,6 @@ public class TicketDocumentService {
                     "File type '" + detectedMime + "' is not allowed");
         }
 
-        // Content-based duplicate detection — SHA-256 of the raw bytes. Catches both an
-        // exact re-upload (same file name) and a rename (same content, different name).
-        // Scope is per-project (all tickets sharing the project). Ticket has no project?
-        // Fall back to per-team so at least the caller's workspace still de-dupes.
         String contentHash = sha256HexOf(source);
         TicketDocument duplicate = findDuplicate(ticket, contentHash);
         if (duplicate != null) {
@@ -239,8 +194,6 @@ public class TicketDocumentService {
                 .ticket(ticket)
                 .name(safeName)
                 .originalFilename(originalFilename)
-                // Store the *detected* type, not the client-supplied one. This is what the
-                // download endpoint replays, so it must reflect what's really on disk.
                 .contentType(detectedMime)
                 .sizeBytes(actualSize)
                 .storagePath(ticketId + "/" + storedName)
@@ -249,8 +202,6 @@ public class TicketDocumentService {
                 .build();
         documentRepository.save(doc);
 
-        // Rename last, once the row is staged in the transaction: if the move fails the
-        // exception rolls the row back and the caller still owns the source file.
         try {
             Files.move(source, target);
         } catch (IOException e) {
@@ -263,14 +214,11 @@ public class TicketDocumentService {
         );
     }
 
-    /** Same access rules as {@link #attach}, without touching any file. Lets the chunked
-     *  upload refuse a session up front instead of after the whole transfer. */
     @Transactional(readOnly = true)
     public void assertCanAttach(Long ticketId, User currentUser, boolean isAdmin) {
         loadForAttach(ticketId, currentUser, isAdmin);
     }
 
-    /** 415 for extensions on the blocklist. Public so session creation can fail fast. */
     public void assertExtensionAllowed(String filename) {
         String ext = extensionOf(filename);
         if (BLOCKED_EXTENSIONS.contains(ext)) {
@@ -300,7 +248,6 @@ public class TicketDocumentService {
         TicketDocument doc = documentRepository.findByIdAndTicketId(docId, ticketId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
 
-        // Guard against path-traversal in storagePath — stored value must resolve inside baseDir.
         Path abs = baseDir.resolve(doc.getStoragePath()).normalize();
         if (!abs.startsWith(baseDir)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
@@ -334,17 +281,6 @@ public class TicketDocumentService {
         documentRepository.delete(doc);
     }
 
-    /**
-     * Promote a batch of images that were previously written to the extractions staging
-     * area into permanent attachments on {@code ticket}. Each staged file is moved onto the
-     * ticket's attachments folder and a {@link TicketDocument} row is inserted.
-     * <p>
-     * References that point at an already-consumed or missing staged file are skipped
-     * silently — the client is allowed to resubmit the same list without erroring.
-     * <p>
-     * The staging folder is discarded once every reference has been walked, whether or not
-     * every individual move succeeded, so we don't leak on-disk state.
-     */
     @Transactional
     public void attachExtractedImages(Ticket ticket,
                                       List<TicketDtos.ExtractedImageRef> refs,
@@ -378,10 +314,6 @@ public class TicketDocumentService {
             String hash = null;
             try {
                 size = Files.size(target);
-                // Hash the extracted image once it's on disk so future direct-uploads of
-                // the same bytes (e.g. someone dragging the extracted PNG back in) can be
-                // recognised as duplicates. Best-effort — a hash failure shouldn't block
-                // an image that was successfully staged.
                 hash = sha256Hex(Files.readAllBytes(target));
             } catch (IOException e) {
                 size = 0;
@@ -405,15 +337,9 @@ public class TicketDocumentService {
             documentRepository.save(doc);
         }
 
-        // Cleanup the staging folders once we're done — image files are gone but the
-        // .owner marker and empty dir still sit around.
         touchedExtractions.forEach(staging::discard);
     }
 
-    /**
-     * SHA-256 hex of a file on disk, streamed through a fixed 64 KB buffer — a 500 MB
-     * book costs the same heap as a 1 KB note.
-     */
     private static String sha256HexOf(Path path) {
         try (InputStream in = Files.newInputStream(path)) {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
@@ -430,16 +356,10 @@ public class TicketDocumentService {
         }
     }
 
-    /**
-     * SHA-256 hex of arbitrary bytes. Same bytes always produce the same 64-char string,
-     * so this is the single source of truth for "is this the same file we already have?"
-     */
     private static String sha256Hex(byte[] bytes) {
         try {
             return toHex(MessageDigest.getInstance("SHA-256").digest(bytes));
         } catch (NoSuchAlgorithmException e) {
-            // SHA-256 is mandated by JLS §6.3 of the JCE spec — this is unreachable on any
-            // conforming JDK. Rethrowing as unchecked keeps the upload method signature clean.
             throw new IllegalStateException("SHA-256 unavailable", e);
         }
     }
@@ -453,12 +373,6 @@ public class TicketDocumentService {
         return sb.toString();
     }
 
-    /**
-     * Existing document (if any) whose bytes match the incoming upload. Scoped per-project
-     * when the incoming ticket has one, otherwise per-team so isolated tickets still dedupe
-     * inside the caller's workspace. Only returns rows that have a non-null content_hash —
-     * historical rows from before this column existed are treated as opaque and don't block.
-     */
     private TicketDocument findDuplicate(Ticket ticket, String hash) {
         if (hash == null || hash.isBlank()) return null;
         List<TicketDocument> matches;
@@ -473,11 +387,6 @@ public class TicketDocumentService {
         return matches.isEmpty() ? null : matches.get(0);
     }
 
-    /**
-     * Human-readable "this file already exists" message pointing at the existing copy.
-     * Includes the original filename and the ticket id so the user can navigate to it
-     * or delete it before re-uploading.
-     */
     private String describeDuplicate(TicketDocument existing) {
         String name = existing.getOriginalFilename() != null
                 ? existing.getOriginalFilename()
@@ -495,9 +404,6 @@ public class TicketDocumentService {
         return "application/octet-stream";
     }
 
-    /** Best-effort recursive wipe of every file stored under {ticketId}/.
-     *  Called from TicketService.delete so we don't leak disk when tickets are removed
-     *  (the DB rows go via JPA cascade, but the bytes on disk would otherwise linger). */
     public void purgeTicketDirectory(Long ticketId) {
         Path dir = baseDir.resolve(String.valueOf(ticketId)).normalize();
         if (!dir.startsWith(baseDir) || !Files.exists(dir)) return;
@@ -511,7 +417,6 @@ public class TicketDocumentService {
         }
     }
 
-    /** Strip any directory component and control characters from a client-supplied name. */
     public static String sanitiseFilename(String s) {
         if (s == null || s.isBlank()) return "file";
         String cleaned = s.replace('\\', '/');

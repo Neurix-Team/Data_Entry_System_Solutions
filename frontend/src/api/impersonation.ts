@@ -1,15 +1,5 @@
 import type { TeamRef } from './types';
 
-/**
- * Client-side memory of which team a SUPER_ADMIN has "entered". While a value is set, every
- * API request the axios client makes carries {@code X-Impersonate-Team-Id: <id>}. The backend
- * ({@code JwtAuthFilter}) recognises the header, drops the super admin's cross-team scope
- * for that request, and behaves as if the caller were an ADMIN of the target team.
- *
- * <p>Persisted in localStorage so a page refresh keeps the operator inside the same team —
- * losing the scope on every reload would be jarring and error-prone (they'd suddenly see
- * cross-team data when they thought they were focused).
- */
 const KEY = 'dems.impersonate';
 
 export interface ImpersonationState {
@@ -50,5 +40,4 @@ export const impersonation = {
   },
 };
 
-/** Header name — kept in sync with backend {@code JwtAuthFilter.IMPERSONATE_HEADER}. */
 export const IMPERSONATE_HEADER = 'X-Impersonate-Team-Id';

@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-// Marks every task in the given ClickUp list as done ("Complete" or "Closed" status,
-// whichever the list uses).  Runs sequentially with a small delay to stay under 100 req/min.
 
 const https = require('https');
 
@@ -36,15 +34,12 @@ function req(method, path, body) {
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 (async () => {
-  // 1. Discover the list's "closed / done" status.
   const listInfo = await req('GET', `/api/v2/list/${LIST_ID}`);
   const statuses = listInfo.body.statuses || [];
-  // Prefer the status flagged as `type=closed`, otherwise fall back to the last one in order.
   const doneStatus = statuses.find(s => s.type === 'closed') || statuses[statuses.length - 1];
   if (!doneStatus) { console.error('Could not find any statuses on list'); process.exit(1); }
   console.log(`Done status resolved to: "${doneStatus.status}"`);
 
-  // 2. Page through all tasks.
   let page = 0, all = [];
   while (true) {
     const r = await req('GET', `/api/v2/list/${LIST_ID}/task?page=${page}&subtasks=true&include_closed=true`);
@@ -56,7 +51,6 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   }
   console.log(`Found ${all.length} tasks`);
 
-  // 3. Update each to the done status (skip ones already there).
   let updated = 0, skipped = 0;
   for (let i = 0; i < all.length; i++) {
     const t = all[i];

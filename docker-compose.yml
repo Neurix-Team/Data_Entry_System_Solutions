@@ -1,16 +1,5 @@
 services:
   postgres:
-    # In-network Postgres. Previously the backend connected to a Postgres on the docker
-    # host via `host.docker.internal`, which on Docker Desktop routes through vpnkit and
-    # adds 20-80 ms per query round-trip — turning a 5-query page into a 400 ms one.
-    # Running Postgres as a container puts it on the same Docker bridge network as the
-    # backend, so queries take <1 ms of network overhead instead of ~50 ms.
-    #
-    # To keep an existing external Postgres, set DB_DOCKER_HOST=host.docker.internal in
-    # .env — the backend URL below honours the override and this service can be skipped
-    # by starting compose without it (`docker compose up backend frontend libretranslate`).
-    # 18-alpine matches the remote source Postgres (18.3) so pg_dump/pg_restore round-trips
-    # in the migrate-db-to-container.sh script work without a version-mismatch warning.
     image: postgres:18-alpine
     container_name: dems-postgres
     environment:
@@ -18,14 +7,7 @@ services:
       POSTGRES_USER: "${DB_USERNAME:-daleel}"
       POSTGRES_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set in .env}"
     volumes:
-      # PG 18's official image expects the mount at /var/lib/postgresql (not the older
-      # /var/lib/postgresql/data), so pg_upgrade --link can move between major-version
-      # subdirectories without crossing a mount boundary.
       - dems-postgres-data:/var/lib/postgresql
-    # Not published to the host by default — only the backend needs to reach it. Uncomment
-    # if you want to connect a GUI client (pgAdmin, DBeaver) from the host.
-    # ports:
-    #   - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-daleel} -d ${DB_NAME:-dataentry}"]
       interval: 5s
@@ -33,66 +15,72 @@ services:
       retries: 20
       start_period: 30s
     restart: unless-stopped
+    mem_limit: 3g
+    shm_size: 1gb
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=768MB"
+      - "-c"
+      - "effective_cache_size=2GB"
+      - "-c"
+      - "maintenance_work_mem=256MB"
+      - "-c"
+      - "work_mem=16MB"
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "max_wal_size=2GB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+      - "-c"
+      - "max_worker_processes=8"
+      - "-c"
+      - "max_parallel_workers=8"
+      - "-c"
+      - "max_parallel_workers_per_gather=4"
 
   backend:
     build:
       context: ./backend
     container_name: dems-backend
     environment:
-      # JWT_SECRET is required from the host env (no baked-in default).  Set it in a .env
-      # file next to this compose file:  JWT_SECRET=<random-32+-chars>
-      # If unset the container fails fast at startup — see AppConfig#jwtSecret.
       JWT_SECRET: "${JWT_SECRET:?JWT_SECRET must be set (min 32 chars) — see .env}"
       SPRING_PROFILES_ACTIVE: "docker"
-      # Default DB host is the in-compose `postgres` service (fast Docker-bridge network).
-      # Override with DB_DOCKER_HOST=host.docker.internal to keep an existing external DB.
       SPRING_DATASOURCE_URL: "jdbc:postgresql://${DB_DOCKER_HOST:-postgres}:${DB_PORT:-5432}/${DB_NAME:-dataentry}"
       SPRING_DATASOURCE_USERNAME: "${DB_USERNAME:-daleel}"
       SPRING_DATASOURCE_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set in .env}"
-      # Which browser origins may call the API (comma-separated).  The API sends credentialed
-      # cookies, so "*" is rejected at boot by SecurityConfig — an explicit allowlist is required.
-      # Override in .env when the UI is served from a different host, e.g.:
-      #   APP_CORS_ALLOWED_ORIGINS=https://dataentry.neurix.uk,https://admin.neurix.uk
       APP_CORS_ALLOWED_ORIGINS: "${APP_CORS_ALLOWED_ORIGINS:-https://dataentry.neurix.uk}"
-      # Rotate these before first prod boot.  admin/admin123 is dev-only.
       APP_SEED_ADMIN_USERNAME: "${APP_SEED_ADMIN_USERNAME:-admin}"
       APP_SEED_ADMIN_PASSWORD: "${APP_SEED_ADMIN_PASSWORD:-admin123}"
-      # SUPER_ADMIN owns every team and can impersonate any team's admin.  Rotate before
-      # exposing this instance — superadmin/superadmin123 is dev-only.
       APP_SEED_SUPERADMIN_USERNAME: "${APP_SEED_SUPERADMIN_USERNAME:-superadmin}"
       APP_SEED_SUPERADMIN_PASSWORD: "${APP_SEED_SUPERADMIN_PASSWORD:-superadmin123}"
-      # Set to false only for local http:// dev.  Real deployments (https) leave true.
       APP_AUTH_COOKIE_SECURE: "${APP_AUTH_COOKIE_SECURE:-true}"
-      # Persist brute-force counters so restarts and multiple backend replicas share state.
       APP_LOGIN_RATE_STORAGE: "${APP_LOGIN_RATE_STORAGE:-database}"
-      # Rolling 24h upload cap per user (bytes). 500 MB default.
       APP_UPLOADS_PER_USER_DAILY_BYTES: "${APP_UPLOADS_PER_USER_DAILY_BYTES:-5368709120}"
-      # Point at the self-hosted LibreTranslate service below (no API key, no rate limit).
-      # Override with TRANSLATION_BASE_URL if you swap in a paid endpoint later.
       TRANSLATION_BASE_URL: "${TRANSLATION_BASE_URL:-http://libretranslate:5000}"
       TRANSLATION_API_KEY: "${TRANSLATION_API_KEY:-}"
     volumes:
-      # Uploaded documents and temporary extraction artifacts (database data is in PostgreSQL).
       - dems-data:/app/data
     extra_hosts:
-      # Makes host.docker.internal work on Linux as well as Docker Desktop.
       - "host.docker.internal:host-gateway"
     expose:
       - "8080"
+      - "9090"
     ports:
       - "8083:8080"
     depends_on:
-      # Wait for Postgres to accept connections before booting the backend — otherwise
-      # Hibernate's initial connection attempts race the DB and fail-fast with a null-pool
-      # error. LibreTranslate is optional (fail-open) but pre-warming it in parallel keeps
-      # the first translation request from having to wait for the model download.
       postgres:
         condition: service_healthy
       libretranslate:
         condition: service_started
     restart: unless-stopped
+    mem_limit: 7g
     labels:
-      # Neurix reverse proxy → auto-SSL. Domain gets an https cert; port is the host port above.
       - "neurix.proxy.domain=dataentry-api.neurix.uk"
       - "neurix.proxy.port=8083"
 
@@ -105,15 +93,91 @@ services:
     ports:
       - "8082:80"
     restart: unless-stopped
+    mem_limit: 512m
     labels:
-      # Public UI — this is what end-users open in their browser.
       - "neurix.proxy.domain=dataentry.neurix.uk"
       - "neurix.proxy.port=8082"
 
+  backup:
+    image: postgres:18-alpine
+    container_name: dems-backup
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      BACKUP_DB_HOST: "postgres"
+      BACKUP_DB_PORT: "5432"
+      BACKUP_DB_NAME: "${DB_NAME:-dataentry}"
+      BACKUP_DB_USER: "${DB_USERNAME:-daleel}"
+      BACKUP_DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set in .env}"
+      BACKUP_INTERVAL_SECONDS: "${BACKUP_INTERVAL_SECONDS:-86400}"
+      BACKUP_RETENTION_DAYS: "${BACKUP_RETENTION_DAYS:-14}"
+    volumes:
+      - dems-backups:/backups
+      - ./scripts/backup/backup-loop.sh:/usr/local/bin/backup-loop.sh:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/backup-loop.sh"]
+    restart: unless-stopped
+    mem_limit: 256m
+
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    container_name: dems-prometheus
+    depends_on:
+      - backend
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/rules.yml:/etc/prometheus/rules.yml:ro
+      - dems-prometheus-data:/prometheus
+    restart: unless-stopped
+    mem_limit: 512m
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.0
+    container_name: dems-alertmanager
+    depends_on:
+      - prometheus
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+      - "--data.retention=120h"
+      # Publish the UI port to the internal docker network only. Operators can browse
+      # to http://<host>:9093 after temporarily adding `ports: ["9093:9093"]` here or
+      # through a Neurix proxy label.
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - dems-alertmanager-data:/alertmanager
+    restart: unless-stopped
+    mem_limit: 256m
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: dems-grafana
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: "${GRAFANA_ADMIN_USER:-admin}"
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set in .env}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_SERVER_ROOT_URL: "${GRAFANA_ROOT_URL:-http://localhost:3000}"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - dems-grafana-data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    restart: unless-stopped
+    mem_limit: 512m
+    labels:
+      - "neurix.proxy.domain=grafana.neurix.uk"
+      - "neurix.proxy.port=3001"
+
   libretranslate:
-    # Self-hosted translation — no API key, no rate limits.  Only loads the two language
-    # packs we actually use (en, ar) so the image stays small and boot is fast.  Downloaded
-    # models are cached in the named volume so subsequent restarts don't re-download.
     image: libretranslate/libretranslate:latest
     container_name: dems-libretranslate
     environment:
@@ -124,8 +188,8 @@ services:
       - libretranslate-models:/home/libretranslate/.local
     expose:
       - "5000"
-    # Not published to the host — only the backend needs to reach it.
     restart: unless-stopped
+    mem_limit: 1500m
     healthcheck:
       test:
         ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/languages', timeout=5).read()"]
@@ -138,6 +202,14 @@ volumes:
   dems-data:
     driver: local
   dems-postgres-data:
+    driver: local
+  dems-backups:
+    driver: local
+  dems-prometheus-data:
+    driver: local
+  dems-alertmanager-data:
+    driver: local
+  dems-grafana-data:
     driver: local
   libretranslate-models:
     driver: local

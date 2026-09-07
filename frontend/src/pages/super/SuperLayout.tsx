@@ -13,16 +13,6 @@ import { ProfileModal } from '../../components/ProfileModal';
 import { useAuth } from '../../context/AuthContext';
 import { useT } from '../../i18n';
 
-/**
- * Super-admin shell. Deliberately mirrors the main {@code Layout.tsx} class-for-class so
- * the surface reads as part of the same Neurix design system — no bespoke dark-navy chrome
- * or Tailwind gradients. Only meaningful difference from a team-admin sidebar is the extra
- * "cross-team views" section that deep-links into /admin/*.
- *
- * <p>Any leftover impersonation state from a previous session is cleared on mount — the
- * super surface itself never impersonates, and forgetting to clear leaves the top-bar name
- * confusingly showing "Impersonating X" while the sidebar says "Super Admin".
- */
 export function SuperLayout() {
   const { user, logout, refresh } = useAuth();
   const { t, lang } = useT();
@@ -110,7 +100,6 @@ export function SuperLayout() {
           {t('super.admins') || 'Super admins'}
         </NavLink>
 
-        {/* Cross-team section header — visually distinct without being loud. */}
         <div style={{
           marginTop: 20, padding: '10px 16px 6px',
           fontSize: 10, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase',

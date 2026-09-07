@@ -20,21 +20,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Personal-access token lifecycle. Only reachable by SUPER_ADMIN via
- * {@code /api/super/api-tokens} — see {@link com.dataentry.controller.ApiTokenAdminController}.
- *
- * <p>The plaintext secret exists only inside {@link #create}. Callers get one chance to
- * copy it; the DB stores only the SHA-256 hash.
- */
 @Service
 @Transactional(readOnly = true)
 public class ApiTokenService {
 
-    /**
-     * Byte length of the random part of a token. 32 bytes = 256 bits, base64url-encodes to
-     * 43 characters. With the {@code nrx_} prefix the final plaintext is ~47 chars.
-     */
     private static final int RANDOM_BYTES = 32;
 
     private final ApiTokenRepository repository;
@@ -48,7 +37,6 @@ public class ApiTokenService {
 
     public List<ApiTokenDtos.Row> list() {
         List<ApiToken> all = repository.findAllByOrderByCreatedAtDesc();
-        // Prefetch creator usernames in one query rather than N lookups.
         Map<Long, String> creatorNames = usernamesByIdFor(all);
         Instant now = Instant.now();
         return all.stream().map(t -> toRow(t, creatorNames, now)).toList();
@@ -58,7 +46,7 @@ public class ApiTokenService {
     public ApiTokenDtos.CreateResponse create(ApiTokenDtos.CreateRequest req) {
         String plaintext = mintPlaintext();
         String hash = ApiTokenAuthFilter.sha256Hex(plaintext);
-        String prefix = plaintext.substring(0, 12); // "nrx_" + first 8 secret chars
+        String prefix = plaintext.substring(0, 12);
 
         Instant expiresAt = null;
         if (req.expiresInDays() != null && req.expiresInDays() > 0) {

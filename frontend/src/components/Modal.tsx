@@ -8,21 +8,9 @@ interface Props {
   footer?: React.ReactNode;
 }
 
-/**
- * Accessible modal:
- *  - role=dialog + aria-modal + aria-labelledby so screen readers announce it as a dialog.
- *  - Focus is captured on open and restored to the previously focused element on close.
- *  - Tab / Shift+Tab cycle inside the modal so keyboard users can't tab into background UI.
- *  - Escape closes; backdrop click closes.
- */
 export function Modal({ open, title, onClose, children, footer }: Props) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const titleId = useRef(`modal-title-${Math.random().toString(36).slice(2, 9)}`);
-  // Callers usually pass an inline `() => setOpen(false)` — a fresh reference every render.
-  // Store it in a ref so the effect below never re-runs on those churny prop identities;
-  // otherwise every keystroke in a modal input would trigger the effect's cleanup, which
-  // restores focus to whatever element had it before the modal opened and yanks the caret
-  // out of the input the user is typing into.
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
 
@@ -30,7 +18,6 @@ export function Modal({ open, title, onClose, children, footer }: Props) {
     if (!open) return;
     const previouslyFocused = document.activeElement as HTMLElement | null;
 
-    // Focus the first focusable inside the dialog (or the dialog itself if empty).
     const focusables = getFocusable(dialogRef.current);
     (focusables[0] ?? dialogRef.current)?.focus();
 
@@ -59,7 +46,6 @@ export function Modal({ open, title, onClose, children, footer }: Props) {
     };
     window.addEventListener('keydown', onKey);
 
-    // Block body scroll while a modal is up so the page doesn't scroll under it.
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 

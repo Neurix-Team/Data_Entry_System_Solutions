@@ -4,14 +4,7 @@ import { extractError } from '../../api/client';
 import { ChatAction, sendChatMessage } from '../../api/chat';
 import { useT } from '../../i18n';
 
-// UI copy is inlined here (bilingual) rather than hoisted into the i18n dicts —
-// keeps the widget self-contained and easy to iterate on.
 
-/**
- * Floating Neurix assistant. Click the pill to open a chat panel, ask about
- * pages or features, and get taken there via an action button in the reply.
- * Conversation persists in localStorage across page navigation.
- */
 
 interface ChatMessage {
   id: string;
@@ -61,7 +54,6 @@ export function ChatWidget() {
 
   const isAr = lang === 'ar';
 
-  // Seed the very first greeting once
   useEffect(() => {
     if (messages.length === 0) {
       const greet: ChatMessage = {
@@ -77,14 +69,12 @@ export function ChatWidget() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persist and auto-scroll on new messages
   useEffect(() => {
     saveHistory(messages);
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, pending]);
 
-  // Focus the input when the panel opens
   useEffect(() => {
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -138,7 +128,6 @@ export function ChatWidget() {
   function clearHistory() {
     setMessages([]);
     localStorage.removeItem(STORAGE_KEY);
-    // Trigger the initial greeting to be re-seeded
     setTimeout(() => {
       const greet: ChatMessage = {
         id: newId(),
@@ -154,7 +143,6 @@ export function ChatWidget() {
 
   return (
     <>
-      {/* Floating trigger — always mounted; the panel slides in/out */}
       <button
         type="button"
         className={`chat-fab${open ? ' is-open' : ''}`}

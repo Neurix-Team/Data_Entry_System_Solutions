@@ -30,7 +30,6 @@ export function AdminReportsPage() {
   const maxCount = report ? Math.max(1, ...Object.values(report.byDay)) : 1;
   const barColors = [2, 1, 2, 6, 3];
 
-  // department fill rates
   const deptStats = departments.map((d) => {
     const count = tickets.filter(tk => tk.departmentId === d.id).length;
     return { name: d.name, count };

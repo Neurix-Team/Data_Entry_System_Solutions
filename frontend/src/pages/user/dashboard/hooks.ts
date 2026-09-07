@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 
-/** True when the OS "reduce motion" preference is on. Live — updates on change. */
 export function useReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
   useEffect(() => {
@@ -13,7 +12,6 @@ export function useReducedMotion(): boolean {
   return reduced;
 }
 
-/** Tween an integer from the previous value (0 on first mount) to `target` over `duration` ms. Skips instantly when reduced. */
 export function useCountUp(target: number, duration = 900): number {
   const reduced = useReducedMotion();
   const [value, setValue] = useState(0);

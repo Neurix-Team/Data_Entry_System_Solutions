@@ -3,8 +3,10 @@ package com.dataentry.config;
 import com.dataentry.security.ApiTokenAuthFilter;
 import com.dataentry.security.JwtAuthFilter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.actuate.autoconfigure.security.servlet.EndpointRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -40,6 +42,17 @@ public class SecurityConfig {
     }
 
     @Bean
+    @Order(1)
+    public SecurityFilterChain actuatorSecurityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher(EndpointRequest.toAnyEndpoint())
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+        return http.build();
+    }
+
+    @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -49,22 +62,13 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/error").permitAll()
-                        // External data-export API. Auth is a personal-access token
-                        // (see ApiTokenAuthFilter); tokens have ROLE_API and can only read.
                         .requestMatchers("/api/v1/**").hasRole("API")
                         .requestMatchers("/api/super/**").hasRole("SUPER_ADMIN")
-                        // Team admin pages. SUPER_ADMIN is intentionally excluded — to act on a
-                        // team the super admin must "enter" it (which issues an impersonation
-                        // JWT with role=ADMIN + target team id), so every admin action is scoped.
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/user/**").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/**").authenticated()
-                        // Fail closed: anything not explicitly listed above is rejected. Prevents
-                        // a newly added controller from being silently public.
                         .anyRequest().denyAll()
                 )
-                // API-token filter runs before the JWT filter so /api/v1/** requests are
-                // authenticated by their Bearer token even if a stray cookie is present.
                 .addFilterBefore(apiTokenAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
@@ -80,9 +84,6 @@ public class SecurityConfig {
                 .filter(s -> !s.isEmpty())
                 .toList();
 
-        // Since the API sends credentials (httpOnly auth cookie), a wildcard here would let any
-        // site on the web make authenticated requests with the victim's cookie. Fail fast if the
-        // deployment tries it, so a misconfigured production env is caught at boot.
         if (patterns.isEmpty() || patterns.contains("*")) {
             throw new IllegalStateException(
                     "APP_CORS_ALLOWED_ORIGINS must be a comma-separated list of explicit origins " +

@@ -6,11 +6,6 @@ import { PasswordInput } from '../../components/PasswordInput';
 import { IconMembers, IconSearch } from '../../components/Icons';
 import { useT } from '../../i18n';
 
-/**
- * Cross-team operators. Same {@code page / card / table} shell as every other admin page —
- * no bespoke hero — so the surface reads as part of the wider Neurix design system rather
- * than a one-off surface.
- */
 export function SuperAdminsPage() {
   const { t } = useT();
   const [rows, setRows] = useState<SuperAdminRow[] | null>(null);

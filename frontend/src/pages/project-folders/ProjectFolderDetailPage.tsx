@@ -21,11 +21,6 @@ interface AuthorGroup {
   tickets: Ticket[];
 }
 
-/**
- * Contents of one folder — every ticket branched off the project. Admins can approve
- * pending tickets in place; users see status pills that flip to "Approved" once the
- * admin acts, so the same page tells both audiences the same story.
- */
 export function ProjectFolderDetailPage() {
   const params = useParams<{ projectId: string }>();
   const navigate = useNavigate();
@@ -69,8 +64,6 @@ export function ProjectFolderDetailPage() {
     refresh();
   }, [projectId, refresh, navigate, backHref]);
 
-  // Group tickets by submitter so admins scan by person rather than by row. Users only
-  // ever see their own tickets, so the grouping collapses to a single group for them.
   const groups: AuthorGroup[] = useMemo(() => {
     if (!detail) return [];
     const byUser = new Map<number, AuthorGroup>();
@@ -177,18 +170,6 @@ export function ProjectFolderDetailPage() {
     }
   }
 
-  /**
-   * Delete one attachment from a project-folder ticket. In this view, each ticket is
-   * usually just a wrapper around one uploaded file (the quick-upload flow creates one
-   * ticket per file), so removing that last file should also delete the wrapper ticket
-   * — otherwise the folder keeps a titleless empty row that the user has no way to
-   * interact with. Multi-file tickets (rare here, common in the submit flow) keep the
-   * partial-delete behaviour: only the picked doc goes.
-   *
-   * <p>Optimistic UI: we strip the doc (and, if applicable, the whole ticket) locally
-   * before the network round-trip returns. On failure we roll back with a refresh so
-   * the on-screen state can't diverge from the DB.
-   */
   async function onDeleteDocument(ticketId: number, docId: number) {
     const ok = await confirm({ message: t('ticket.confirmDeleteDocument'), destructive: true });
     if (!ok) return;
@@ -197,9 +178,6 @@ export function ProjectFolderDetailPage() {
     setDeletingDocId(docId);
     try {
       if (isLastFile) {
-        // Delete the whole ticket in one call — the server cascades docs + disk.
-        // Prefer the admin endpoint when the caller is an admin (works for any ticket);
-        // fall back to /user/tickets/{id} which the server permits only for the ticket owner.
         if (isAdmin) {
           await ticketsApi.remove(ticketId);
         } else {
@@ -225,7 +203,6 @@ export function ProjectFolderDetailPage() {
       toast.success(t('ticket.documentDeleted'));
     } catch (e) {
       toast.error(extractError(e));
-      // On failure, sync back with the server so the optimistic state doesn't linger wrong.
       refresh();
     } finally {
       setDeletingDocId(null);
@@ -370,8 +347,6 @@ export function ProjectFolderDetailPage() {
         projectId={projectId}
         onClose={() => setUploadOpen(false)}
         onCreated={({ created, failed }) => {
-          // Close the modal only on a clean run — if any file failed, keep it open so the
-          // user can see which ones and retry without losing context.
           if (failed === 0) setUploadOpen(false);
           if (created > 0) refresh();
         }}

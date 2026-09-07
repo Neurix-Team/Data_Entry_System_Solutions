@@ -26,26 +26,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
 
-/**
- * External export API. Authenticated by personal-access token
- * (see {@link com.dataentry.security.ApiTokenAuthFilter}); role gate is {@code ROLE_API}
- * enforced in SecurityConfig. Cross-team by design — a token holder pulls every ticket
- * across the whole install into their own downstream (typically an AI ingest pipeline).
- *
- * <p>Endpoints:
- * <ul>
- *   <li>{@code GET /api/v1/export/tickets} — cursor-paginated ticket rows with document
- *       metadata and per-document download URLs.</li>
- *   <li>{@code GET /api/v1/export/tickets/{id}} — single ticket detail.</li>
- *   <li>{@code GET /api/v1/export/documents/{id}/download} — stream the raw file bytes.</li>
- * </ul>
- */
 @RestController
 @RequestMapping("/api/v1/export")
 public class ExportApiController {
 
-    /** Prefix baked into the download URLs returned by /tickets so consumers don't have
-     *  to build them themselves. */
     private static final String DOWNLOAD_PREFIX = "/api/v1/export/documents/";
 
     private final DataExplorerService service;
@@ -81,11 +65,6 @@ public class ExportApiController {
         return service.byId(id, DOWNLOAD_PREFIX);
     }
 
-    /**
-     * Stream the raw file bytes of a single attachment. Cross-team — the token holder
-     * can download any document across the install (that's the whole point of the export
-     * API). Same path-traversal guard as {@link com.dataentry.service.TicketDocumentService}.
-     */
     @GetMapping("/documents/{id}/download")
     public ResponseEntity<Resource> download(@PathVariable Long id) {
         TicketDocument doc = documentRepository.findById(id)

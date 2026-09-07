@@ -12,12 +12,10 @@ import java.util.Optional;
 
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
-    /** Newest first — the notifications panel shows a chronological feed. */
     List<Notification> findAllByRecipientIdOrderByCreatedAtDesc(Long recipientId);
 
     long countByRecipientIdAndReadAtIsNull(Long recipientId);
 
-    /** Ownership-scoped fetch so a caller can only ever mark their own notifications read. */
     Optional<Notification> findByIdAndRecipientId(Long id, Long recipientId);
 
     @Modifying

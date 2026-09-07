@@ -52,7 +52,6 @@ export function UserDashboardPage() {
 
   return (
     <div className="udash-page">
-      {/* Hero */}
       <div className="udash-hero">
         <div>
           <p className="udash-hero-greet">
@@ -80,7 +79,6 @@ export function UserDashboardPage() {
         </div>
       </div>
 
-      {/* KPIs */}
       <div className="udash-kpi-grid">
         <KpiCard
           label={t('user.dashboard.kpi.today')}
@@ -116,7 +114,6 @@ export function UserDashboardPage() {
         />
       </div>
 
-      {/* Trend + Donut */}
       <div className="udash-grid-2">
         <div className="udash-panel">
           <div className="udash-panel-head">
@@ -144,7 +141,6 @@ export function UserDashboardPage() {
         </div>
       </div>
 
-      {/* Departments + Subcategories */}
       <div className="udash-grid-2-alt">
         <div className="udash-panel">
           <div className="udash-panel-head">
@@ -167,7 +163,6 @@ export function UserDashboardPage() {
         </div>
       </div>
 
-      {/* Recent Activity */}
       <div className="udash-panel">
         <div className="udash-panel-head">
           <div>
@@ -189,7 +184,6 @@ function hourGreeting(lang: string, t: (k: string) => string): string {
 }
 
 function weekTrend(data: MyDashboard, t: (k: string, p?: Record<string, string | number>) => string) {
-  // Compare last 7 days sum vs previous 7 days sum from the daily series
   const daily = data.daily;
   if (daily.length < 14) return undefined;
   const last7 = daily.slice(-7).reduce((s, d) => s + d.count, 0);

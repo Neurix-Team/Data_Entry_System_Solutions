@@ -3,24 +3,15 @@ import { useId, type ReactNode } from 'react';
 export type ProgressRingState = 'idle' | 'uploading' | 'finalizing' | 'done' | 'failed';
 
 interface Props {
-  /** 0..1 */
   value: number;
   size?: number;
   stroke?: number;
   state?: ProgressRingState;
-  /** Overrides the centre content (defaults to the rounded percentage). */
   label?: ReactNode;
   ariaLabel?: string;
   className?: string;
 }
 
-/**
- * Circular progress meter with the percentage in the middle. The arc is a single SVG
- * circle whose dash offset tracks {@code value}, so updates animate through CSS without
- * touching layout. While the server finalizes ("finalizing") the arc becomes a short
- * spinning segment — the client has nothing left to measure but the work isn't done.
- * On "done" the arc fills green and a check draws itself in the centre.
- */
 export function ProgressRing({
   value, size = 48, stroke = 4, state = 'uploading', label, ariaLabel, className,
 }: Props) {

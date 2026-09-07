@@ -4,7 +4,6 @@ import com.dataentry.dto.DatasetDtos;
 import com.dataentry.service.DatasetService;
 import org.springframework.web.bind.annotation.*;
 
-/** Read-only token-authenticated endpoint for downstream AI/data projects. */
 @RestController
 @RequestMapping("/api/v1/export/dataset")
 public class DatasetExportController {

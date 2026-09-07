@@ -1,10 +1,8 @@
-// The scripted walkthrough. Records one continuous 1080p video of the whole system.
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 import { Tour, BASE, DRY, sleep, preloadFonts, introCard, chapterCard, platformCard, outroCard } from './lib.mjs';
 import { LANG, META_FILE, SCENES } from './narration.mjs';
 
-// Narration durations drive every scene's length; run `NX_LANG=<lang> node tts.mjs` first.
 const meta = JSON.parse(fs.readFileSync(META_FILE, 'utf8'));
 console.log(`recording the ${LANG} edition (${META_FILE})`);
 const state = JSON.parse(fs.readFileSync('seed_state.json', 'utf8'));
@@ -14,7 +12,6 @@ const SUPER = { u: 'superadmin', p: 'superadmin123' };
 fs.mkdirSync('rec', { recursive: true });
 fs.mkdirSync('live', { recursive: true });
 
-// ---------- tiny API client for prep / cleanup ----------
 async function api(u, p) {
   const r = await fetch(BASE + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
   if (!r.ok) throw new Error('login failed ' + u);
@@ -32,16 +29,12 @@ async function api(u, p) {
 
 async function prep() {
   const adm = await api(ADMIN.u, ADMIN.p);
-  // fresh notification for Omar + at least one "completed today"
   let all = (await adm.get('/api/admin/tickets?page=0&size=100')).json.items || [];
-  // tidy leftovers from previous takes so the folders and lists look fresh
   const junk = all.filter(t => /^scan [1-3]$/i.test(t.title || '') || /Industrial Growth in the Delta — Chapter 2|Rail Links and Export Markets, 1930s/.test(t.title || ''));
   for (const t of junk) await adm.del(`/api/admin/tickets/${t.id}`);
   if (junk.length) all = (await adm.get('/api/admin/tickets?page=0&size=100')).json.items || [];
   console.log('prep: removed leftovers', junk.length);
   const pending = all.filter(t => t.status !== 'COMPLETED');
-  // After a few takes every seeded entry is already approved; send one back to review first so the
-  // approval below still produces a fresh notification (Omar) and a "completed today" (someone else).
   const pick = async (who) => {
     let t = pending.find(x => (x.submittedByUsername === AGENT.u) === who);
     if (!t) {
@@ -54,13 +47,11 @@ async function prep() {
   if (omar) await adm.post(`/api/admin/tickets/${omar.id}/approve`);
   const other = await pick(false);
   if (other) await adm.post(`/api/admin/tickets/${other.id}/approve`);
-  // remove the member created by a previous run so the live "Add Member" works again
   const users = (await adm.get('/api/admin/users')).json;
   const hana = users.find(u => u.username === 'hana.adel');
   if (hana) await adm.del(`/api/admin/users/${hana.id}`);
   console.log('prep: approved', omar?.id, other?.id, 'hana removed:', !!hana);
 
-  // unique files for the live uploads (unique bytes so duplicate detection does not block them)
   const stamp = new Date().toISOString();
   const browser = await chromium.launch({ channel: 'chrome' });
   const page = await browser.newPage({ viewport: { width: 1800, height: 2400 } });
@@ -94,7 +85,6 @@ async function cleanup() {
   console.log('cleanup: demo tokens removed', tokens.filter(t => t.name === 'AI ingest job').length);
 }
 
-// ---------- the tour ----------
 async function main() {
   await prep();
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -115,7 +105,6 @@ async function main() {
     await page.locator('#username').focus(); await page.keyboard.type(creds.u);
     await page.locator('#password').focus(); await page.keyboard.type(creds.p);
     await page.keyboard.press('Enter');
-    // The login page returns the user to the page they came from, so steer to the role's home via the sidebar.
     await page.waitForURL(u => !u.pathname.includes('/login'), { timeout: 20000 });
     await page.waitForLoadState('networkidle').catch(() => {});
     if (!page.url().includes(landing)) {
@@ -129,7 +118,6 @@ async function main() {
     await sleep(500);
   }
 
-  // ===== INTRO =====
   await page.goto(BASE + '/login', { waitUntil: 'domcontentloaded' });
   await tour.ensure();
   await preloadFonts(page);
@@ -138,7 +126,6 @@ async function main() {
     await page.waitForLoadState('networkidle').catch(() => {});
   }, { caption: null, tail: 0.6 });
 
-  // ===== LOGIN =====
   await tour.scene('login', async () => {
     await tour.cardOff();
     await tour.moveTo({ x: 1450, y: 560 }, 900);
@@ -151,14 +138,12 @@ async function main() {
     await page.waitForURL(/dashboard/, { timeout: 20000 });
   }, { caption: SCENE_CAPTION('login'), tail: 0.2 });
 
-  // ===== CHAPTER 1 =====
   await tour.scene('ch1', async () => {
     await tour.card(chapterCard(1));
     await sleep(900);
     await tour.silentNav('New Entry');
   }, { caption: null, tail: 0.3 });
 
-  // ===== AGENT DASHBOARD =====
   await tour.scene('dash_user', async () => {
     await tour.silentNav('Dashboard');
     await sleep(200);
@@ -176,7 +161,6 @@ async function main() {
     await tour.scroll(-1100, 12);
   }, { caption: SCENE_CAPTION('dash_user') });
 
-  // ===== NEW ENTRY: dynamic form =====
   await tour.scene('submit_form', async () => {
     await tour.nav('New Entry');
     const selects = page.locator('select.select');
@@ -193,7 +177,6 @@ async function main() {
     await tour.type(page.getByPlaceholder('e.g. Electromagnetic Waves'), 'Industrial Growth in the Delta — Chapter 2', 42);
   }, { caption: SCENE_CAPTION('submit_form') });
 
-  // ===== NEW ENTRY: OCR =====
   await tour.scene('submit_ocr', async () => {
     await tour.click(page.getByRole('button', { name: /Extract text from file/ }).first());
     const modal = page.locator('.modal').last();
@@ -209,7 +192,6 @@ async function main() {
     await tour.hover(page.locator('textarea.textarea').first(), 700);
   }, { caption: SCENE_CAPTION('submit_ocr') });
 
-  // ===== NEW ENTRY: AI check, second article with attachment, submit =====
   await tour.scene('submit_ai', async () => {
     await tour.click(page.getByRole('button', { name: /Check Content/ }).first());
     const dlg = page.locator('.modal').last();
@@ -222,7 +204,6 @@ async function main() {
     const card1 = page.locator('.article-card').nth(0);
     const card2 = page.locator('.article-card').nth(1);
     await tour.type(card2.getByPlaceholder('e.g. Electromagnetic Waves'), 'Rail Links and Export Markets, 1930s', 40);
-    // the mode switch (write / attach) is global for all articles; every article shows one document row
     await tour.click(page.locator('.article-mode-card-attachments').first());
     await sleep(500);
     const attach = async (card, name, file) => {
@@ -246,7 +227,6 @@ async function main() {
     await sleep(1500);
   }, { caption: SCENE_CAPTION('submit_ai') });
 
-  // ===== MY ENTRIES =====
   await tour.scene('my_entries', async () => {
     await tour.nav('My Tasks');
     await tour.type(page.getByPlaceholder('Search content, website…'), 'Delta', 80);
@@ -256,7 +236,6 @@ async function main() {
     await tour.click(page.getByRole('button', { name: 'Close' }).last());
   }, { caption: SCENE_CAPTION('my_entries') });
 
-  // ===== PROJECT FOLDERS: quick upload =====
   await tour.scene('folders_user', async () => {
     await tour.nav('Project Folders');
     await sleep(300);
@@ -279,7 +258,6 @@ async function main() {
     await tour.ring(page.locator('table').first(), 1500);
   }, { caption: SCENE_CAPTION('folders_user') });
 
-  // ===== NOTIFICATIONS =====
   await tour.scene('notify', async () => {
     await tour.click(page.locator('button.notification-btn'));
     await sleep(700);
@@ -289,7 +267,6 @@ async function main() {
     await page.waitForLoadState('networkidle').catch(() => {});
   }, { caption: SCENE_CAPTION('notify') });
 
-  // ===== ASSISTANT =====
   await tour.scene('assistant', async () => {
     await tour.click(page.locator('button.chat-fab'));
     await sleep(700);
@@ -303,7 +280,6 @@ async function main() {
     if (await page.locator('.chat-panel').isVisible().catch(() => false)) await tour.click(page.locator('button.chat-fab'));
   }, { caption: SCENE_CAPTION('assistant') });
 
-  // ===== THEME + LANGUAGE =====
   await tour.scene('theme', async () => {
     const icons = page.locator('.topbar-right .icon-btn');
     await tour.click(icons.nth(0)); await sleep(2300);
@@ -312,7 +288,6 @@ async function main() {
     await tour.click(icons.nth(0)); await sleep(300);
   }, { caption: SCENE_CAPTION('theme') });
 
-  // ===== CHAPTER 2 =====
   await tour.scene('ch2', async () => {
     await tour.card(chapterCard(2));
     await sleep(600);
@@ -320,7 +295,6 @@ async function main() {
     await tour.silentNav('Team Members');
   }, { caption: null, tail: 0.3 });
 
-  // ===== ADMIN DASHBOARD =====
   await tour.scene('dash_admin', async () => {
     await tour.silentNav('Dashboard');
     await sleep(200);
@@ -334,7 +308,6 @@ async function main() {
     await tour.click(page.getByRole('button', { name: 'Month', exact: true })); await sleep(1500);
   }, { caption: SCENE_CAPTION('dash_admin') });
 
-  // ===== TEAM MEMBERS =====
   await tour.scene('members', async () => {
     await tour.nav('Team Members');
     await tour.hover(page.locator('table tbody tr').nth(2), 600); await sleep(400);
@@ -349,7 +322,6 @@ async function main() {
     await sleep(1600);
   }, { caption: SCENE_CAPTION('members') });
 
-  // ===== PROJECTS / DEPARTMENTS / SUBCATEGORIES =====
   await tour.scene('structure', async () => {
     await tour.nav('Projects');
     await tour.hover(page.locator('table tbody tr').nth(0), 700); await sleep(600);
@@ -365,7 +337,6 @@ async function main() {
     await sleep(900);
   }, { caption: SCENE_CAPTION('structure') });
 
-  // ===== DATA ENTRY TASKS =====
   await tour.scene('tasks', async () => {
     await tour.nav('Data Entry Tasks');
     const search = page.getByPlaceholder('Search content, website, agent…');
@@ -376,7 +347,6 @@ async function main() {
     await tour.select(sel.nth(0), { label: 'Historical Records' });
     await tour.select(sel.nth(1), { label: 'Completed' });
     await sleep(900);
-    // inline status change on the first row (pick a value different from the current one)
     const inline = page.locator('select.actions-select').first();
     const current = await inline.inputValue().catch(() => 'COMPLETED');
     await tour.select(inline, { label: current === 'COMPLETED' ? 'Review' : 'Completed' });
@@ -388,7 +358,6 @@ async function main() {
     await tour.click(page.locator('.modal-header button').first());
   }, { caption: SCENE_CAPTION('tasks') });
 
-  // ===== APPROVALS =====
   await tour.scene('approve', async () => {
     await tour.nav('Project Folders');
     await tour.click(page.locator('a.dept-card', { hasText: 'Water Infrastructure Survey' }));
@@ -405,7 +374,6 @@ async function main() {
     await tour.click(page.getByRole('button', { name: 'Close' }).last());
   }, { caption: SCENE_CAPTION('approve') });
 
-  // ===== REPORTS + AGENT ACTIVITY =====
   await tour.scene('reports', async () => {
     await tour.nav('Reports');
     await tour.moveTo({ x: 900, y: 320 }, 700);
@@ -419,14 +387,12 @@ async function main() {
     await tour.scroll(520, 10); await sleep(1500);
   }, { caption: SCENE_CAPTION('reports') });
 
-  // ===== CHAPTER 3 =====
   await tour.scene('ch3', async () => {
     await tour.card(chapterCard(3));
     await sleep(600);
     await switchUser(SUPER, '/super');
   }, { caption: null, tail: 0.3 });
 
-  // ===== SUPER OVERVIEW + IMPERSONATION =====
   await tour.scene('super', async () => {
     await tour.cardOff();
     await tour.moveTo({ x: 900, y: 280 }, 800);
@@ -446,7 +412,6 @@ async function main() {
     await sleep(800);
   }, { caption: SCENE_CAPTION('super') });
 
-  // ===== PROJECT ANALYTICS + DATA EXPLORER =====
   await tour.scene('explorer', async () => {
     await tour.nav('Project analytics');
     await sleep(400);
@@ -465,7 +430,6 @@ async function main() {
     await tour.scroll(420, 8); await sleep(800);
   }, { caption: SCENE_CAPTION('explorer') });
 
-  // ===== DATASET + API TOKENS =====
   await tour.scene('pipeline', async () => {
     await tour.nav('Server dataset');
     await sleep(700);
@@ -492,7 +456,6 @@ async function main() {
     await tour.click(page.getByRole('button', { name: 'Close', exact: true }).last());
   }, { caption: SCENE_CAPTION('pipeline') });
 
-  // ===== PLATFORM + OUTRO =====
   await tour.scene('platform', async () => {
     await tour.caption(null);
     await tour.card(platformCard());

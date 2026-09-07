@@ -26,7 +26,7 @@ public class AuditLogController {
             @RequestParam(required = false) Long actorId
     ) {
         int p = Math.max(0, page);
-        int s = Math.min(Math.max(size, 1), 200);   // same clamp pattern as ticket list
+        int s = Math.min(Math.max(size, 1), 200);
         PageRequest pr = PageRequest.of(p, s);
 
         Page<AuditLog> rows;

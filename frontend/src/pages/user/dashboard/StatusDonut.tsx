@@ -5,32 +5,18 @@ import { useCountUp, useReducedMotion } from './hooks';
 
 interface Props {
   data: StatusMap;
-  /** Outer diameter in px. Default 140. */
   size?: number;
-  /** Ring thickness in px. Default 22. */
   stroke?: number;
-  /** Show the total in the center. Default true. */
   showTotal?: boolean;
 }
 
 const STATUS_ORDER: Array<keyof StatusMap> = ['IN_PROGRESS', 'REVIEW', 'COMPLETED'];
-/**
- * Token references, not literals. SVG `stroke` and `background` both resolve `var()`,
- * so the chart re-colours with the theme instead of staying on the light-mode palette —
- * the dark theme lifts these hues for contrast against the navy surface (`--status-progress`
- * goes #0f5fd1 → #6ba3f2) and a hard-coded hex would ignore that.
- */
 const STATUS_COLORS: Record<string, string> = {
   IN_PROGRESS: 'var(--status-progress)',
   REVIEW: 'var(--status-review)',
   COMPLETED: 'var(--success)',
 };
 
-/**
- * SVG donut chart. Arcs draw in on mount; the center total counts up.
- * Legend items are toggleable — click to hide/show a series, and the
- * remaining segments re-normalize.
- */
 export function StatusDonut({ data, size = 140, stroke = 22, showTotal = true }: Props) {
   const { t } = useT();
   const reduced = useReducedMotion();
@@ -81,7 +67,6 @@ export function StatusDonut({ data, size = 140, stroke = 22, showTotal = true }:
   const toggle = (key: string) => setHidden((prev) => {
     const next = new Set(prev);
     if (next.has(key)) next.delete(key); else next.add(key);
-    // Guard: never hide all segments at once.
     if (next.size >= segments.length) next.delete(key);
     return next;
   });

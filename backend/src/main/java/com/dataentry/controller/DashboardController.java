@@ -17,7 +17,6 @@ public class DashboardController {
         this.service = service;
     }
 
-    // ---------- admin endpoints (mounted at /api/admin/dashboard) ----------
 
     @GetMapping("/api/admin/dashboard/domains")
     public List<DashboardDtos.DomainStats> domains() {
@@ -47,7 +46,6 @@ public class DashboardController {
         return service.userActivity(id, days);
     }
 
-    // ---------- user self-dashboard ----------
 
     @GetMapping("/api/user/dashboard/me")
     public DashboardDtos.MyDashboard me(

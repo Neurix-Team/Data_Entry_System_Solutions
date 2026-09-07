@@ -18,14 +18,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 
-/**
- * Super-admin data explorer: one paginated view of every ticket in every team with the
- * uploads, custom fields, and submitter attached. URL protection comes from
- * {@code /api/super/**} in SecurityConfig.
- *
- * <p>Downloads reuse the existing {@code /api/tickets/{ticketId}/documents/{id}} path so
- * the browser can hit them with the session cookie — no need for a token from the UI.
- */
 @RestController
 @RequestMapping("/api/super/data")
 public class DataExplorerController {
@@ -38,10 +30,6 @@ public class DataExplorerController {
         this.archive = archive;
     }
 
-    /**
-     * Flat list of every attachment matching the filters (plus, optionally, every ticket's
-     * text). The browser uses it to mirror files into a local folder tree with live progress.
-     */
     @GetMapping("/manifest")
     public DataExplorerDtos.Manifest manifest(
             @RequestParam(required = false) Long teamId,
@@ -56,11 +44,6 @@ public class DataExplorerController {
         return service.manifest(f, includeText);
     }
 
-    /**
-     * Same selection as {@link #manifest}, streamed as one ZIP laid out as
-     * {@code Project/Department[/Subcategory]/file}. Fallback for browsers that cannot write
-     * into a local folder directly.
-     */
     @GetMapping(value = "/archive", produces = "application/zip")
     public ResponseEntity<StreamingResponseBody> archive(
             @RequestParam(required = false) Long teamId,
@@ -96,8 +79,6 @@ public class DataExplorerController {
             @RequestParam(required = false) Integer size
     ) {
         DataExplorerService.Filters f = new DataExplorerService.Filters(teamId, projectId, userId, from, to, search);
-        // No downloadUrl prefix — the UI uses the session-authenticated
-        // /api/tickets/{id}/documents/{docId} route which it already knows about.
         return service.search(f, cursor, size, null);
     }
 

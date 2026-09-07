@@ -5,17 +5,10 @@ import { useReducedMotion } from './hooks';
 interface Props {
   data: DailyCount[];
   todayIso: string;
-  /** Height of the bars area in px. Default 180. */
   height?: number;
-  /** Base delay per bar (ms) for the staggered entrance. Default 22. */
   stagger?: number;
 }
 
-/**
- * Custom bar chart — no dependencies, matches the app's design language.
- * Bars grow in on mount with a staggered delay. Hovering / focusing a bar
- * dims the others so the hovered value reads clearly.
- */
 export function TrendChart({ data, todayIso, height = 180, stagger = 22 }: Props) {
   const reduced = useReducedMotion();
   const [mounted, setMounted] = useState(false);
@@ -24,7 +17,6 @@ export function TrendChart({ data, todayIso, height = 180, stagger = 22 }: Props
 
   const max = useMemo(() => Math.max(1, ...data.map((d) => d.count)), [data]);
 
-  // Flip to mounted on the next frame so the CSS transition can play.
   useEffect(() => {
     if (reduced) { setMounted(true); return; }
     const id = requestAnimationFrame(() => setMounted(true));
@@ -37,9 +29,6 @@ export function TrendChart({ data, todayIso, height = 180, stagger = 22 }: Props
   const middle = data[Math.floor(data.length / 2)]?.date;
   const last = data[data.length - 1]?.date;
 
-  // Trend line through the bar tops, drawn after the last bar lands. Coordinates
-  // are LTR percentages; CSS mirrors the <svg> under html[dir='rtl'] so the line
-  // follows the bars. The dot uses inset-inline-start, so it needs no mirroring.
   const points = data.map((d, i) => {
     const hp = d.count === 0 ? 2 : Math.max((d.count / max) * 100, 4);
     return { x: ((i + 0.5) / data.length) * 100, y: 100 - hp };

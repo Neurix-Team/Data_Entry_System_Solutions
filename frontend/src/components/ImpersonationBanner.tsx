@@ -4,14 +4,6 @@ import { impersonation, type ImpersonationState } from '../api/impersonation';
 import { useAuth } from '../context/AuthContext';
 import { useT } from '../i18n';
 
-/**
- * Persistent banner rendered whenever a SUPER_ADMIN has "entered" a specific team from the
- * super-admin surface. Kept visually loud — orange background, "Exit" call to action — so
- * the operator never forgets they're acting inside someone else's data.
- *
- * <p>Hides itself entirely if the user isn't a SUPER_ADMIN or no team has been entered,
- * so pages can render it unconditionally without needing to wrap it in role checks.
- */
 export function ImpersonationBanner() {
   const { user, refresh } = useAuth();
   const { t } = useT();
@@ -26,7 +18,6 @@ export function ImpersonationBanner() {
 
   const exit = async () => {
     impersonation.exit();
-    // Re-fetch /auth/me so the top-nav name/role reverts back to Super Admin immediately.
     await refresh();
     navigate('/super', { replace: true });
   };
@@ -66,7 +57,6 @@ export function ImpersonationBanner() {
           fontSize: 15,
         }}
       >
-        {/* eye icon */}
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
       </span>
       <span style={{ flex: 1 }}>

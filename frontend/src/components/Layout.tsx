@@ -11,6 +11,7 @@ import { NotificationBell } from './NotificationBell';
 import { PreferencesToggle } from './PreferencesToggle';
 import { avatarUrl } from '../api/profile';
 import { ChatWidget } from './chat/ChatWidget';
+import { ErrorBoundary } from './ErrorBoundary';
 import { ImpersonationBanner } from './ImpersonationBanner';
 
 export function Layout() {
@@ -21,17 +22,13 @@ export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const myAvatar = user ? avatarUrl(user.id, user.avatarUpdatedAt) : null;
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
-  // Super admin drives admin views (both cross-team and scoped-via-impersonation), so treat
-  // them like an admin for the shell/nav — the ImpersonationBanner makes the difference obvious.
   const isAdmin = user?.role === 'ADMIN' || isSuperAdmin;
   const roleLabel = isSuperAdmin
     ? (t('super.roleLabel') || 'Super Admin')
     : isAdmin ? t('common.teamLeader') : t('common.dataEntryAgent');
 
-  // Close mobile sidebar on route change
   useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
 
-  // Close on Escape
   useEffect(() => {
     if (!sidebarOpen) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSidebarOpen(false); };
@@ -196,7 +193,9 @@ export function Layout() {
 
         <main className="app-main">
           <ImpersonationBanner />
-          <Outlet />
+          <ErrorBoundary key={location.pathname}>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
 

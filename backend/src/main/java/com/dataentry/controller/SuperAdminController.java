@@ -16,14 +16,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * Cross-team surface used only by SUPER_ADMIN. URL protection is enforced in
- * {@code SecurityConfig} ({@code /api/super/** → hasRole("SUPER_ADMIN")}).
- *
- * <p>Every endpoint here bypasses the tenant filter — that's the point. Individual team
- * management still goes through {@code /api/admin/**} using the
- * {@code X-Impersonate-Team-Id} header for scoping.
- */
 @RestController
 @RequestMapping("/api/super")
 public class SuperAdminController {
@@ -63,11 +55,6 @@ public class SuperAdminController {
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * Confirms the target team is enterable and returns the header the frontend must send.
-     * The client then sets {@code X-Impersonate-Team-Id} on subsequent requests. Exiting
-     * impersonation is a client-side concern (just stop sending the header).
-     */
     @PostMapping("/teams/{id}/enter")
     public SuperAdminDtos.EnterTeamResponse enterTeam(@PathVariable Long id) {
         return service.enterTeam(id);
@@ -78,11 +65,6 @@ public class SuperAdminController {
         return service.listTeamMembers(id);
     }
 
-    /**
-     * One-shot: create an ADMIN account inside {@code teamId} without needing the caller
-     * to switch into impersonation first. Rejects if the team already has an admin (see
-     * {@link SuperAdminService#createTeamAdmin} — every admin runs their own team).
-     */
     @PostMapping("/teams/{id}/admins")
     public ResponseEntity<SuperAdminDtos.TeamAdminRow> createTeamAdmin(
             @PathVariable Long id,
@@ -90,11 +72,6 @@ public class SuperAdminController {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.createTeamAdmin(id, req));
     }
 
-    /**
-     * Canonical admin onboarding: creates a fresh team and drops the new admin into it in
-     * one call. Since every admin is a solo workspace, this is what the super admin UI
-     * should call whenever a new person needs an admin role.
-     */
     @PostMapping("/admins-with-team")
     public ResponseEntity<SuperAdminDtos.AdminWithTeamResponse> createAdminWithNewTeam(
             @Valid @RequestBody SuperAdminDtos.CreateAdminWithTeamRequest req) {
@@ -102,11 +79,6 @@ public class SuperAdminController {
                 .body(service.createAdminWithNewTeam(req));
     }
 
-    /**
-     * Per-project analytics across every team: project name, owning team, all admins of
-     * that team (even ones added later), the project's member list, and ticket counts.
-     * Renders in the /super/projects page.
-     */
     @GetMapping("/projects-breakdown")
     public List<SuperAdminDtos.ProjectBreakdown> projectsBreakdown() {
         return service.projectsBreakdown();

@@ -7,11 +7,6 @@ import { IconBuilding, IconChart, IconFolder, IconMembers, IconSearch, IconTasks
 import { useAuth } from '../../context/AuthContext';
 import { useT } from '../../i18n';
 
-/**
- * Super-admin landing page. Uses the same {@code page / stat-card / card} shell as every
- * other admin page — no bespoke hero or gradient chrome — so the surface reads as "this is
- * still Neurix, you're just one level up".
- */
 export function SuperOverviewPage() {
   const { t } = useT();
   const navigate = useNavigate();

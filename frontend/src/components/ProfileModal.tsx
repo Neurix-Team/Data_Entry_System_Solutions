@@ -13,11 +13,6 @@ interface Props {
 const MAX_MB = 2;
 const ALLOWED = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif'];
 
-/**
- * Profile settings modal — currently focused on the avatar. Opens from the topbar user chip.
- * Shows a large preview of the current avatar and lets the user upload a new picture or
- * remove the existing one. Server-side rules enforced independently.
- */
 export function ProfileModal({ onClose }: Props) {
   const { user, refresh } = useAuth();
   const { lang } = useT();
@@ -33,7 +28,6 @@ export function ProfileModal({ onClose }: Props) {
 
   async function onPick(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    // Reset the input so re-picking the same file still fires onChange
     e.target.value = '';
     if (!file) return;
 

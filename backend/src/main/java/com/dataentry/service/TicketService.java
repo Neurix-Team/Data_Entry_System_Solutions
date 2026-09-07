@@ -33,20 +33,14 @@ public class TicketService {
     private final ProjectRepository projectRepository;
     private final CustomFieldRepository customFieldRepository;
     private final TicketTranslationPreparer translations;
-    // Retained for the one-off resource-name translation path inside applyResources — every
-    // other translation now goes through the preparer's dedup cache built up-front.
     private final TranslationService translator;
     private final Localizer localizer;
     private final AuditService audit;
     private final org.springframework.beans.factory.ObjectProvider<TicketDocumentService> documentServiceProvider;
-    // ObjectProvider avoids a hard startup dep on NotificationService and lets the notification
-    // write be skipped silently in tests / bootstrap paths where the bean isn't wired.
     private final org.springframework.beans.factory.ObjectProvider<NotificationService> notificationServiceProvider;
 
     private final org.springframework.beans.factory.ObjectProvider<TicketService> selfProvider;
 
-    // Kept here (as well as in TicketTranslationPreparer) because applyCustomValues below still
-    // needs to know which field types roundtrip through the translator vs. mirror as-is.
     private static final Set<FieldType> TRANSLATABLE_TYPES =
             EnumSet.of(FieldType.TEXT, FieldType.TEXTAREA, FieldType.SELECT);
 
@@ -104,20 +98,11 @@ public class TicketService {
         return toDto(saved);
     }
 
-    /**
-     * Create a single "attachments-only" ticket in the given project. Used by the folder
-     * page's multi-file quick-upload endpoint. Runs in its own transaction so per-file
-     * failures in a batch don't taint the caller's outer transaction with rollback-only.
-     */
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public Ticket createAttachmentTicket(User currentUser, Long projectId, Long departmentId, String title) {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Project not found"));
         TenantGuard.assertOwnership(project);
-        // When the caller picks a specific department in the quick-upload UI, honour it —
-        // that's how a user files a batch under the right section instead of dumping every
-        // file into a catch-all General. Null falls back to the auto-resolve path so an
-        // empty-project first-upload still works.
         Department dept = (departmentId != null)
                 ? resolveRequestedDepartment(project, departmentId)
                 : resolveDepartmentForQuickUpload(project);
@@ -141,9 +126,6 @@ public class TicketService {
         return ticketRepository.save(t);
     }
 
-    /** Delete a ticket by id without permission check — used only by the quick-upload
-     *  rollback path when its own {@code createAttachmentTicket} succeeded but the follow-up
-     *  file attachment failed. REQUIRES_NEW so it survives a rollback-only outer tx. */
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public void deleteByIdUnchecked(Long ticketId) {
         if (ticketRepository.existsById(ticketId)) {
@@ -151,12 +133,6 @@ public class TicketService {
         }
     }
 
-    /**
-     * Resolve a caller-picked department. Rejects (400) any department that either isn't
-     * in this team or isn't attached to this project — that guards against a stale UI
-     * sending the id of a department the user isn't supposed to see, and against a
-     * cross-project id sneaking in through the multipart form.
-     */
     private Department resolveRequestedDepartment(Project project, Long departmentId) {
         Department dept = departmentRepository.findById(departmentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -170,11 +146,6 @@ public class TicketService {
         return dept;
     }
 
-    /** Pick any usable department for the project, preferring the legacy pointer, then
-     *  an active one, then anything at all. When the project truly has none, auto-create
-     *  a default "General" one on the fly so a user's quick-upload never dead-ends waiting
-     *  on an admin — previously this returned 400 with an "add a department first" message
-     *  which turned a brand-new project into an unusable folder. */
     private Department resolveDepartmentForQuickUpload(Project project) {
         Department legacy = project.getDepartment();
         if (legacy != null) return legacy;
@@ -186,17 +157,6 @@ public class TicketService {
         return createDefaultDepartmentFor(project);
     }
 
-    /**
-     * Auto-create a default department for a project that has none. Named after the project
-     * so it reads naturally in the folder UI ("Marketing Campaign") rather than a generic
-     * "General" that would be indistinguishable from other projects' defaults. The name is
-     * suffixed with the project id if a same-named department already exists in the team
-     * (the departments table has a per-team UNIQUE(name) index post-migration).
-     *
-     * <p>Runs inside the caller's REQUIRES_NEW transaction so the department is committed
-     * together with the ticket that follows. Also patches the legacy {@link Project#department}
-     * pointer so subsequent lookups skip the empty-project branch and go straight through.
-     */
     private Department createDefaultDepartmentFor(Project project) {
         String base = project.getName() == null || project.getName().trim().isEmpty()
                 ? "General"
@@ -214,7 +174,6 @@ public class TicketService {
                 .project(project)
                 .build();
         Department saved = departmentRepository.save(d);
-        // Keep the legacy pointer aligned so a follow-up upload takes the fast path.
         project.setDepartment(saved);
         projectRepository.save(project);
         audit.record(AuditService.Action.CREATE, AuditService.EntityType.DEPARTMENT,
@@ -224,7 +183,6 @@ public class TicketService {
 
     public TicketDtos.BulkCreateResponse createMany(User currentUser, TicketDtos.BulkCreateRequest req) {
         List<CustomField> fields = loadActiveFields(req.subcategoryId());
-        // Translate every article + the shared custom values in one pass, outside the DB tx.
         Map<String, TranslationService.Bilingual> tr = translations.prepareForBulk(
                 req.articles(), req.customValues(), fields);
         return selfProvider.getObject().createManyTx(currentUser, req, fields, tr);
@@ -261,11 +219,6 @@ public class TicketService {
                 .findAllBySubcategoryIdAndActiveTrueOrderByDisplayOrderAscIdAsc(subcategoryId);
     }
 
-    /**
-     * Fan-out to TicketDocumentService via the ObjectProvider so we don't recreate the
-     * cycle-breaking indirection here. Called after each ticket is persisted so the moved
-     * images point at a ticket that already has an id.
-     */
     private void promoteExtractedImages(Ticket ticket,
                                         List<TicketDtos.ExtractedImageRef> images,
                                         User currentUser) {
@@ -330,16 +283,6 @@ public class TicketService {
         return sub;
     }
 
-    /**
-     * Resolve the ticket's department. Both department and subcategory are optional in the
-     * request now, so this method walks a fallback chain:
-     *   1. {@code departmentId} was sent → use it (and validate consistency with the sub).
-     *   2. {@code subcategoryId} was sent → use the subcategory's own department.
-     *   3. Neither was sent but a project was → pick the first active department in that
-     *      project so a user with a single scoped project can submit without touching any
-     *      cascading picker at all.
-     *   4. Otherwise → 400, we have no way to file the ticket.
-     */
     private Department resolveDepartment(Long departmentId, Subcategory sub, Project project) {
         if (departmentId != null) {
             Department dept = loadActiveDepartment(departmentId);
@@ -361,8 +304,6 @@ public class TicketService {
             return subDept;
         }
         if (project != null) {
-            // Same fallback as the quick-upload path — auto-create a default department
-            // when a project has none, so a fresh project accepts submissions immediately.
             return departmentRepository
                     .findAllByActiveTrueAndProjectIdOrderByNameAsc(project.getId())
                     .stream()
@@ -380,7 +321,6 @@ public class TicketService {
         if (!cleanUrl.isEmpty()) {
             validateUrl(cleanUrl);
         }
-        // Preserve non-null values for installations upgraded from earlier schemas.
         String cleanName = websiteName == null ? "" : websiteName.trim();
         String cleanTitle = title == null ? "" : title.trim();
         String cleanContent = content == null ? "" : content.trim();
@@ -397,8 +337,6 @@ public class TicketService {
                 .status(TicketStatus.IN_PROGRESS)
                 .build();
 
-        // The title is what the file called itself — mirrored into both language columns so
-        // it reads back exactly as extracted, whichever language the viewer is in.
         t.setTitleEn(cleanTitle);
         t.setTitleAr(cleanTitle);
         TranslationService.Bilingual contentBi = translations.lookup(tr, cleanContent);
@@ -469,9 +407,6 @@ public class TicketService {
 
     @Transactional
     public TicketDtos.TicketResponse updateStatus(Long id, String status) {
-        // Belt-and-braces authz — this method is only reachable through /api/admin/**, which
-        // SecurityConfig already gates on ROLE_ADMIN.  If someone ever moves the mapping out
-        // of /admin, this line stops non-admins from silently mutating tickets.
         assertAdminAuthenticated();
         Ticket t = ticketRepository.findWithDetailsById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ticket not found"));
@@ -486,10 +421,6 @@ public class TicketService {
         audit.record(AuditService.Action.STATUS_CHANGE, AuditService.EntityType.TICKET,
                 saved.getId(), previous + " -> " + saved.getStatus().name());
 
-        // Emit an in-app notification to the submitter when their ticket is approved
-        // (status flipped to COMPLETED and was previously something else). Best-effort:
-        // notification failures are swallowed by the service so an audit-worthy approval
-        // never rolls back because of a notification hiccup.
         if (saved.getStatus() == TicketStatus.COMPLETED
                 && !TicketStatus.COMPLETED.name().equals(previous)) {
             NotificationService notify = notificationServiceProvider == null
@@ -514,9 +445,6 @@ public class TicketService {
         return toDto(saved);
     }
 
-    /** Approve a caller-selected set atomically. A repeated id is deliberately collapsed,
-     *  and already-completed tickets are returned unchanged instead of producing duplicate
-     *  audit and notification rows. Any invalid/cross-team id rolls the whole batch back. */
     @Transactional
     public TicketDtos.BulkApproveResponse approveMany(List<Long> ticketIds) {
         assertAdminAuthenticated();
@@ -537,13 +465,6 @@ public class TicketService {
         return new TicketDtos.BulkApproveResponse(changed, approved);
     }
 
-    /**
-     * Admin edit of an entry's authored fields (title, content, website, resources). The
-     * content and website columns are re-translated so what either language shows never
-     * drifts from what was typed; the title is mirrored verbatim. Translation runs outside
-     * the DB transaction, like create does, so a slow LibreTranslate round-trip never
-     * holds a pooled connection.
-     */
     public TicketDtos.TicketResponse updateByAdmin(Long id, TicketDtos.UpdateTicketRequest req) {
         assertAdminAuthenticated();
         Map<String, TranslationService.Bilingual> tr = translations.prepareForOne(
@@ -569,7 +490,6 @@ public class TicketService {
         }
 
         t.setTitle(cleanTitle);
-        // Mirrored, not translated — see buildTicket.
         t.setTitleEn(cleanTitle);
         t.setTitleAr(cleanTitle);
 
@@ -585,8 +505,6 @@ public class TicketService {
         t.setWebsiteLink(cleanUrl);
 
         if (req.resources() != null) {
-            // orphanRemoval on Ticket.resources turns the clear into row deletes, so the
-            // list the admin sees after saving is exactly the list they submitted.
             t.getResources().clear();
             applyResources(t, req.resources());
         }
@@ -611,12 +529,6 @@ public class TicketService {
         deleteInternal(id);
     }
 
-    /**
-     * Delete a ticket the caller owns. Rejects with 403 if the ticket belongs to someone else
-     * or the caller is anonymous. Admins should use {@link #delete(Long)}; this path exists so
-     * a regular user can roll back their own submission when a follow-up step (attachment
-     * upload) fails.
-     */
     @Transactional
     public void deleteOwn(Long id, User currentUser) {
         if (currentUser == null) {
@@ -636,10 +548,6 @@ public class TicketService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ticket not found"));
         TenantGuard.assertOwnership(t);
         ticketRepository.deleteById(id);
-        // Files on disk aren't managed by JPA — sweep them after the DB rows are gone.
-        // ObjectProvider avoids a circular-dependency cycle with TicketDocumentService,
-        // which depends on TicketRepository too. Null-safe for tests where the provider
-        // isn't wired.
         if (documentServiceProvider != null) {
             TicketDocumentService docs = documentServiceProvider.getIfAvailable();
             if (docs != null) docs.purgeTicketDirectory(id);
@@ -665,9 +573,6 @@ public class TicketService {
         );
     }
 
-    /** Package-private so sibling services in {@code com.dataentry.service} (e.g. the
-     *  Project Folders view) can render tickets without duplicating the serialisation
-     *  logic. Not made public: only in-process callers should see it. */
     TicketDtos.TicketResponse toDto(Ticket t) {
         User u = t.getSubmittedBy();
         Department dept = t.getDepartment();
@@ -755,7 +660,7 @@ public class TicketService {
             String h = host.toLowerCase();
             boolean isPrivate = h.equals("localhost")
                     || h.equals("0.0.0.0")
-                    || h.equals("169.254.169.254")           // cloud metadata
+                    || h.equals("169.254.169.254")
                     || h.startsWith("127.")
                     || h.startsWith("10.")
                     || h.startsWith("192.168.")
@@ -788,7 +693,7 @@ public class TicketService {
                             "Field '" + field.getLabel() + "' must be a valid email");
                 }
             }
-            default -> { /* no strict server check */ }
+            default -> {  }
         }
     }
 }

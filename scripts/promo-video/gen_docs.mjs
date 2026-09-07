@@ -1,4 +1,3 @@
-// Generates sample "book page" PDFs and scanned-page PNGs used as demo attachments.
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 fs.mkdirSync('docs', { recursive: true });
@@ -60,11 +59,9 @@ const page = await browser.newPage({ viewport: { width: 1000, height: 1400 } });
 let i = 0;
 for (const [key, p] of Object.entries(pages)) {
   i++;
-  // multi-page PDF: same chapter rendered on 3 pages with different page numbers
   const body = [1, 2, 3].map(n => `<div style="page-break-after:always;position:relative;height:1350px">${html(p, false, n).replace(/<\/?html>|<\/?body[^>]*>/g, '')}</div>`).join('');
   await page.setContent(`<html><body style="margin:0">${body}</body></html>`);
   await page.pdf({ path: `docs/${key}.pdf`, format: 'A4', printBackground: true });
-  // scanned PNG of page 1
   await page.setContent(html(p, true, 1));
   await page.screenshot({ path: `docs/${key}_scan.png`, fullPage: true });
 }

@@ -738,6 +738,5 @@ export const en = {
   },
 };
 
-// Deep-string mirror of the structure — Arabic just needs the same keys.
 type DeepStringify<T> = { [K in keyof T]: T[K] extends string ? string : DeepStringify<T[K]> };
 export type Dict = DeepStringify<typeof en>;

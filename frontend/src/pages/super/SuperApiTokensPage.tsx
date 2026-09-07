@@ -21,20 +21,6 @@ const PRESETS: { value: ExpiryPreset; labelKey: string; fallback: string }[] = [
   { value: -1, labelKey: 'super.tokens.expiryCustom', fallback: 'Custom…' },
 ];
 
-/**
- * Personal-access tokens for the {@code /api/v1/export/*} data-pull API. Every token here
- * is read-only and cross-team by design — the intended consumer is an external Neurix
- * project (typically an AI ingest pipeline) that needs to hydrate a downstream database
- * from this system.
- *
- * <p>Design notes:
- * <ul>
- *   <li>Plaintext is shown once — the reveal modal is the only chance to copy it. The
- *       backend stores only the SHA-256 hash.</li>
- *   <li>Rows carry a coloured status pill so operators can spot an expiring or revoked
- *       token at a glance without having to read the timestamps.</li>
- * </ul>
- */
 export function SuperApiTokensPage() {
   const { t } = useT();
   const [rows, setRows] = useState<ApiTokenRow[] | null>(null);
@@ -384,7 +370,6 @@ function RevealTokenModal({ response, onClose }: {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Older browsers / no clipboard API — fall back to selection.
       const el = document.getElementById('api-token-plaintext') as HTMLInputElement | null;
       el?.select();
     }

@@ -8,11 +8,6 @@ import { IconFolder, IconAlert, IconCheck } from '../../components/Icons';
 import { useT } from '../../i18n';
 import { pickLocalized } from '../../i18n/localized';
 
-/**
- * Folder grid — one card per project. Users see the projects they're a member of,
- * with counts scoped to their own tickets. Admins/super-admins see every project
- * across the team with counts across every submitter.
- */
 export function ProjectFoldersPage() {
   const { t, lang } = useT();
   const { user } = useAuth();

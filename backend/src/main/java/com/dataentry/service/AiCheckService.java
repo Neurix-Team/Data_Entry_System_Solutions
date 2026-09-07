@@ -8,10 +8,6 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Stub implementation of AI grammar / spelling check.
- * Replace {@link #check(String)} with a real LLM call (Claude / OpenAI) later.
- */
 @Service
 public class AiCheckService {
 

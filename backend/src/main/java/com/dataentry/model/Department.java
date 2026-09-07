@@ -31,7 +31,6 @@ public class Department implements TeamOwned {
     @JoinColumn(name = "team_id")
     private Team team;
 
-    /** Department names are unique within a team, not across the whole system. */
     @Column(nullable = false, length = 150)
     private String name;
 
@@ -49,10 +48,6 @@ public class Department implements TeamOwned {
     @Builder.Default
     private Instant createdAt = Instant.now();
 
-    /**
-     * The project this department belongs to. Optional — a department can exist without a
-     * project. Set/cleared via the admin project screen's departments picker.
-     */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id")
     private Project project;

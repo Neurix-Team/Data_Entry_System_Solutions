@@ -11,7 +11,6 @@ public class DashboardDtos {
 
     public record DailyCount(LocalDate date, long count) {}
 
-    // --- typed JPQL projections (replace Object[] tuples) ---
 
     public record DepartmentCount(Long departmentId, long total) {}
 
@@ -33,7 +32,6 @@ public class DashboardDtos {
 
     public record UserBreakdownRaw(Long groupId, String groupName, long total) {}
 
-    // --- output DTOs (replace Map<String, Object>) ---
 
     public record AdminStats(
             long totalTickets,
@@ -59,7 +57,6 @@ public class DashboardDtos {
             long completedThisWeek
     ) {}
 
-    // --- user-facing dashboard (self view) ---
 
     public record RecentTicket(
             Long id,

@@ -1,5 +1,3 @@
-/** Human-readable byte counts, throughput and durations for the upload meters. */
-
 export function formatBytes(n: number): string {
   if (!Number.isFinite(n) || n < 0) return '0 B';
   if (n < 1024) return `${Math.round(n)} B`;

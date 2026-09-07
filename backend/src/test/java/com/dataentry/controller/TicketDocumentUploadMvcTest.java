@@ -27,14 +27,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * Web-layer test for POST /api/tickets/{id}/documents. Guards the multipart contract that
- * the frontend upload flow depends on.
- *
- * <p>The bug that motivated this test: axios was defaulting Content-Type to application/json,
- * which meant every attempted document upload landed on the multipart endpoint as JSON and
- * came back as an opaque 500. We now expect a clean 415 for that misuse — asserted below.
- */
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
 @ActiveProfiles("test")
@@ -45,8 +37,6 @@ class TicketDocumentUploadMvcTest {
 
     @BeforeEach
     void authenticate() {
-        // Filters are disabled to keep the test focused on MVC routing, so we hand-fill the
-        // SecurityContext with the actual User principal that @AuthenticationPrincipal reads.
         User caller = User.builder().id(7L).username("agent").role(Role.USER).active(true).build();
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(
@@ -76,12 +66,6 @@ class TicketDocumentUploadMvcTest {
                 .andExpect(status().isOk());
     }
 
-    /**
-     * Regression guard for the axios FormData bug. If the client accidentally sends
-     * {@code Content-Type: application/json} to the multipart endpoint (as our axios instance
-     * did before the fix), Spring MVC MUST route it to 415 Unsupported Media Type — not fall
-     * through to the generic 500 handler and confuse the user with "Unexpected server error".
-     */
     @Test
     void jsonUpload_returns415() throws Exception {
         mvc.perform(post("/api/tickets/42/documents")

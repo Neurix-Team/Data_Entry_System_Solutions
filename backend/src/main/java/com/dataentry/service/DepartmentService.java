@@ -20,9 +20,6 @@ import java.util.Comparator;
 import java.util.List;
 
 @Service
-// Class-level readOnly so read methods sit inside a Spring tx and the TenantFilterAspect
-// enables the tenant filter before Hibernate runs the JPQL — otherwise the TeamOwned
-// @PostLoad guard would 404 on the first department from another team.
 @Transactional(readOnly = true)
 public class DepartmentService {
 
@@ -53,10 +50,6 @@ public class DepartmentService {
         this.subcategoryServiceProvider = subcategoryServiceProvider;
     }
 
-    // The list methods run inside a read-only transaction so the lazy Department.project
-    // proxy can still be resolved while toDto is copying out the project name — outside a
-    // transaction Hibernate closes the session as soon as the repository call returns and
-    // any downstream getNameEn()/getName() on the lazy Project throws LazyInitialization.
 
     @Transactional(readOnly = true)
     public List<DepartmentDtos.DepartmentResponse> listAll() {
@@ -144,12 +137,6 @@ public class DepartmentService {
         deleteWithChildren(id);
     }
 
-    /**
-     * Cascade-delete a department together with every subcategory, custom field, and
-     * ticket living inside it. Called from the project delete path as well, which is why
-     * it's public — a project delete wants the same tree wipe applied to each of its
-     * departments.
-     */
     @Transactional
     public void deleteWithChildren(Long id) {
         Department d = repository.findById(id)
@@ -159,9 +146,6 @@ public class DepartmentService {
         for (Subcategory s : subcategoryRepository.findAllByDepartmentId(id)) {
             subSvc.deleteWithChildren(s.getId());
         }
-        // A ticket can point at a department without going through a subcategory (legacy
-        // rows). Sweep any that are still hanging off this department after the subcategory
-        // pass above. deleteAll tolerates already-removed rows.
         ticketRepository.deleteAll(ticketRepository.findAllByDepartmentId(id));
         repository.deleteById(id);
         audit.record(AuditService.Action.DELETE, AuditService.EntityType.DEPARTMENT, id, null);

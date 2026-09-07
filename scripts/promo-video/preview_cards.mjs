@@ -1,4 +1,3 @@
-// Renders the overlay cards and the longest caption on a blank page (no app needed) for a visual check.
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';

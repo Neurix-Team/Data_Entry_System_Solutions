@@ -5,10 +5,6 @@ import lombok.*;
 
 import java.time.Instant;
 
-/**
- * A flat, durable export snapshot. The source ticket id is unique, so publishing is an
- * upsert rather than an append operation and cannot duplicate the same logical record.
- */
 @Entity
 @Table(name = "dataset_records", indexes = {
         @Index(name = "idx_dataset_source_ticket", columnList = "source_ticket_id", unique = true),
@@ -54,8 +50,6 @@ public class DatasetRecord {
     @Builder.Default
     private String attachmentsJson = "[]";
 
-    /** Number of physical attachments represented by this snapshot. Nullable only for
-     * rows created before this counter was introduced; the next publish backfills it. */
     @Column(name = "attachment_count")
     private Integer attachmentCount;
 
