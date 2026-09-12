@@ -1,0 +1,1562 @@
+/* Scanning Floor Board — the Neurix landing world.
+   Direction contract lives in frontend/index.html (seed 8260cb4d). */
+
+@font-face {
+  font-family: 'Archivo Plate';
+  src: url('/fonts/archivo-latin.woff2') format('woff2-variations');
+  font-weight: 400 800;
+  font-stretch: 75% 125%;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Readex Arabic';
+  src: url('/fonts/readexpro-arabic.woff2') format('woff2-variations');
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF;
+}
+
+.nx {
+  /* Enamel and steel */
+  --nx-plate: #070d1a;
+  --nx-plate-2: #0d1729;
+  --nx-card: #16243f;
+  --nx-card-2: #1d2e4e;
+  --nx-steel: #92a3c0;
+  --nx-steel-dim: #4d5d7c; /* edges and strokes only — too dark for text */
+  --nx-dim-text: #8094b3; /* the dim label colour that still clears 4.5:1 */
+  --nx-rule: rgba(146, 163, 192, 0.16);
+  --nx-rule-strong: rgba(146, 163, 192, 0.32);
+
+  /* Ink */
+  --nx-ink: #eaf0fd;
+  --nx-ink-2: #aab8d4;
+  --nx-ink-3: #8294b5;
+
+  /* Signal. --nx-signal is the emitted-light colour used on dark wells and
+     screens; --nx-signal-ink is the same signal set as type on the page, which
+     has to darken under daylight to stay legible. */
+  --nx-signal-ink: #22c3d9;
+  --nx-signal: #22c3d9;
+  --nx-signal-deep: #0f5fd1;
+  --nx-commit: #ff6a13;
+  --nx-amber: #ffb02e;
+  --nx-good: #2fcf9e;
+
+  /* Department tabs (mirrors the in-app department colours) */
+  --nx-tab-1: #4b8fee;
+  --nx-tab-2: #22c3d9;
+  --nx-tab-3: #9b7cf0;
+  --nx-tab-4: #2fcf9e;
+  --nx-tab-5: #ff6a8a;
+  --nx-tab-6: #ffb02e;
+
+  /* Recessed surfaces. The instrument well and the monitor stay dark in both
+     themes — a lit screen is dark whatever the room is doing. */
+  --nx-inset: rgba(4, 8, 16, 0.66);
+  --nx-inset-soft: rgba(4, 8, 16, 0.5);
+  --nx-well: #04070e;
+  --nx-rail-bg: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, #2c3a56 0%, #1d2840 46%, #161f33 54%, #222e47 100%);
+  --nx-board-bg: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.02) 0 1px, transparent 1px 4px),
+    linear-gradient(178deg, #16233c 0%, #0a1222 60%, #060c17 100%);
+  --nx-card-bg: linear-gradient(168deg, #1d2e4e 0%, #16243f 62%);
+  --nx-panel-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 40%), #0d1729;
+  --nx-hilite: rgba(255, 255, 255, 0.14);
+  --nx-shadow-deep: rgba(0, 0, 0, 0.95);
+
+  --nx-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --nx-gutter: clamp(1.25rem, 4vw, 4.5rem);
+  --nx-max: 1240px;
+
+  position: relative;
+  min-height: 100%;
+  background-color: var(--nx-plate);
+  color: var(--nx-ink);
+  font-family: 'Archivo Plate', 'Segoe UI', system-ui, sans-serif;
+  font-size: 1rem;
+  line-height: 1.6;
+  overflow-x: clip;
+  -webkit-font-smoothing: antialiased;
+}
+
+.nx[dir='rtl'],
+[dir='rtl'] .nx {
+  font-family: 'Readex Arabic', 'Archivo Plate', 'Segoe UI', sans-serif;
+}
+
+/* Work light falling across the enamel from above */
+.nx::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(120% 70% at 22% -10%, rgba(34, 195, 217, 0.11), transparent 62%),
+    radial-gradient(90% 60% at 88% 4%, rgba(15, 95, 209, 0.14), transparent 58%),
+    radial-gradient(140% 100% at 50% 120%, rgba(0, 0, 0, 0.6), transparent 60%);
+}
+
+.nx > * {
+  position: relative;
+  z-index: 1;
+}
+
+.nx :focus-visible {
+  outline: 2px solid var(--nx-signal-ink);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+.nx-shell {
+  width: min(100% - calc(var(--nx-gutter) * 2), var(--nx-max));
+  margin-inline: auto;
+}
+
+/* ─── Materials ─────────────────────────────────────────────── */
+
+/* Brushed steel rail */
+.nx-rail {
+  position: relative;
+  background: var(--nx-rail-bg);
+  border-block: 1px solid rgba(146, 163, 192, 0.22);
+  box-shadow:
+    inset 0 1px 0 var(--nx-hilite),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.55),
+    0 10px 24px -14px rgba(0, 0, 0, 0.9);
+}
+
+/* Enamel panel */
+.nx-panel {
+  background: var(--nx-panel-bg);
+  border: 1px solid var(--nx-rule);
+  border-radius: 4px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 22px 44px -26px rgba(0, 0, 0, 0.9);
+}
+
+/* Stencilled paint on steel */
+.nx-stencil {
+  font-family: 'Archivo Plate', system-ui, sans-serif;
+  font-variation-settings: 'wdth' 118, 'wght' 700;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 0.688rem;
+  line-height: 1;
+  color: var(--nx-steel);
+}
+
+[dir='rtl'] .nx-stencil {
+  letter-spacing: 0;
+  font-family: 'Readex Arabic', sans-serif;
+  font-variation-settings: normal;
+  font-weight: 600;
+}
+
+.nx-stencil--signal {
+  color: var(--nx-signal-ink);
+}
+
+/* Station number painted on the plate */
+.nx-station-no {
+  font-variation-settings: 'wdth' 125, 'wght' 800;
+  font-size: clamp(2.5rem, 7vw, 4.75rem);
+  line-height: 0.82;
+  letter-spacing: -0.03em;
+  color: transparent;
+  -webkit-text-stroke: 1.5px rgba(146, 163, 192, 0.34);
+  user-select: none;
+}
+
+/* ─── Type ──────────────────────────────────────────────────── */
+
+.nx :where(h1, h2, h3) {
+  margin: 0;
+  font-variation-settings: 'wdth' 108, 'wght' 760;
+  letter-spacing: -0.025em;
+  line-height: 1.04;
+  text-wrap: balance;
+  color: var(--nx-ink);
+}
+
+[dir='rtl'] .nx :where(h1, h2, h3) {
+  font-variation-settings: normal;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+
+.nx :where(h1) {
+  font-size: clamp(2.25rem, 5.6vw, 5rem);
+}
+
+.nx :where(h2) {
+  font-size: clamp(1.75rem, 3.4vw, 2.9rem);
+}
+
+.nx :where(h3) {
+  font-size: clamp(1.125rem, 1.6vw, 1.375rem);
+  letter-spacing: -0.012em;
+}
+
+.nx :where(p) {
+  margin: 0;
+  color: var(--nx-ink-2);
+  max-width: 68ch;
+}
+
+.nx-lede {
+  font-size: clamp(1.0625rem, 1.35vw, 1.25rem);
+  line-height: 1.62;
+  color: var(--nx-ink-2);
+}
+
+.nx-note {
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--nx-ink-3);
+}
+
+.nx-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* ─── Controls ──────────────────────────────────────────────── */
+
+.nx-commit {
+  --shift: 3px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.9rem 1.5rem;
+  border: 1px solid #ff8a44;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #ff8330 0%, #f2590a 100%);
+  color: #1a0c02;
+  font: inherit;
+  font-variation-settings: 'wdth' 110, 'wght' 720;
+  font-size: 0.9375rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 var(--shift) 0 #8f3103,
+    0 calc(var(--shift) + 10px) 22px -8px rgba(242, 89, 10, 0.5);
+  transition:
+    transform 0.16s var(--nx-ease),
+    box-shadow 0.16s var(--nx-ease),
+    filter 0.16s var(--nx-ease);
+}
+
+[dir='rtl'] .nx-commit {
+  letter-spacing: 0;
+  text-transform: none;
+  font-variation-settings: normal;
+  font-weight: 700;
+}
+
+.nx-commit:hover {
+  filter: brightness(1.06);
+  --shift: 4px;
+}
+
+.nx-commit:active {
+  transform: translateY(3px);
+  --shift: 0px;
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.4),
+    0 0 0 #8f3103;
+}
+
+.nx-commit:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.7) brightness(0.75);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 2px 0 #6a4530;
+}
+
+/* Secondary: a plain steel toggle on the rail */
+.nx-steel-btn {
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1.25rem;
+  border: 1px solid rgba(146, 163, 192, 0.4);
+  border-radius: 3px;
+  background: linear-gradient(180deg, rgba(146, 163, 192, 0.16), rgba(146, 163, 192, 0.05));
+  color: var(--nx-ink);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-variation-settings: 'wdth' 105, 'wght' 620;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  transition: background 0.16s var(--nx-ease), border-color 0.16s var(--nx-ease);
+}
+
+[dir='rtl'] .nx-steel-btn {
+  letter-spacing: 0;
+  text-transform: none;
+  font-variation-settings: normal;
+  font-weight: 600;
+}
+
+.nx-steel-btn:hover {
+  background: linear-gradient(180deg, rgba(146, 163, 192, 0.26), rgba(146, 163, 192, 0.1));
+  border-color: rgba(146, 163, 192, 0.6);
+}
+
+/* Knurled language knob */
+.nx-knob {
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.875rem 0.5rem 0.5rem;
+  border: 1px solid rgba(146, 163, 192, 0.34);
+  border-radius: 999px;
+  background: var(--nx-inset);
+  color: var(--nx-ink-2);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-variation-settings: 'wdth' 104, 'wght' 600;
+  cursor: pointer;
+  transition: color 0.16s var(--nx-ease), border-color 0.16s var(--nx-ease);
+}
+
+[dir='rtl'] .nx-knob {
+  padding: 0.5rem 0.5rem 0.5rem 0.875rem;
+  font-variation-settings: normal;
+  font-weight: 600;
+}
+
+.nx-knob:hover {
+  color: var(--nx-ink);
+  border-color: rgba(146, 163, 192, 0.55);
+}
+
+.nx-knob i {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background:
+    repeating-conic-gradient(
+      from 0deg,
+      #9fb0cc 0deg 4deg,
+      #56657f 4deg 8deg
+    );
+  box-shadow:
+    inset 0 0 0 2px #0c1626,
+    inset 0 2px 4px rgba(255, 255, 255, 0.25),
+    0 2px 4px rgba(0, 0, 0, 0.6);
+  flex: none;
+}
+
+/* ─── Instruments: glowing digit wells ──────────────────────── */
+
+.nx-readout {
+  display: inline-flex;
+  gap: 2px;
+  padding: 0.375rem;
+  border-radius: 3px;
+  background: var(--nx-well);
+  border: 1px solid rgba(146, 163, 192, 0.26);
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.9),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.nx-digit {
+  position: relative;
+  min-width: 0.72em;
+  padding: 0.125rem 0.1875rem;
+  font-variation-settings: 'wdth' 96, 'wght' 700;
+  font-size: 1.5rem;
+  line-height: 1.1;
+  text-align: center;
+  color: var(--nx-amber);
+  background: linear-gradient(180deg, rgba(255, 176, 46, 0.12), rgba(255, 176, 46, 0.03));
+  border-radius: 2px;
+  text-shadow:
+    0 0 6px rgba(255, 176, 46, 0.75),
+    0 0 18px rgba(255, 176, 46, 0.35);
+  font-variant-numeric: tabular-nums;
+}
+
+.nx-digit--signal {
+  color: var(--nx-signal);
+  background: linear-gradient(180deg, rgba(34, 195, 217, 0.12), rgba(34, 195, 217, 0.03));
+  text-shadow:
+    0 0 6px rgba(34, 195, 217, 0.75),
+    0 0 18px rgba(34, 195, 217, 0.35);
+}
+
+.nx-readout-unit {
+  align-self: flex-end;
+  padding: 0 0.25rem 0.3125rem;
+  font-size: 0.625rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--nx-dim-text);
+}
+
+/* ─── Batch card ────────────────────────────────────────────── */
+
+.nx-batch {
+  position: relative;
+  padding: 1rem 1.125rem 1.125rem;
+  border-radius: 5px;
+  background: var(--nx-card-bg);
+  border: 1px solid rgba(146, 163, 192, 0.3);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 2px 3px rgba(0, 0, 0, 0.5),
+    0 20px 34px -16px rgba(0, 0, 0, 0.95);
+}
+
+/* colour-coded department tab down the leading edge */
+.nx-batch::after {
+  content: '';
+  position: absolute;
+  inset-block: 10px;
+  inset-inline-start: -1px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--tab, var(--nx-tab-1));
+  box-shadow: 0 0 10px -1px var(--tab, var(--nx-tab-1));
+}
+
+/* punched filing hole */
+.nx-batch::before {
+  content: '';
+  position: absolute;
+  top: 10px;
+  inset-inline-end: 12px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--nx-well);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.9),
+    0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.nx-batch-id {
+  font-variation-settings: 'wdth' 112, 'wght' 740;
+  font-size: 0.75rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--nx-signal-ink);
+}
+
+.nx-batch-title {
+  margin-top: 0.375rem;
+  font-size: 0.9375rem;
+  font-variation-settings: 'wdth' 100, 'wght' 620;
+  color: var(--nx-ink);
+  line-height: 1.35;
+}
+
+.nx-batch-meta {
+  margin-top: 0.625rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  color: var(--nx-ink-3);
+}
+
+/* ─── Header rail ───────────────────────────────────────────── */
+
+.nx-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+.nx-header-in {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.5rem, 1.2vw, 1rem);
+  padding-block: 0.75rem;
+}
+
+.nx-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  text-decoration: none;
+  color: var(--nx-ink);
+  margin-inline-end: auto;
+}
+
+.nx-brand img {
+  width: 30px;
+  height: 30px;
+  display: block;
+}
+
+.nx-brand b {
+  font-variation-settings: 'wdth' 116, 'wght' 780;
+  font-size: 1.0625rem;
+  letter-spacing: 0.02em;
+}
+
+[dir='rtl'] .nx-brand b {
+  font-variation-settings: normal;
+  font-weight: 700;
+}
+
+.nx-header-links {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.875rem, 1.6vw, 1.5rem);
+  white-space: nowrap;
+}
+
+.nx-header-links a {
+  color: var(--nx-ink-2);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-variation-settings: 'wdth' 102, 'wght' 580;
+  transition: color 0.14s var(--nx-ease);
+}
+
+.nx-header-links a:hover {
+  color: var(--nx-ink);
+}
+
+/* ─── Hero board ────────────────────────────────────────────── */
+
+.nx-hero {
+  position: relative;
+  padding-block: clamp(3rem, 7vw, 5.5rem) clamp(2rem, 5vw, 4rem);
+}
+
+.nx-hero-copy {
+  max-width: 44rem;
+}
+
+.nx-hero h1 em {
+  font-style: normal;
+  color: var(--nx-signal-ink);
+}
+
+.nx-hero-lede {
+  margin-top: 1.375rem;
+}
+
+.nx-hero-actions {
+  margin-top: 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.875rem;
+}
+
+/* The board: real perspective, cards on risers */
+.nx-board-stage {
+  margin-top: clamp(2.5rem, 6vw, 4.5rem);
+  perspective: 1500px;
+  perspective-origin: 50% 30%;
+}
+
+.nx-board {
+  position: relative;
+  transform: rotateX(34deg) rotateZ(-1deg);
+  transform-style: preserve-3d;
+  border-radius: 6px;
+  padding: clamp(1rem, 2.4vw, 2rem);
+  background: var(--nx-board-bg);
+  border: 1px solid rgba(146, 163, 192, 0.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -30px 60px -30px rgba(0, 0, 0, 0.9),
+    0 60px 90px -50px rgba(0, 0, 0, 1);
+}
+
+.nx-board-lanes {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: clamp(0.5rem, 1.2vw, 1rem);
+  transform-style: preserve-3d;
+}
+
+.nx-lane-slot {
+  position: relative;
+  min-height: 168px;
+  padding: 0.625rem;
+  border-radius: 4px;
+  background: var(--nx-inset-soft);
+  border: 1px dashed rgba(146, 163, 192, 0.22);
+  transform-style: preserve-3d;
+}
+
+.nx-lane-slot > .nx-stencil {
+  position: absolute;
+  inset-block-end: 0.5rem;
+  inset-inline-start: 0.625rem;
+  font-size: 0.5625rem;
+  letter-spacing: 0.16em;
+}
+
+.nx-lane-slot--active {
+  border-style: solid;
+  border-color: rgba(34, 195, 217, 0.5);
+  background: rgba(34, 195, 217, 0.06);
+  box-shadow: inset 0 0 24px -6px rgba(34, 195, 217, 0.4);
+}
+
+/* the travelling batch sits above the plate on a riser */
+.nx-board .nx-batch {
+  transform: translateZ(26px);
+}
+
+/* scan head sweeping the intake lane */
+.nx-scanhead {
+  position: absolute;
+  inset-block: 4px;
+  inset-inline-start: 0;
+  width: 38%;
+  border-radius: 3px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(34, 195, 217, 0.16) 40%,
+    rgba(34, 195, 217, 0.5) 50%,
+    rgba(34, 195, 217, 0.16) 60%,
+    transparent
+  );
+  box-shadow: 0 0 26px rgba(34, 195, 217, 0.45);
+  animation: nx-sweep 3.6s var(--nx-ease) infinite;
+  pointer-events: none;
+}
+
+@keyframes nx-sweep {
+  0%,
+  8% {
+    transform: translateX(-40%);
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  82% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(210%);
+    opacity: 0;
+  }
+}
+
+/* rail of live instrument readouts under the board */
+.nx-board-gauges {
+  margin-top: clamp(1.5rem, 3vw, 2.25rem);
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(1rem, 3vw, 2.75rem);
+  align-items: flex-end;
+}
+
+.nx-gauge-label {
+  margin-top: 0.5rem;
+  display: block;
+}
+
+/* ─── Stations (flat-on, so the copy stays readable) ────────── */
+
+.nx-station {
+  padding-block: clamp(3.5rem, 8vw, 6.5rem);
+  border-top: 1px solid var(--nx-rule);
+}
+
+.nx-station-head {
+  display: flex;
+  align-items: flex-start;
+  gap: clamp(1rem, 2.5vw, 2rem);
+  margin-bottom: clamp(1.75rem, 3.5vw, 2.75rem);
+}
+
+.nx-station-head > div {
+  flex: 1;
+}
+
+/* The station plate: painted number with its lane name beneath. */
+.nx-station-plate {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  flex: none;
+  padding-inline-end: clamp(0.5rem, 1.5vw, 1.25rem);
+  border-inline-end: 1px solid var(--nx-rule);
+}
+
+.nx-station-head p {
+  margin-top: 0.875rem;
+}
+
+.nx-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  gap: clamp(1.5rem, 4vw, 3.5rem);
+  align-items: center;
+}
+
+.nx-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 1.125rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nx-facts li {
+  display: flex;
+  gap: 0.875rem;
+  align-items: flex-start;
+}
+
+.nx-facts svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--nx-signal-ink);
+}
+
+.nx-facts b {
+  display: block;
+  font-variation-settings: 'wdth' 104, 'wght' 680;
+  font-size: 0.9375rem;
+  color: var(--nx-ink);
+  margin-bottom: 0.1875rem;
+}
+
+[dir='rtl'] .nx-facts b {
+  font-variation-settings: normal;
+  font-weight: 700;
+}
+
+.nx-facts span {
+  font-size: 0.875rem;
+  color: var(--nx-ink-2);
+  line-height: 1.55;
+}
+
+/* ─── Apparatus: chunk grid (station 01) ────────────────────── */
+
+.nx-apparatus {
+  padding: clamp(1rem, 2.2vw, 1.5rem);
+}
+
+.nx-app-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.875rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--nx-rule);
+}
+
+.nx-chunkgrid {
+  display: grid;
+  grid-template-columns: repeat(16, 1fr);
+  gap: 3px;
+}
+
+.nx-chunk {
+  aspect-ratio: 1;
+  border-radius: 1px;
+  background: rgba(146, 163, 192, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(146, 163, 192, 0.08);
+  transition: background 0.3s var(--nx-ease), box-shadow 0.3s var(--nx-ease);
+}
+
+.nx-chunk[data-state='flight'] {
+  background: rgba(255, 176, 46, 0.75);
+  box-shadow: 0 0 8px rgba(255, 176, 46, 0.6);
+}
+
+.nx-chunk[data-state='done'] {
+  background: var(--nx-signal);
+  box-shadow: 0 0 6px -1px rgba(34, 195, 217, 0.7);
+}
+
+.nx-chunk[data-state='retry'] {
+  background: rgba(255, 106, 138, 0.8);
+  box-shadow: 0 0 8px rgba(255, 106, 138, 0.5);
+}
+
+.nx-workers {
+  margin-top: 1.125rem;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+}
+
+.nx-worker {
+  padding: 0.5rem 0.625rem;
+  border-radius: 3px;
+  background: var(--nx-inset);
+  border: 1px solid var(--nx-rule);
+  font-size: 0.625rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--nx-ink-3);
+}
+
+.nx-worker[data-busy='1'] {
+  border-color: rgba(34, 195, 217, 0.45);
+  color: var(--nx-signal);
+}
+
+.nx-bar {
+  margin-top: 0.375rem;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(146, 163, 192, 0.16);
+  overflow: hidden;
+}
+
+.nx-bar i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--nx-signal);
+  transform-origin: left center;
+  transition: transform 0.4s var(--nx-ease);
+}
+
+[dir='rtl'] .nx-bar i {
+  transform-origin: right center;
+}
+
+/* ─── Apparatus: OCR monitor (station 02) ───────────────────── */
+
+.nx-crt {
+  position: relative;
+  border-radius: 8px;
+  padding: clamp(0.875rem, 2vw, 1.25rem);
+  background: radial-gradient(120% 100% at 50% 0%, #0c1a20 0%, #050a0f 70%);
+  border: 1px solid rgba(146, 163, 192, 0.3);
+  box-shadow:
+    inset 0 0 60px -20px rgba(34, 195, 217, 0.35),
+    inset 0 2px 0 rgba(255, 255, 255, 0.08),
+    0 24px 48px -28px rgba(0, 0, 0, 1);
+  overflow: hidden;
+}
+
+.nx-crt::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.32) 0 1px,
+    transparent 1px 3px
+  );
+  mix-blend-mode: multiply;
+}
+
+.nx-scanline {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 64px;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgba(34, 195, 217, 0.16) 60%,
+    rgba(34, 195, 217, 0.42) 92%,
+    transparent
+  );
+  animation: nx-scan 5s linear infinite;
+}
+
+@keyframes nx-scan {
+  0% {
+    transform: translateY(-70px);
+  }
+  100% {
+    transform: translateY(calc(100% + 70px));
+  }
+}
+
+.nx-ocr-rows {
+  display: grid;
+  gap: 0.75rem;
+  position: relative;
+  z-index: 1;
+}
+
+.nx-ocr-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: baseline;
+}
+
+.nx-ocr-page {
+  font-size: 0.625rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--nx-dim-text);
+  padding-top: 0.25rem;
+}
+
+.nx-ocr-text {
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: #bff0f7;
+  text-shadow: 0 0 12px rgba(34, 195, 217, 0.4);
+  min-height: 1.4em;
+}
+
+.nx-ocr-text[data-lang='ar'] {
+  font-family: 'Readex Arabic', sans-serif;
+  direction: rtl;
+  text-align: right;
+}
+
+.nx-ocr-text .nx-caret {
+  display: inline-block;
+  width: 7px;
+  height: 1em;
+  margin-inline-start: 2px;
+  vertical-align: text-bottom;
+  background: var(--nx-signal);
+  box-shadow: 0 0 10px var(--nx-signal);
+  animation: nx-blink 1.05s steps(2, end) infinite;
+}
+
+@keyframes nx-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  50.01%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ─── Apparatus: interlocks (isolation) ─────────────────────── */
+
+.nx-interlocks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  gap: clamp(0.75rem, 2vw, 1.25rem);
+}
+
+.nx-interlock {
+  position: relative;
+  padding: 1.25rem 1.25rem 1.375rem;
+  border-radius: 4px;
+  background: var(--nx-panel-bg);
+  border: 1px solid var(--nx-rule);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 18px 36px -24px rgba(0, 0, 0, 0.9);
+}
+
+.nx-interlock h3 {
+  margin-top: 0.875rem;
+  margin-bottom: 0.5rem;
+  font-size: 1.0625rem;
+}
+
+.nx-bolt {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, #3d4d6d, #141d30 70%);
+  border: 1px solid rgba(146, 163, 192, 0.34);
+  box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.16), 0 3px 6px rgba(0, 0, 0, 0.6);
+  color: var(--nx-signal-ink);
+}
+
+/* ─── Apparatus: export tree ────────────────────────────────── */
+
+.nx-tree {
+  font-size: 0.8125rem;
+  line-height: 1.9;
+  color: var(--nx-ink-2);
+  margin: 0;
+  white-space: pre;
+  overflow-x: auto;
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  text-align: left;
+}
+
+.nx-tree b {
+  color: var(--nx-ink);
+  font-variation-settings: 'wdth' 100, 'wght' 640;
+}
+
+.nx-tree i {
+  font-style: normal;
+  color: var(--nx-good);
+}
+
+.nx-tree u {
+  text-decoration: none;
+  color: var(--nx-dim-text);
+}
+
+/* ─── Roles ─────────────────────────────────────────────────── */
+
+.nx-roles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: clamp(0.75rem, 2vw, 1.25rem);
+}
+
+.nx-role {
+  position: relative;
+  padding: 1.75rem 1.375rem 1.5rem;
+  border-radius: 4px;
+  background: var(--nx-panel-bg);
+  border: 1px solid var(--nx-rule);
+  box-shadow: 0 18px 36px -24px rgba(0, 0, 0, 0.9);
+}
+
+/* Colour tab, inset like the batch cards, so it never fights the corner. */
+.nx-role::before {
+  content: '';
+  position: absolute;
+  top: 0.75rem;
+  inset-inline-start: -1px;
+  width: 3px;
+  height: 34px;
+  border-radius: 3px;
+  background: var(--role, var(--nx-signal));
+  box-shadow: 0 0 10px -1px var(--role, var(--nx-signal));
+}
+
+.nx-role h3 {
+  font-size: 1.125rem;
+  margin-bottom: 0.625rem;
+}
+
+.nx-role ul {
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.nx-role li {
+  position: relative;
+  padding-inline-start: 1.125rem;
+  font-size: 0.875rem;
+  color: var(--nx-ink-2);
+}
+
+.nx-role li::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0.55em;
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+  background: var(--role, var(--nx-signal));
+}
+
+/* ─── Ops strip ─────────────────────────────────────────────── */
+
+.nx-ops {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 1px;
+  background: var(--nx-rule);
+  border: 1px solid var(--nx-rule);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.nx-op {
+  padding: 1.25rem 1.125rem;
+  background: var(--nx-panel-bg);
+}
+
+.nx-op b {
+  display: block;
+  font-variation-settings: 'wdth' 106, 'wght' 700;
+  font-size: 0.9375rem;
+  color: var(--nx-ink);
+  margin-bottom: 0.375rem;
+}
+
+[dir='rtl'] .nx-op b {
+  font-variation-settings: normal;
+  font-weight: 700;
+}
+
+.nx-op span {
+  font-size: 0.8125rem;
+  color: var(--nx-ink-2);
+  line-height: 1.5;
+}
+
+/* ─── Demo form ─────────────────────────────────────────────── */
+
+.nx-demo {
+  padding-block: clamp(3.5rem, 8vw, 6rem);
+  border-top: 1px solid var(--nx-rule);
+}
+
+.nx-demo-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.92fr);
+  gap: clamp(2rem, 5vw, 4rem);
+  align-items: start;
+}
+
+.nx-form {
+  padding: clamp(1.25rem, 2.6vw, 1.875rem);
+}
+
+.nx-field {
+  display: block;
+  margin-bottom: 1.125rem;
+}
+
+.nx-field > span {
+  display: block;
+  margin-bottom: 0.4375rem;
+}
+
+.nx-field input,
+.nx-field select,
+.nx-field textarea {
+  width: 100%;
+  padding: 0.75rem 0.875rem;
+  border-radius: 3px;
+  background: var(--nx-inset);
+  border: 1px solid rgba(146, 163, 192, 0.3);
+  color: var(--nx-ink);
+  font: inherit;
+  font-size: 0.9375rem;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.5);
+  transition: border-color 0.16s var(--nx-ease), box-shadow 0.16s var(--nx-ease);
+}
+
+.nx-field textarea {
+  min-height: 104px;
+  resize: vertical;
+}
+
+.nx-field input::placeholder,
+.nx-field textarea::placeholder {
+  color: #7d8ead;
+}
+
+.nx-field input:focus,
+.nx-field select:focus,
+.nx-field textarea:focus {
+  outline: none;
+  border-color: var(--nx-signal);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.5), 0 0 0 3px rgba(34, 195, 217, 0.22);
+}
+
+.nx-field input[aria-invalid='true'],
+.nx-field textarea[aria-invalid='true'] {
+  border-color: #ff6a8a;
+}
+
+.nx-err {
+  display: block;
+  margin-top: 0.375rem;
+  font-size: 0.75rem;
+  color: #ffa0b4;
+}
+
+.nx-form-ok {
+  display: flex;
+  gap: 0.875rem;
+  align-items: flex-start;
+  padding: 1rem 1.125rem;
+  border-radius: 3px;
+  background: rgba(47, 207, 158, 0.1);
+  border: 1px solid rgba(47, 207, 158, 0.4);
+  color: #b7f0dc;
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+/* ─── Footer ────────────────────────────────────────────────── */
+
+.nx-footer {
+  padding-block: 2.25rem;
+  border-top: 1px solid var(--nx-rule);
+}
+
+.nx-footer-in {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ─── Reveal motion ─────────────────────────────────────────── */
+
+.nx-reveal {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .nx-reveal {
+    opacity: 0;
+    transform: translateY(18px);
+    transition:
+      opacity 0.7s var(--nx-ease),
+      transform 0.7s var(--nx-ease);
+  }
+
+  .nx-reveal[data-shown='1'] {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ─── Responsive ────────────────────────────────────────────── */
+
+@media (max-width: 980px) {
+  .nx-split,
+  .nx-demo-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .nx-board {
+    transform: rotateX(20deg);
+  }
+
+  .nx-board-lanes {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .nx-lane-slot:nth-child(n + 4) {
+    display: none;
+  }
+}
+
+@media (max-width: 1024px) {
+  .nx-header-links {
+    display: none;
+  }
+}
+
+@media (max-width: 680px) {
+  .nx-board-stage {
+    perspective: 900px;
+  }
+
+  .nx-board {
+    transform: none;
+  }
+
+  .nx-board-lanes {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .nx-lane-slot:nth-child(n + 3) {
+    display: none;
+  }
+
+  .nx-board .nx-batch {
+    transform: none;
+  }
+
+  .nx-chunkgrid {
+    grid-template-columns: repeat(12, 1fr);
+  }
+
+  .nx-workers {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .nx-station-head {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .nx-station-plate {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.75rem;
+    padding-inline-end: 0;
+    border-inline-end: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nx-scanhead,
+  .nx-scanline,
+  .nx-caret {
+    animation: none;
+  }
+
+  .nx-scanhead,
+  .nx-scanline {
+    opacity: 0.35;
+  }
+
+  .nx * {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ─── Daylight: the same floor board under work light ───────────
+   Steel and enamel lighten; screens and instrument wells stay dark,
+   because a lit display is dark whatever the room is doing. */
+
+:root[data-theme='light'] .nx {
+  --nx-plate: #e9eef6;
+  --nx-plate-2: #ffffff;
+  --nx-card: #ffffff;
+  --nx-card-2: #f7fafe;
+  --nx-steel: #4f5d79;
+  --nx-steel-dim: #9aa7bf;
+  --nx-dim-text: #5b6884;
+  --nx-rule: rgba(13, 26, 51, 0.14);
+  --nx-rule-strong: rgba(13, 26, 51, 0.26);
+
+  --nx-ink: #0d1a33;
+  --nx-ink-2: #3d4a68;
+  --nx-ink-3: #586581;
+
+  --nx-signal-ink: #0a6d80;
+  --nx-good: #0a7a5e;
+
+  --nx-tab-1: #0f5fd1;
+  --nx-tab-2: #0d9cb3;
+  --nx-tab-3: #6b46c9;
+  --nx-tab-4: #0a8f6c;
+  --nx-tab-5: #d62f52;
+  --nx-tab-6: #c07a08;
+
+  --nx-inset: #eef2f8;
+  --nx-inset-soft: #f2f5fa;
+  --nx-rail-bg: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.5) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, #f2f5fa 0%, #dbe3ee 46%, #d2dbe9 54%, #e6ecf4 100%);
+  --nx-board-bg: repeating-linear-gradient(90deg, rgba(13, 26, 51, 0.02) 0 1px, transparent 1px 4px),
+    linear-gradient(178deg, #ffffff 0%, #eaeff7 60%, #dfe6f1 100%);
+  --nx-card-bg: linear-gradient(168deg, #ffffff 0%, #f6f9fd 62%);
+  --nx-panel-bg: linear-gradient(180deg, #ffffff, #fafcfe 40%);
+  --nx-hilite: rgba(255, 255, 255, 0.95);
+  --nx-shadow-deep: rgba(13, 26, 51, 0.22);
+}
+
+:root[data-theme='light'] .nx::before {
+  background:
+    radial-gradient(120% 70% at 22% -10%, rgba(34, 195, 217, 0.1), transparent 60%),
+    radial-gradient(90% 60% at 88% 4%, rgba(15, 95, 209, 0.08), transparent 58%),
+    radial-gradient(150% 100% at 50% 118%, rgba(13, 26, 51, 0.07), transparent 62%);
+}
+
+:root[data-theme='light'] .nx-rail {
+  border-block-color: rgba(13, 26, 51, 0.16);
+  box-shadow:
+    inset 0 1px 0 var(--nx-hilite),
+    inset 0 -1px 0 rgba(13, 26, 51, 0.12),
+    0 8px 20px -14px rgba(13, 26, 51, 0.45);
+}
+
+:root[data-theme='light'] .nx-panel {
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 18px 36px -26px rgba(13, 26, 51, 0.38);
+}
+
+:root[data-theme='light'] .nx-board {
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    inset 0 -30px 60px -34px rgba(13, 26, 51, 0.3),
+    0 50px 80px -54px rgba(13, 26, 51, 0.6);
+}
+
+:root[data-theme='light'] .nx-station-no {
+  -webkit-text-stroke-color: rgba(13, 26, 51, 0.3);
+}
+
+:root[data-theme='light'] .nx-batch {
+  border-color: rgba(13, 26, 51, 0.18);
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 2px 3px rgba(13, 26, 51, 0.12),
+    0 18px 30px -18px rgba(13, 26, 51, 0.5);
+}
+
+:root[data-theme='light'] .nx-lane-slot {
+  border-color: rgba(13, 26, 51, 0.16);
+}
+
+:root[data-theme='light'] .nx-lane-slot--active {
+  background: rgba(13, 156, 179, 0.09);
+  border-color: rgba(13, 156, 179, 0.5);
+  box-shadow: inset 0 0 24px -8px rgba(13, 156, 179, 0.45);
+}
+
+:root[data-theme='light'] .nx-chunk {
+  background: rgba(13, 26, 51, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(13, 26, 51, 0.06);
+}
+
+:root[data-theme='light'] .nx-chunk[data-state='done'] {
+  background: #0d9cb3;
+  box-shadow: 0 0 6px -1px rgba(13, 156, 179, 0.6);
+}
+
+:root[data-theme='light'] .nx-chunk[data-state='flight'] {
+  background: #d99208;
+  box-shadow: 0 0 8px rgba(217, 146, 8, 0.5);
+}
+
+:root[data-theme='light'] .nx-worker,
+:root[data-theme='light'] .nx-field input,
+:root[data-theme='light'] .nx-field select,
+:root[data-theme='light'] .nx-field textarea {
+  border-color: rgba(13, 26, 51, 0.22);
+  box-shadow: inset 0 1px 3px rgba(13, 26, 51, 0.1);
+}
+
+:root[data-theme='light'] .nx-field input::placeholder,
+:root[data-theme='light'] .nx-field textarea::placeholder {
+  color: #6b7793;
+}
+
+:root[data-theme='light'] .nx-worker[data-busy='1'] {
+  border-color: rgba(13, 156, 179, 0.55);
+  color: var(--nx-signal-ink);
+}
+
+:root[data-theme='light'] .nx-bar {
+  background: rgba(13, 26, 51, 0.12);
+}
+
+:root[data-theme='light'] .nx-bar i {
+  background: #0d9cb3;
+}
+
+:root[data-theme='light'] .nx-knob {
+  background: rgba(255, 255, 255, 0.75);
+  border-color: rgba(13, 26, 51, 0.22);
+  color: var(--nx-ink-2);
+}
+
+:root[data-theme='light'] .nx-knob i {
+  background: repeating-conic-gradient(from 0deg, #ffffff 0deg 4deg, #97a5bd 4deg 8deg);
+  box-shadow:
+    inset 0 0 0 2px #dbe3ee,
+    inset 0 2px 4px rgba(255, 255, 255, 0.9),
+    0 2px 4px rgba(13, 26, 51, 0.3);
+}
+
+:root[data-theme='light'] .nx-steel-btn {
+  background: linear-gradient(180deg, #ffffff, #e7edf6);
+  border-color: rgba(13, 26, 51, 0.24);
+  box-shadow: inset 0 1px 0 #ffffff, 0 1px 2px rgba(13, 26, 51, 0.12);
+}
+
+:root[data-theme='light'] .nx-steel-btn:hover {
+  background: linear-gradient(180deg, #ffffff, #dae3f0);
+  border-color: rgba(13, 26, 51, 0.36);
+}
+
+:root[data-theme='light'] .nx-header-links a:hover {
+  color: var(--nx-signal-ink);
+}
+
+:root[data-theme='light'] .nx-bolt {
+  background: radial-gradient(circle at 34% 28%, #ffffff, #dde4ef 72%);
+  border-color: rgba(13, 26, 51, 0.2);
+  box-shadow: inset 0 2px 4px #ffffff, 0 2px 5px rgba(13, 26, 51, 0.22);
+  color: var(--nx-signal-ink);
+}
+
+:root[data-theme='light'] .nx-interlock,
+:root[data-theme='light'] .nx-role {
+  box-shadow: 0 16px 32px -26px rgba(13, 26, 51, 0.45);
+}
+
+:root[data-theme='light'] .nx-ops {
+  background: rgba(13, 26, 51, 0.14);
+}
+
+:root[data-theme='light'] .nx-form-ok {
+  background: rgba(10, 122, 94, 0.1);
+  border-color: rgba(10, 122, 94, 0.4);
+  color: #0a5c47;
+}
+
+:root[data-theme='light'] .nx-err {
+  color: #b3203f;
+}
+
+:root[data-theme='light'] .nx-field input[aria-invalid='true'],
+:root[data-theme='light'] .nx-field textarea[aria-invalid='true'] {
+  border-color: #d62f52;
+}
+
+/* The scan head reads as a shadow sweeping the plate, not a glow. */
+:root[data-theme='light'] .nx-scanhead {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(13, 156, 179, 0.18) 40%,
+    rgba(13, 156, 179, 0.45) 50%,
+    rgba(13, 156, 179, 0.18) 60%,
+    transparent
+  );
+  box-shadow: 0 0 26px rgba(13, 156, 179, 0.3);
+}
+
+/* Work-light switch on the rail */
+.nx-lamp {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border: 1px solid rgba(146, 163, 192, 0.34);
+  border-radius: 50%;
+  background: var(--nx-inset);
+  color: var(--nx-amber);
+  cursor: pointer;
+  transition: border-color 0.16s var(--nx-ease), color 0.16s var(--nx-ease);
+}
+
+.nx-lamp:hover {
+  border-color: var(--nx-amber);
+  color: var(--nx-amber);
+}
+
+:root[data-theme='light'] .nx-lamp {
+  background: rgba(255, 255, 255, 0.75);
+  border-color: rgba(13, 26, 51, 0.22);
+  color: #9a6a05;
+}
+
+:root[data-theme='light'] .nx-lamp:hover {
+  border-color: #9a6a05;
+}

@@ -5,6 +5,7 @@ import { useAuth } from './context/AuthContext';
 
 const Layout = lazy(() => import('./components/Layout').then((m) => ({ default: m.Layout })));
 const LoginPage = lazy(() => import('./pages/LoginPage').then((m) => ({ default: m.LoginPage })));
+const LandingPage = lazy(() => import('./pages/landing/LandingPage').then((m) => ({ default: m.LandingPage })));
 const ProfilePage = lazy(() => import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 const ProjectFoldersPage = lazy(() => import('./pages/project-folders/ProjectFoldersPage').then((m) => ({ default: m.ProjectFoldersPage })));
 const ProjectFolderDetailPage = lazy(() => import('./pages/project-folders/ProjectFolderDetailPage').then((m) => ({ default: m.ProjectFolderDetailPage })));
@@ -46,6 +47,14 @@ function RootRedirect() {
   if (!user) return <Navigate to="/login" replace />;
   if (user.role === 'SUPER_ADMIN') return <Navigate to="/super" replace />;
   return <Navigate to={user.role === 'ADMIN' ? '/admin' : '/dashboard'} replace />;
+}
+
+/** Signed-out visitors get the public landing page; everyone else goes to their workspace. */
+function RootEntry() {
+  const { user, loading } = useAuth();
+  if (loading) return <RouteLoading />;
+  if (!user) return <LandingPage />;
+  return <RootRedirect />;
 }
 
 export default function App() {
@@ -97,7 +106,7 @@ export default function App() {
         <Route path="/profile" element={<ProfilePage />} />
       </Route>
 
-        <Route path="/" element={<RootRedirect />} />
+        <Route path="/" element={<RootEntry />} />
         <Route path="*" element={<RootRedirect />} />
       </Routes>
     </Suspense>
