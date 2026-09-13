@@ -28,7 +28,8 @@
 
 تم تحديث Spring Boot إلى 3.5.16 وTika إلى 3.3.2 وTomcat إلى 10.1.59، مع نسخ مصححة من JDBC وJackson وLog4j وjsoup وغيرها. حدثت React Router إلى 7.18.3 وVite إلى 8.3.0، وصورة بناء الواجهة إلى Node 24. راجع [أمان Tomcat](https://tomcat.apache.org/security-10.html) و[إصدارات Tika](https://tika.apache.org/download.html).
 
-- npm audit: **صفر تنبيهات معروفة** بعد التحديث.
+- نطاق الفحص: `frontend/package.json` و`backend/pom.xml` فقط. أدوات `scripts/promo-video/package.json` خارج هذه المراجعة، ولدى Dependabot تنبيه عالي مفتوح على Playwright فيها.
+- npm audit: **صفر تنبيهات معروفة** بعد التحديث، ضمن هذا النطاق.
 - فحص OSV: **226 إحداثية Maven، صفر حزم متأثرة**، ويشمل classpath التشغيل والاختبارات. هذا فحص تطابق إصدارات وقت الفحص، وليس ضمانًا لغياب كل الثغرات.
 - بناء TypeScript/Vite: ناجح.
 - اختبارات روابط الواجهة: **2 ناجحة**.
