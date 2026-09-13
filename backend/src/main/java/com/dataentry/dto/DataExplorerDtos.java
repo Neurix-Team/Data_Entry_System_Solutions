@@ -48,6 +48,10 @@ public class DataExplorerDtos {
             List<FieldValue> customFields
     ) {}
 
+    public record Stats(long totalTickets, long ticketsWithFiles, long totalFiles, long totalBytes,
+                        long pdfFiles, long wordFiles, long spreadsheetFiles, long imageFiles,
+                        long presentationFiles, long otherFiles) {}
+
     public record Page(
             List<Row> items,
             Long nextCursor,

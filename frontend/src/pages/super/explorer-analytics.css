@@ -1,0 +1,33 @@
+.explorer-analytics{margin:6px 0 28px;container-type:inline-size}
+.ea-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
+.ea-eyebrow{font-size:10px;letter-spacing:.14em;color:var(--text-secondary);font-weight:700}
+.ea-heading h2{font-size:23px;letter-spacing:-.025em;margin:5px 0 4px;color:var(--text-primary)}
+.ea-heading p{margin:0;font-size:12px;color:var(--text-secondary)}
+.ea-scope{display:flex;align-items:center;gap:7px;border:1px solid var(--border);border-radius:30px;padding:7px 11px;font-size:11px;color:var(--text-secondary);white-space:nowrap}
+.ea-scope>span{width:6px;height:6px;border-radius:50%;background:#8ccaf1;box-shadow:0 0 0 4px #8ccaf114}
+.ea-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.ea-card{position:relative;isolation:isolate;overflow:hidden;padding:19px 20px 17px;border:1px solid var(--border);border-radius:17px;background:var(--bg-surface);transition:transform .2s,border-color .2s,box-shadow .2s;animation:ea-enter .5s both;animation-delay:var(--ea-delay)}
+.ea-card:before{content:'';position:absolute;inset:0;z-index:-1;background:radial-gradient(ellipse at 100% 0%,color-mix(in srgb,var(--ea-accent) 13%,transparent),transparent 70%);pointer-events:none}
+.ea-card:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--ea-accent) 55%,var(--border));box-shadow:0 9px 28px #0000000b}
+.ea-card-all{border-color:color-mix(in srgb,#8ccaf1 40%,var(--border))}
+.ea-card-top{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:12px;font-weight:600;color:var(--text-secondary)}
+.ea-icon{display:grid;place-items:center;width:36px;height:36px;flex-shrink:0;border-radius:11px;background:color-mix(in srgb,var(--ea-accent) 17%,transparent);color:var(--text-primary)}
+.ea-file-icon{font-size:11px;font-weight:800;letter-spacing:.03em}
+.ea-value{font-size:34px;line-height:1.2;font-weight:750;letter-spacing:-.04em;color:var(--text-primary);font-variant-numeric:tabular-nums;margin:12px 0 8px;min-height:41px}
+.ea-note{font-size:11px;line-height:1.7;color:var(--text-secondary)}
+.ea-distribution{padding:19px 20px;margin-top:12px;border:1px solid var(--border);border-radius:17px;background:var(--bg-surface)}
+.ea-distribution-title{display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:12px;color:var(--text-primary)}
+.ea-distribution-title>span{font-size:11px;color:var(--text-secondary)}
+.ea-bar{display:flex;gap:3px;height:9px;border-radius:9px;overflow:hidden;margin:15px 0;background:var(--bg-muted)}
+.ea-bar>span{height:100%;border-radius:2px;min-width:2px;animation:ea-bar .65s ease both;transform-origin:0 50%}
+.ea-legend{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+.ea-legend>div{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-secondary)}
+.ea-legend strong{color:var(--text-primary);font-variant-numeric:tabular-nums;margin-inline-start:auto}
+.ea-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.ea-skeleton{display:block;width:45%;height:33px;border-radius:6px;background:linear-gradient(100deg,#8ccaf115 20%,#8ccaf135 45%,#8ccaf115 70%);background-size:200% 100%;animation:ea-shimmer 1.3s infinite}
+@keyframes ea-enter{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes ea-bar{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes ea-shimmer{to{background-position:-200% 0}}
+@container(max-width:760px){.ea-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ea-legend{grid-template-columns:repeat(3,minmax(0,1fr))}.ea-heading{align-items:flex-start;flex-direction:column}}
+@container(max-width:410px){.ea-card{padding:14px 12px}.ea-value{font-size:27px}.ea-card-top{font-size:11px}.ea-icon{width:29px;height:29px}.ea-distribution-title{align-items:flex-start;flex-direction:column}.ea-legend{grid-template-columns:repeat(2,minmax(0,1fr))}.ea-note{font-size:10px}}
+@media(prefers-reduced-motion:reduce){.explorer-analytics *{animation:none!important;transition:none!important}.ea-card:hover{transform:none}}

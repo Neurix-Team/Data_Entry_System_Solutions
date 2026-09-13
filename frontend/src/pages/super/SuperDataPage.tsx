@@ -1,18 +1,21 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { safeExternalUrl } from '../../utils/safeUrl';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { API_BASE, extractError } from '../../api/client';
 import { SkeletonRows } from '../../components/SkeletonRows';
 import {
-  superApi, type ExplorerFacets, type ExplorerPage, type ExplorerQuery, type ExplorerRow,
+  superApi, type ExplorerFacets, type ExplorerPage, type ExplorerQuery, type ExplorerRow, type ExplorerStats,
 } from '../../api/super';
 import {
   IconDatabase, IconDownload, IconSearch,
 } from '../../components/Icons';
 import { useT } from '../../i18n';
+import { ExplorerAnalytics } from './ExplorerAnalytics';
 import { DownloadCenter } from './DownloadCenter';
 
 export function SuperDataPage() {
   const { t } = useT();
   const [facets, setFacets] = useState<ExplorerFacets | null>(null);
+  const [stats, setStats] = useState<ExplorerStats | null>(null);
   const [page, setPage] = useState<ExplorerPage | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,34 +42,58 @@ export function SuperDataPage() {
     if (teamId) q.teamId = Number(teamId);
     if (projectId) q.projectId = Number(projectId);
     if (userId) q.userId = Number(userId);
-    if (from) q.from = new Date(from).toISOString();
-    if (to) q.to = new Date(to).toISOString();
+    if (from) q.from = new Date(`${from}T00:00:00`).toISOString();
+    if (to) {
+      const end = new Date(`${to}T00:00:00`);
+      end.setDate(end.getDate() + 1); // Selected end date is inclusive; API upper bound is exclusive.
+      q.to = end.toISOString();
+    }
     if (search.trim()) q.search = search.trim();
     return q;
   }, [teamId, projectId, userId, from, to, search]);
 
+  const currentQuery = useRef(query);
+  currentQuery.current = query;
+  const requestSequence = useRef(0);
+
   const load = useCallback(async (append: boolean) => {
-    if (append) setLoading(true); else setReloading(true);
+    const sequence = ++requestSequence.current;
+    if (append) setLoading(true); else { setReloading(true); setStats(null); }
+    const isCurrent = () => sequence === requestSequence.current && currentQuery.current === query;
     try {
       const q: ExplorerQuery = { ...query, size: 50 };
       if (append && cursor != null) q.cursor = cursor;
-      const p = await superApi.explorerTickets(q);
+      let summaryError: string | null = null;
+      const [p, summary] = await Promise.all([
+        superApi.explorerTickets(q), append ? Promise.resolve(null) : superApi.explorerStats(query).catch((e) => {
+          summaryError = extractError(e);
+          return null;
+        }),
+      ]);
+      if (!isCurrent()) return;
+      if (summary) setStats(summary);
       setPage(p);
       setCursor(p.nextCursor);
       setItems((prev) => append ? [...prev, ...p.items] : p.items);
-      setError(null);
+      setError(summaryError);
     } catch (e) {
+      if (!isCurrent()) return;
+      if (!append) { setItems([]); setPage(null); setStats(null); }
       setError(extractError(e));
     } finally {
-      setLoading(false);
-      setReloading(false);
+      if (isCurrent()) { setLoading(false); setReloading(false); }
     }
   }, [query, cursor]);
 
   useEffect(() => {
     setExpanded(new Set());
     setCursor(null);
-    void load(false);
+    setReloading(true);
+    setLoading(false);
+    setStats(null);
+    ++requestSequence.current;
+    const timer = window.setTimeout(() => void load(false), 180);
+    return () => { window.clearTimeout(timer); ++requestSequence.current; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamId, projectId, userId, from, to, search]);
 
@@ -108,7 +135,7 @@ export function SuperDataPage() {
           type="button"
           className="btn btn-primary"
           onClick={() => setDownloadOpen(true)}
-          disabled={!page || page.total === 0}
+          disabled={reloading || !page || page.total === 0}
           title={t('super.data.download.subtitle')}
         >
           <IconDownload size={16} /> {t('super.data.download.button')}
@@ -215,6 +242,8 @@ export function SuperDataPage() {
         </div>
       </div>
 
+      <ExplorerAnalytics stats={stats} loading={reloading} filtered={filterLabels.length > 0} />
+
       {reloading && (
         <div className="table-wrap">
           <table className="data">
@@ -230,7 +259,7 @@ export function SuperDataPage() {
         </div>
       )}
 
-      {items.length > 0 && (
+      {!reloading && items.length > 0 && (
         <div className="table-wrap">
           <table className="data">
             <thead>
@@ -289,7 +318,7 @@ export function SuperDataPage() {
           <button
             type="button"
             className="btn btn-ghost"
-            disabled={loading}
+            disabled={loading || reloading}
             onClick={() => load(true)}
           >
             {loading ? t('common.loading') : (t('super.data.loadMore') || 'Load more')}
@@ -349,7 +378,7 @@ function TicketDetails({ row, t }: { row: ExplorerRow; t: (k: string) => string 
           <dt style={{ color: 'var(--text-secondary)' }}>{t('super.data.website') || 'Website'}</dt>
           <dd style={{ margin: 0 }}>
             {row.websiteLink
-              ? <a href={row.websiteLink} target="_blank" rel="noreferrer">{row.websiteName || row.websiteLink}</a>
+              ? <a href={safeExternalUrl(row.websiteLink)} target="_blank" rel="noreferrer">{row.websiteName || row.websiteLink}</a>
               : (row.websiteName || '—')}
           </dd>
         </dl>

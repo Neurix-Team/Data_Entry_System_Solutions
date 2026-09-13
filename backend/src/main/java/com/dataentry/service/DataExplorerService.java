@@ -72,6 +72,43 @@ public class DataExplorerService {
         return new DataExplorerDtos.Page(items, nextCursor, hasMore, total);
     }
 
+    /** Aggregate all matching attachments, independently of cursor/page size. No file contents are loaded. */
+    public DataExplorerDtos.Stats stats(Filters filters) {
+        String filename = "lower(coalesce(d.originalFilename, ''))";
+        String mime = "lower(coalesce(d.contentType, ''))";
+        // Recognized extensions take precedence; MIME fills gaps for extensionless/legacy uploads.
+        String kind = "case "
+                + "when " + filename + " like '%.pdf' then 'pdf' "
+                + "when " + filename + " like '%.doc' or " + filename + " like '%.docx' or " + filename + " like '%.docm' then 'word' "
+                + "when " + filename + " like '%.xls' or " + filename + " like '%.xlsx' or " + filename + " like '%.xlsm' or " + filename + " like '%.csv' or " + filename + " like '%.ods' then 'sheet' "
+                + "when " + filename + " like '%.ppt' or " + filename + " like '%.pptx' or " + filename + " like '%.pptm' or " + filename + " like '%.odp' then 'slides' "
+                + "when " + filename + " like '%.png' or " + filename + " like '%.jpg' or " + filename + " like '%.jpeg' or " + filename + " like '%.webp' or " + filename + " like '%.gif' or " + filename + " like '%.bmp' or " + filename + " like '%.tif' or " + filename + " like '%.tiff' or " + filename + " like '%.svg' then 'image' "
+                + "when " + mime + " like 'application/pdf%' then 'pdf' "
+                + "when " + mime + " like 'application/msword%' or " + mime + " like '%wordprocessingml%' or " + mime + " like 'application/vnd.ms-word%' then 'word' "
+                + "when " + mime + " like '%spreadsheet%' or " + mime + " like 'application/vnd.ms-excel%' or " + mime + " like 'text/csv%' then 'sheet' "
+                + "when " + mime + " like '%presentation%' or " + mime + " like 'application/vnd.ms-powerpoint%' then 'slides' "
+                + "when " + mime + " like 'image/%' then 'image' else 'other' end";
+        StringBuilder hql = new StringBuilder("select count(d.id) as files, coalesce(sum(d.sizeBytes), 0) as bytes, count(distinct t.id) as attached");
+        for (String type : List.of("pdf", "word", "sheet", "image", "slides", "other")) {
+            hql.append(", coalesce(sum(case when (").append(kind).append(") = '")
+                    .append(type).append("' then 1L else 0L end), 0L) as ").append(type).append("Count");
+        }
+        hql.append(" from TicketDocument d join d.ticket t where 1=1 ");
+        Map<String, Object> params = new HashMap<>();
+        appendFilters(hql, params, filters);
+        TypedQuery<Tuple> query = em.createQuery(hql.toString(), Tuple.class);
+        params.forEach(query::setParameter);
+        Tuple row = query.getSingleResult();
+        return new DataExplorerDtos.Stats(countMatching(filters), number(row, "attached"), number(row, "files"),
+                number(row, "bytes"), number(row, "pdfCount"), number(row, "wordCount"), number(row, "sheetCount"),
+                number(row, "imageCount"), number(row, "slidesCount"), number(row, "otherCount"));
+    }
+
+    private static long number(Tuple row, String alias) {
+        Object value = row.get(alias);
+        return value == null ? 0 : ((Number) value).longValue();
+    }
+
     public DataExplorerDtos.Facets facets() {
         List<DataExplorerDtos.Named> teams = new ArrayList<>();
         List<DataExplorerDtos.Named> projects = new ArrayList<>();
@@ -108,11 +145,11 @@ public class DataExplorerService {
     private StringBuilder baseRowQuery(String whereClause) {
         return new StringBuilder(
                 "select t.id as id, " +
-                        "team.id as teamId, team.name as teamName, " +
-                        "project.id as projectId, project.name as projectName, " +
-                        "department.id as departmentId, department.name as departmentName, " +
-                        "subcategory.id as subcategoryId, subcategory.name as subcategoryName, " +
-                        "submitter.id as submitterId, submitter.username as submitterUsername, " +
+                        "t.teamReferenceId as teamId, team.name as teamName, " +
+                        "t.projectReferenceId as projectId, project.name as projectName, " +
+                        "t.departmentReferenceId as departmentId, department.name as departmentName, " +
+                        "t.subcategoryReferenceId as subcategoryId, subcategory.name as subcategoryName, " +
+                        "t.submittedByReferenceId as submitterId, submitter.username as submitterUsername, " +
                         "submitter.displayName as submitterDisplayName, " +
                         "submitter.email as submitterEmail, submitter.phone as submitterPhone, " +
                         "submitter.role as submitterRole, " +
@@ -120,11 +157,11 @@ public class DataExplorerService {
                         "t.websiteName as websiteName, t.websiteLink as websiteLink, " +
                         "t.status as status, t.submittedAt as submittedAt " +
                         "from Ticket t " +
-                        "left join t.submittedBy submitter " +
-                        "left join t.team team " +
-                        "left join t.project project " +
-                        "left join t.department department " +
-                        "left join t.subcategory subcategory " +
+                        "left join User submitter on submitter.id = t.submittedByReferenceId " +
+                        "left join Team team on team.id = t.teamReferenceId " +
+                        "left join Project project on project.id = t.projectReferenceId " +
+                        "left join Department department on department.id = t.departmentReferenceId " +
+                        "left join Subcategory subcategory on subcategory.id = t.subcategoryReferenceId " +
                         whereClause);
     }
 
@@ -158,18 +195,18 @@ public class DataExplorerService {
                 "select d.id as docId, d.name as docName, d.originalFilename as originalFilename, " +
                         "d.contentType as contentType, d.sizeBytes as sizeBytes, d.contentHash as contentHash, " +
                         "t.id as id, t.title as title, t.submittedAt as submittedAt, " +
-                        "team.id as teamId, team.name as teamName, " +
-                        "project.id as projectId, project.name as projectName, " +
-                        "department.id as departmentId, department.name as departmentName, " +
-                        "subcategory.id as subcategoryId, subcategory.name as subcategoryName, " +
+                        "t.teamReferenceId as teamId, team.name as teamName, " +
+                        "t.projectReferenceId as projectId, project.name as projectName, " +
+                        "t.departmentReferenceId as departmentId, department.name as departmentName, " +
+                        "t.subcategoryReferenceId as subcategoryId, subcategory.name as subcategoryName, " +
                         "submitter.displayName as submitterDisplayName, submitter.username as submitterUsername " +
                         "from TicketDocument d " +
                         "join d.ticket t " +
-                        "left join t.submittedBy submitter " +
-                        "left join t.team team " +
-                        "left join t.project project " +
-                        "left join t.department department " +
-                        "left join t.subcategory subcategory " +
+                        "left join User submitter on submitter.id = t.submittedByReferenceId " +
+                        "left join Team team on team.id = t.teamReferenceId " +
+                        "left join Project project on project.id = t.projectReferenceId " +
+                        "left join Department department on department.id = t.departmentReferenceId " +
+                        "left join Subcategory subcategory on subcategory.id = t.subcategoryReferenceId " +
                         "where 1=1 ");
         Map<String, Object> params = new HashMap<>();
         appendFilters(jpql, params, filters);
@@ -247,9 +284,9 @@ public class DataExplorerService {
     }
 
     private void appendFilters(StringBuilder jpql, Map<String, Object> params, Filters filters) {
-        if (filters.teamId() != null) { jpql.append("and t.team.id = :teamId "); params.put("teamId", filters.teamId()); }
-        if (filters.projectId() != null) { jpql.append("and t.project.id = :projectId "); params.put("projectId", filters.projectId()); }
-        if (filters.userId() != null) { jpql.append("and t.submittedBy.id = :userId "); params.put("userId", filters.userId()); }
+        if (filters.teamId() != null) { jpql.append("and t.teamReferenceId = :teamId "); params.put("teamId", filters.teamId()); }
+        if (filters.projectId() != null) { jpql.append("and t.projectReferenceId = :projectId "); params.put("projectId", filters.projectId()); }
+        if (filters.userId() != null) { jpql.append("and t.submittedByReferenceId = :userId "); params.put("userId", filters.userId()); }
         if (filters.from() != null) { jpql.append("and t.submittedAt >= :from "); params.put("from", filters.from()); }
         if (filters.to() != null) { jpql.append("and t.submittedAt < :to "); params.put("to", filters.to()); }
         if (filters.search() != null && !filters.search().isBlank()) {

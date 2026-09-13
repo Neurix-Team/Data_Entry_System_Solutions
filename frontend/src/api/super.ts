@@ -165,6 +165,12 @@ export interface ExplorerRow {
   customFields: ExplorerFieldValue[];
 }
 
+export interface ExplorerStats {
+  totalTickets: number; ticketsWithFiles: number; totalFiles: number; totalBytes: number;
+  pdfFiles: number; wordFiles: number; spreadsheetFiles: number; imageFiles: number;
+  presentationFiles: number; otherFiles: number;
+}
+
 export interface ExplorerPage {
   items: ExplorerRow[];
   nextCursor: number | null;
@@ -335,6 +341,8 @@ export const superApi = {
 
   explorerFacets: () =>
     api.get<ExplorerFacets>('/super/data/facets').then((r) => r.data),
+  explorerStats: (q: ExplorerQuery) =>
+    api.get<ExplorerStats>('/super/data/stats', { params: q }).then((r) => r.data),
   explorerTickets: (q: ExplorerQuery) =>
     api.get<ExplorerPage>('/super/data/tickets', { params: q }).then((r) => r.data),
   explorerTicket: (id: number) =>

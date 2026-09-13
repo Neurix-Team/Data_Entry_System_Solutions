@@ -44,6 +44,32 @@ public class Ticket implements TeamOwned {
     @JoinColumn(name = "project_id")
     private Project project;
 
+    // Read-only FK values preserve imported legacy references when a related row is missing.
+    @Column(name = "team_id", insertable = false, updatable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @Getter(AccessLevel.NONE) @Setter(AccessLevel.NONE)
+    private Long teamReferenceId;
+
+    @Column(name = "submitted_by_id", insertable = false, updatable = false, nullable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @Getter(AccessLevel.NONE) @Setter(AccessLevel.NONE)
+    private Long submittedByReferenceId;
+
+    @Column(name = "department_id", insertable = false, updatable = false, nullable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @Getter(AccessLevel.NONE) @Setter(AccessLevel.NONE)
+    private Long departmentReferenceId;
+
+    @Column(name = "subcategory_id", insertable = false, updatable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @Getter(AccessLevel.NONE) @Setter(AccessLevel.NONE)
+    private Long subcategoryReferenceId;
+
+    @Column(name = "project_id", insertable = false, updatable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @Getter(AccessLevel.NONE) @Setter(AccessLevel.NONE)
+    private Long projectReferenceId;
+
     @Column(length = 500)
     private String title;
 

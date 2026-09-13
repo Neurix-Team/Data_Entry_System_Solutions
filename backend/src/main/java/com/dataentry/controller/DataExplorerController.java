@@ -67,6 +67,17 @@ public class DataExplorerController {
                 .body(body);
     }
 
+    @GetMapping("/stats")
+    public DataExplorerDtos.Stats stats(
+            @RequestParam(required = false) Long teamId,
+            @RequestParam(required = false) Long projectId,
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) Instant from,
+            @RequestParam(required = false) Instant to,
+            @RequestParam(required = false) String search) {
+        return service.stats(new DataExplorerService.Filters(teamId, projectId, userId, from, to, search));
+    }
+
     @GetMapping("/tickets")
     public DataExplorerDtos.Page tickets(
             @RequestParam(required = false) Long teamId,
