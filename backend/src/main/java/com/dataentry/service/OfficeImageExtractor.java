@@ -69,11 +69,14 @@ public class OfficeImageExtractor {
         try (ZipFile zip = new ZipFile(officeFile)) {
             var entries = zip.entries();
             int index = 0;
+            int inspected = 0;
+            long totalBytes = 0;
             while (entries.hasMoreElements()) {
                 if (out.size() >= maxImages) {
                     log.info("Reached image cap ({}) — stopping extraction", maxImages);
                     break;
                 }
+                if (++inspected > 10_000) break;
                 ZipEntry entry = entries.nextElement();
                 if (entry.isDirectory()) continue;
 
@@ -83,13 +86,26 @@ public class OfficeImageExtractor {
                 String ext = extensionOf(name);
                 if (ext.isEmpty() || !IMAGE_EXTENSIONS.contains(ext)) continue;
 
+                final long entryLimit = 20L * 1024 * 1024;
+                if (entry.getSize() > entryLimit || totalBytes >= 200L * 1024 * 1024) continue;
                 index++;
                 String outName = String.format("image-%02d.%s", index, normalisedExt(ext));
                 Path target = outputDir.resolve(outName);
 
                 try (var in = zip.getInputStream(entry)) {
-                    Files.copy(in, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    try (var output = Files.newOutputStream(target)) {
+                        byte[] buffer = new byte[8192];
+                        long copied = 0; int count;
+                        while ((count = in.read(buffer)) != -1) {
+                            copied += count; totalBytes += count;
+                            if (copied > entryLimit || totalBytes > 200L * 1024 * 1024) {
+                                throw new IOException("Embedded image extraction budget exceeded");
+                            }
+                            output.write(buffer, 0, count);
+                        }
+                    }
                 } catch (IOException e) {
+                    Files.deleteIfExists(target);
                     log.debug("Skipping unreadable zip entry {}: {}", name, e.getMessage());
                     index--;
                     continue;
@@ -146,13 +162,17 @@ public class OfficeImageExtractor {
     private record Dimensions(int width, int height) {}
 
     private Dimensions readDimensions(Path file) {
-        try {
-            BufferedImage img = ImageIO.read(file.toFile());
-            if (img == null) return null;
-            Dimensions d = new Dimensions(img.getWidth(), img.getHeight());
-            img.flush();
-            return d;
-        } catch (IOException e) {
+        try (var input = ImageIO.createImageInputStream(file.toFile())) {
+            var readers = ImageIO.getImageReaders(input);
+            if (!readers.hasNext()) return null;
+            var reader = readers.next();
+            try {
+                reader.setInput(input, true, true);
+                int width = reader.getWidth(0), height = reader.getHeight(0);
+                if (width <= 0 || height <= 0 || (long) width * height > 40_000_000) return null;
+                return new Dimensions(width, height);
+            } finally { reader.dispose(); }
+        } catch (IOException | RuntimeException e) {
             return null;
         }
     }

@@ -4,7 +4,6 @@ import com.dataentry.dto.UserDtos;
 import com.dataentry.model.Role;
 import com.dataentry.model.User;
 import com.dataentry.repository.UserRepository;
-import com.dataentry.security.JwtAuthFilter;
 import com.dataentry.security.TenantGuard;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -25,7 +24,6 @@ public class UserService {
     private final TranslationService translator;
     private final Localizer localizer;
     private final AuditService audit;
-    private final JwtAuthFilter jwtAuthFilter;
     private final PasswordPolicy passwordPolicy;
 
     public UserService(UserRepository userRepository,
@@ -33,14 +31,12 @@ public class UserService {
                        TranslationService translator,
                        Localizer localizer,
                        AuditService audit,
-                       JwtAuthFilter jwtAuthFilter,
                        PasswordPolicy passwordPolicy) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.translator = translator;
         this.localizer = localizer;
         this.audit = audit;
-        this.jwtAuthFilter = jwtAuthFilter;
         this.passwordPolicy = passwordPolicy;
     }
 
@@ -85,7 +81,7 @@ public class UserService {
     public UserDtos.UserResponse update(Long id, UserDtos.UpdateUserRequest req) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
-        TenantGuard.assertOwnership(user);
+        assertTeamManagedAccount(user);
 
         if (req.displayName() != null) {
             boolean changed = !Objects.equals(user.getDisplayName(), req.displayName());
@@ -101,7 +97,6 @@ public class UserService {
         }
         if (req.active() != null) user.setActive(req.active());
         User saved = userRepository.save(user);
-        jwtAuthFilter.evictUser(saved.getId());
         String details = "displayName=" + saved.getDisplayName()
                 + " active=" + saved.isActive()
                 + " passwordChanged=" + (req.password() != null && !req.password().isBlank());
@@ -127,10 +122,16 @@ public class UserService {
         }
         User u = userRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
-        TenantGuard.assertOwnership(u);
+        assertTeamManagedAccount(u);
         userRepository.deleteById(id);
-        jwtAuthFilter.evictUser(id);
         audit.record(AuditService.Action.DELETE, AuditService.EntityType.USER, id, "username=" + u.getUsername());
+    }
+
+    private void assertTeamManagedAccount(User user) {
+        if (user.getRole() == Role.SUPER_ADMIN) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+        }
+        TenantGuard.assertOwnership(user);
     }
 
     private UserDtos.UserResponse toDto(User u) {

@@ -41,7 +41,8 @@ public class ExtractionController {
 
         String lower = filename.toLowerCase(Locale.ROOT);
         if (!(lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg")
-                || lower.endsWith(".webp"))) {
+                || lower.endsWith(".webp") || lower.endsWith(".gif") || lower.endsWith(".bmp")
+                || lower.endsWith(".tif") || lower.endsWith(".tiff"))) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
 
@@ -72,6 +73,9 @@ public class ExtractionController {
         if (lowerName.endsWith(".png")) return MediaType.IMAGE_PNG;
         if (lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg")) return MediaType.IMAGE_JPEG;
         if (lowerName.endsWith(".webp")) return MediaType.valueOf("image/webp");
+        if (lowerName.endsWith(".gif")) return MediaType.IMAGE_GIF;
+        if (lowerName.endsWith(".bmp")) return MediaType.valueOf("image/bmp");
+        if (lowerName.endsWith(".tif") || lowerName.endsWith(".tiff")) return MediaType.valueOf("image/tiff");
         return MediaType.APPLICATION_OCTET_STREAM;
     }
 }

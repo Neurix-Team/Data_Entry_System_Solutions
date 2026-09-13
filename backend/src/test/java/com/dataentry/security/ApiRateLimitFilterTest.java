@@ -88,10 +88,10 @@ class ApiRateLimitFilterTest {
     }
 
     @Test
-    void forwarded_for_takes_precedence_over_remote_addr() throws Exception {
+    void untrusted_forwarded_for_cannot_change_the_bucket() throws Exception {
         for (int i = 0; i < LIMIT; i++) runOnceWithXff("10.0.0.1", "203.0.113.5");
         assertThat(runOnceWithXff("10.0.0.1", "203.0.113.5").getStatus()).isEqualTo(429);
-        assertThat(runOnceWithXff("10.0.0.1", "203.0.113.6").getStatus()).isEqualTo(200);
+        assertThat(runOnceWithXff("10.0.0.1", "203.0.113.6").getStatus()).isEqualTo(429);
     }
 
     private MockHttpServletResponse runOnce(String ip) throws Exception {

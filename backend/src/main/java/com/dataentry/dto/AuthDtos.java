@@ -9,8 +9,8 @@ import java.time.Instant;
 public class AuthDtos {
 
     public record LoginRequest(
-            @NotBlank String username,
-            @NotBlank String password
+            @NotBlank @Size(max = 100) String username,
+            @NotBlank @Size(max = 200) String password
     ) {}
 
     public record LoginResponse(

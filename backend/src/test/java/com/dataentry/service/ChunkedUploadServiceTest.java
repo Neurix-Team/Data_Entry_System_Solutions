@@ -76,7 +76,7 @@ class ChunkedUploadServiceTest {
                 mock(DepartmentRepository.class),
                 mock(ProjectFolderService.class),
                 documents,
-                new UploadQuotaService(Long.MAX_VALUE),
+                mock(UploadQuotaService.class),
                 tmp.resolve("incoming").toString(),
                 CHUNK,
                 500L * 1024 * 1024,

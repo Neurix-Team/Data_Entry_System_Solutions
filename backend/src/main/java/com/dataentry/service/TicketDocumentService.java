@@ -72,7 +72,11 @@ public class TicketDocumentService {
 
     private static final Tika TIKA = new Tika();
 
-    public record IncomingFile(Path path, String originalFilename, long size) {}
+    public record IncomingFile(Path path, String originalFilename, long size, boolean quotaCharged) {
+        public IncomingFile(Path path, String originalFilename, long size) {
+            this(path, originalFilename, size, false);
+        }
+    }
 
     private final TicketRepository ticketRepository;
     private final TicketDocumentRepository documentRepository;
@@ -179,7 +183,7 @@ public class TicketDocumentService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, describeDuplicate(duplicate));
         }
 
-        quota.chargeOrThrow(currentUser.getId(), actualSize);
+        if (!incoming.quotaCharged()) quota.chargeOrThrow(currentUser.getId(), actualSize);
 
         Path ticketDir = baseDir.resolve(String.valueOf(ticketId));
         try {
@@ -287,6 +291,9 @@ public class TicketDocumentService {
                                       User currentUser) {
         if (refs == null || refs.isEmpty()) return;
 
+        for (TicketDtos.ExtractedImageRef ref : refs) {
+            staging.validateOwnedReference(ref.extractionId(), ref.filename(), currentUser.getId());
+        }
         Path ticketDir = baseDir.resolve(String.valueOf(ticket.getId()));
         try {
             Files.createDirectories(ticketDir);
@@ -337,7 +344,7 @@ public class TicketDocumentService {
             documentRepository.save(doc);
         }
 
-        touchedExtractions.forEach(staging::discard);
+        touchedExtractions.forEach(id -> staging.discard(id, currentUser.getId()));
     }
 
     private static String sha256HexOf(Path path) {

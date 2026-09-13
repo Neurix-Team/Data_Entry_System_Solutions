@@ -26,20 +26,34 @@ public class AuthController {
     private final AuthService authService;
     private final LoginRateLimiter rateLimiter;
     private final boolean cookieSecure;
+    private final com.dataentry.security.ClientAddressResolver addresses;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public AuthController(AuthService authService,
                           LoginRateLimiter rateLimiter,
-                          @Value("${app.auth.cookie-secure:true}") boolean cookieSecure) {
+                          @Value("${app.auth.cookie-secure:true}") boolean cookieSecure,
+                          com.dataentry.security.ClientAddressResolver addresses) {
         this.authService = authService;
         this.rateLimiter = rateLimiter;
         this.cookieSecure = cookieSecure;
+        this.addresses = addresses;
+    }
+
+    public AuthController(AuthService authService, LoginRateLimiter rateLimiter, boolean cookieSecure) {
+        this(authService, rateLimiter, cookieSecure, new com.dataentry.security.ClientAddressResolver(""));
+    }
+
+    @GetMapping("/csrf")
+    public java.util.Map<String, String> csrf(org.springframework.security.web.csrf.CsrfToken token) {
+        return java.util.Map.of("token", token.getToken());
     }
 
     @PostMapping("/login")
     public ResponseEntity<AuthDtos.LoginResponse> login(@Valid @RequestBody AuthDtos.LoginRequest req,
                                                         HttpServletRequest http) {
-        String key = clientKey(http, req.username());
-        if (!rateLimiter.tryAcquire(key)) {
+        String key = "account:" + req.username().trim().toLowerCase(java.util.Locale.ROOT);
+        String networkKey = "network:" + addresses.resolve(http);
+        if (!rateLimiter.tryAcquire(networkKey) || !rateLimiter.tryAcquire(key)) {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
                     "Too many login attempts. Try again later.");
         }
@@ -108,39 +122,4 @@ public class AuthController {
                 .build();
     }
 
-    private String clientKey(HttpServletRequest http, String username) {
-        String peer = http.getRemoteAddr();
-        String ip = peer;
-        if (isTrustedProxy(peer)) {
-            String xff = http.getHeader("X-Forwarded-For");
-            if (xff != null && !xff.isBlank()) {
-                int comma = xff.indexOf(',');
-                ip = (comma > 0 ? xff.substring(0, comma) : xff).trim();
-            }
-        }
-        String u = username == null ? "" : username.trim().toLowerCase();
-        return ip + ":" + u;
-    }
-
-    private static boolean isTrustedProxy(String addr) {
-        if (addr == null) return false;
-        return addr.startsWith("10.")
-                || addr.startsWith("192.168.")
-                || addr.startsWith("127.")
-                || addr.equals("::1")
-                || addr.startsWith("fd") || addr.startsWith("fc")
-                || matchesRange172(addr);
-    }
-
-    private static boolean matchesRange172(String addr) {
-        if (!addr.startsWith("172.")) return false;
-        int firstDot = addr.indexOf('.', 4);
-        if (firstDot < 0) return false;
-        try {
-            int octet = Integer.parseInt(addr.substring(4, firstDot));
-            return octet >= 16 && octet <= 31;
-        } catch (NumberFormatException e) {
-            return false;
-        }
-    }
 }

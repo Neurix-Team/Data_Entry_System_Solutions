@@ -26,21 +26,22 @@ public class InMemoryLoginRateLimiter implements LoginRateLimiter {
     }
 
     @Override
-    public boolean tryAcquire(String key) {
-        if (hits.size() > MAX_TRACKED_KEYS) hits.clear();
+    public synchronized boolean tryAcquire(String key) {
         Instant now = Instant.now();
         Instant cutoff = now.minus(window);
+        hits.values().removeIf(q -> q.isEmpty() || q.peekLast().isBefore(cutoff));
+        if (!hits.containsKey(key) && hits.size() >= MAX_TRACKED_KEYS) return false;
         Deque<Instant> q = hits.computeIfAbsent(key, k -> new ArrayDeque<>());
         synchronized (q) {
             while (!q.isEmpty() && q.peekFirst().isBefore(cutoff)) q.pollFirst();
-            if (q.size() >= maxAttempts) return false;
+            if (q.size() >= (key.startsWith("network:") ? maxAttempts * 10L : maxAttempts)) return false;
             q.addLast(now);
             return true;
         }
     }
 
     @Override
-    public void reset(String key) {
+    public synchronized void reset(String key) {
         hits.remove(key);
     }
 }

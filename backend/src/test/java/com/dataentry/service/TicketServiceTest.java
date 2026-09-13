@@ -45,15 +45,18 @@ class TicketServiceTest {
 
     private TicketService ticketService;
 
+    private final com.dataentry.model.Team team = com.dataentry.model.Team.builder().id(1L).build();
+    @org.junit.jupiter.api.AfterEach void clearTenant() { com.dataentry.security.TenantContext.clear(); }
     private User agent;
     private Department dept;
     private Subcategory sub;
 
     @BeforeEach
     void setup() {
-        agent = User.builder().id(1L).username("agent").role(Role.USER).active(true).build();
-        dept = Department.builder().id(10L).name("Marketing").active(true).build();
-        sub = Subcategory.builder().id(100L).department(dept).name("Blog").active(true).build();
+        com.dataentry.security.TenantContext.set(1L, Role.USER, 1L, null);
+        agent = User.builder().team(team).id(1L).username("agent").role(Role.USER).active(true).build();
+        dept = Department.builder().team(team).id(10L).name("Marketing").active(true).build();
+        sub = Subcategory.builder().team(team).id(100L).department(dept).name("Blog").active(true).build();
         org.mockito.Mockito.lenient()
                 .when(translator.toBoth(org.mockito.ArgumentMatchers.anyString()))
                 .thenAnswer(inv -> new TranslationService.Bilingual(inv.getArgument(0), inv.getArgument(0)));
@@ -77,7 +80,7 @@ class TicketServiceTest {
 
     @Test
     void create_rejectsInactiveDepartment() {
-        Department inactive = Department.builder().id(20L).name("Archive").active(false).build();
+        Department inactive = Department.builder().team(team).id(20L).name("Archive").active(false).build();
         when(departmentRepository.findById(20L)).thenReturn(Optional.of(inactive));
 
         TicketDtos.CreateTicketRequest req = new TicketDtos.CreateTicketRequest(
@@ -90,8 +93,8 @@ class TicketServiceTest {
 
     @Test
     void create_rejectsSubcategoryFromDifferentDepartment() {
-        Department other = Department.builder().id(30L).name("Legal").active(true).build();
-        Subcategory foreign = Subcategory.builder().id(300L).department(other).name("Terms").active(true).build();
+        Department other = Department.builder().team(team).id(30L).name("Legal").active(true).build();
+        Subcategory foreign = Subcategory.builder().team(team).id(300L).department(other).name("Terms").active(true).build();
 
         when(departmentRepository.findById(10L)).thenReturn(Optional.of(dept));
         when(subcategoryRepository.findById(300L)).thenReturn(Optional.of(foreign));
@@ -120,7 +123,7 @@ class TicketServiceTest {
     @Test
     void create_rejectsMissingRequiredCustomField() {
         stubDeptAndSub();
-        CustomField required = CustomField.builder()
+        CustomField required = CustomField.builder().team(team)
                 .id(1L).subcategory(sub).fieldKey("topic").label("Topic")
                 .type(FieldType.TEXT).required(true).active(true).displayOrder(0).build();
         when(customFieldRepository.findAllBySubcategoryIdAndActiveTrueOrderByDisplayOrderAscIdAsc(100L))
@@ -137,7 +140,7 @@ class TicketServiceTest {
     @Test
     void create_rejectsBadEmailValue() {
         stubDeptAndSub();
-        CustomField emailField = CustomField.builder()
+        CustomField emailField = CustomField.builder().team(team)
                 .id(2L).subcategory(sub).fieldKey("contact").label("Contact")
                 .type(FieldType.EMAIL).required(false).active(true).displayOrder(0).build();
         when(customFieldRepository.findAllBySubcategoryIdAndActiveTrueOrderByDisplayOrderAscIdAsc(100L))
@@ -182,7 +185,7 @@ class TicketServiceTest {
 
     @Test
     void createAttachmentTicket_autoCreatesDefaultDepartment_whenProjectHasNone() {
-        Project project = Project.builder().id(50L).name("Fresh Project").build();
+        Project project = Project.builder().team(team).id(50L).name("Fresh Project").build();
         when(projectRepository.findById(50L)).thenReturn(Optional.of(project));
         when(departmentRepository.findAllByActiveTrueAndProjectIdOrderByNameAsc(50L))
                 .thenReturn(List.of());

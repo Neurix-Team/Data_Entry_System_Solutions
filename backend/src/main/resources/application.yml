@@ -1,5 +1,6 @@
 server:
   port: 8080
+  forward-headers-strategy: none
   tomcat:
     max-http-form-post-size: 60MB
     max-swallow-size: 60MB
@@ -66,16 +67,17 @@ app:
     dir: ${APP_ATTACHMENTS_DIR:${user.dir}/data/attachments}
     max-file-bytes: ${APP_ATTACHMENTS_MAX_FILE_BYTES:524288000}
   security:
+    trusted-proxies: ${APP_TRUSTED_PROXIES:}
     login-rate:
       storage: ${APP_LOGIN_RATE_STORAGE:database}
       max-attempts: 10
       window-seconds: 300
   seed:
-    enabled: true
+    enabled: ${APP_SEED_ENABLED:false}
     admin-username: ${APP_SEED_ADMIN_USERNAME:admin}
-    admin-password: ${APP_SEED_ADMIN_PASSWORD:admin123}
+    admin-password: ${APP_SEED_ADMIN_PASSWORD:}
     superadmin-username: ${APP_SEED_SUPERADMIN_USERNAME:superadmin}
-    superadmin-password: ${APP_SEED_SUPERADMIN_PASSWORD:superadmin123}
+    superadmin-password: ${APP_SEED_SUPERADMIN_PASSWORD:}
   impersonation:
     ttl-ms: ${APP_IMPERSONATION_TTL_MS:1800000}
   pdf:

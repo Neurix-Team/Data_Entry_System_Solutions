@@ -106,7 +106,6 @@ public class ChunkedUploadService {
         }
         String filename = TicketDocumentService.sanitiseFilename(req.filename());
         documents.assertExtensionAllowed(filename);
-        quota.assertRoom(user.getId(), size);
 
         Long projectId = null;
         Long departmentId = null;
@@ -130,6 +129,11 @@ public class ChunkedUploadService {
                 documents.assertCanAttach(req.ticketId(), user, user.isAdminLike());
                 ticketId = req.ticketId();
             }
+        }
+
+        quota.chargeOrThrow(user.getId(), size);
+        if (sessions.countByOwnerId(user.getId()) >= 20) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many open upload sessions");
         }
 
         int totalChunks = (int) ((size + chunkBytes - 1) / chunkBytes);
@@ -235,7 +239,7 @@ public class ChunkedUploadService {
                 }
 
                 TicketDocumentService.IncomingFile file =
-                        new TicketDocumentService.IncomingFile(payload, s.getOriginalFilename(), actual);
+                        new TicketDocumentService.IncomingFile(payload, s.getOriginalFilename(), actual, true);
                 UploadSessionDtos.CompleteResponse result;
                 try {
                     if (s.getTarget() == UploadTarget.QUICK_UPLOAD) {

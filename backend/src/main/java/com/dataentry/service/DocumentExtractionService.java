@@ -140,35 +140,21 @@ public class DocumentExtractionService {
 
     private String parseTikaText(Path file, String declaredContentType, String originalName,
                                  List<String> warnings) {
+        BodyContentHandler handler = new BodyContentHandler(maxChars);
         try (InputStream in = Files.newInputStream(file)) {
-            BodyContentHandler handler = new BodyContentHandler(Math.max(maxChars * 4, 1_000_000));
             Metadata metadata = new Metadata();
-            metadata.set(Metadata.CONTENT_TYPE, declaredContentType == null ? MimeTypes.OCTET_STREAM : declaredContentType);
             metadata.set(TikaCoreProperties.RESOURCE_NAME_KEY, originalName);
             new AutoDetectParser().parse(in, handler, metadata, hardenedParseContext());
             return handler.toString();
         } catch (SAXException e) {
-            String msg = e.getMessage() == null ? "" : e.getMessage();
-            if (msg.contains("Your document contained more than")) {
-                warnings.add("Document is very large — extraction stopped at the internal Tika limit");
-                try (InputStream in = Files.newInputStream(file)) {
-                    BodyContentHandler bigHandler = new BodyContentHandler(-1);
-                    Metadata metadata = new Metadata();
-                    metadata.set(Metadata.CONTENT_TYPE,
-                            declaredContentType == null ? MimeTypes.OCTET_STREAM : declaredContentType);
-                    metadata.set(TikaCoreProperties.RESOURCE_NAME_KEY, originalName);
-                    new AutoDetectParser().parse(in, bigHandler, metadata, hardenedParseContext());
-                    return bigHandler.toString();
-                } catch (IOException | TikaException | SAXException fallback) {
-                    log.warn("Tika fallback failed", fallback);
-                }
+            if (org.apache.tika.exception.WriteLimitReachedException.isWriteLimitReached(e)) {
+                warnings.add("Document text was truncated at the configured extraction limit");
+                return handler.toString();
             }
-            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Extraction failed: " + msg);
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Could not parse this document");
         } catch (TikaException | IOException e) {
-            log.error("Tika parse failed", e);
-            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Extraction failed: " + e.getMessage());
+            log.warn("Document parsing failed", e);
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Could not parse this document");
         }
     }
 
@@ -181,7 +167,7 @@ public class DocumentExtractionService {
             ExtractionStagingService.Handle handle = staging.create(ownerId);
             List<OfficeImageExtractor.Extracted> found = officeImageExtractor.extractInto(file, handle.directory());
             if (found.isEmpty()) {
-                staging.discard(handle.extractionId());
+                staging.discard(handle.extractionId(), ownerId);
                 return StagedImages.empty();
             }
             List<PdfDtos.ExtractedImage> images = found.stream()
@@ -251,7 +237,7 @@ public class DocumentExtractionService {
     private PdfDtos.ExtractedContentResponse finalize(String filename, String rawText,
                                                       List<String> warnings, StagedImages staged) {
         String cleaned = rawText.replaceAll("\\n{3,}", "\n\n").trim();
-        boolean truncated = false;
+        boolean truncated = warnings.stream().anyMatch(w -> w.contains("configured extraction limit"));
         if (cleaned.length() > maxChars) {
             cleaned = cleaned.substring(0, maxChars);
             truncated = true;
@@ -290,6 +276,12 @@ public class DocumentExtractionService {
 
     private ParseContext hardenedParseContext() {
         ParseContext ctx = new ParseContext();
+        ctx.set(org.apache.tika.extractor.EmbeddedDocumentExtractor.class,
+                new org.apache.tika.extractor.EmbeddedDocumentExtractor() {
+                    public boolean shouldParseEmbedded(Metadata metadata) { return false; }
+                    public void parseEmbedded(InputStream stream, org.xml.sax.ContentHandler handler,
+                                              Metadata metadata, boolean outputHtml) { }
+                });
         try {
             javax.xml.parsers.SAXParserFactory spf = javax.xml.parsers.SAXParserFactory.newInstance();
             spf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
@@ -302,11 +294,13 @@ public class DocumentExtractionService {
 
             javax.xml.parsers.DocumentBuilderFactory dbf = javax.xml.parsers.DocumentBuilderFactory.newInstance();
             dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            dbf.setAttribute(javax.xml.XMLConstants.ACCESS_EXTERNAL_DTD, "");
+            dbf.setAttribute(javax.xml.XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
             dbf.setXIncludeAware(false);
             dbf.setExpandEntityReferences(false);
             ctx.set(javax.xml.parsers.DocumentBuilderFactory.class, dbf);
         } catch (Exception e) {
-            log.warn("Could not fully harden XML parser factories: {}", e.getMessage());
+            throw new IllegalStateException("Cannot initialize secure XML parsers", e);
         }
         return ctx;
     }

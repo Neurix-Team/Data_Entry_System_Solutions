@@ -43,6 +43,11 @@ public class UserAvatarController {
 
     @GetMapping("/api/users/{id}/avatar")
     public ResponseEntity<byte[]> serve(@PathVariable Long id) {
+        User owner = userRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        if (!id.equals(com.dataentry.security.TenantContext.getUserId())) {
+            com.dataentry.security.TenantGuard.assertOwnership(owner);
+        }
         Optional<UserAvatar> opt = avatarRepository.findById(id);
         if (opt.isEmpty()) {
             return ResponseEntity.notFound().build();
@@ -56,7 +61,7 @@ public class UserAvatarController {
         }
         return ResponseEntity.ok()
                 .contentType(type)
-                .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePublic())
+                .cacheControl(CacheControl.noStore())
                 .body(a.getData());
     }
 

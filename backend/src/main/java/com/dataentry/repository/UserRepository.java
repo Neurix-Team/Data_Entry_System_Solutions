@@ -8,7 +8,12 @@ import java.util.List;
 import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, Long> {
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = "team")
     Optional<User> findByUsername(String username);
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select u from User u where u.id = :id")
+    Optional<User> lockForUploadBudget(@org.springframework.data.repository.query.Param("id") Long id);
+
     boolean existsByUsername(String username);
 
     List<User> findAllByRole(Role role);

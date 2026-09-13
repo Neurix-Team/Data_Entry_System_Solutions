@@ -6,7 +6,6 @@ import com.dataentry.model.Team;
 import com.dataentry.model.User;
 import com.dataentry.repository.TeamRepository;
 import com.dataentry.repository.UserRepository;
-import com.dataentry.security.JwtAuthFilter;
 import com.dataentry.security.TenantContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -36,22 +35,19 @@ public class SuperAdminService {
     private final PasswordEncoder passwordEncoder;
     private final TranslationService translator;
     private final JdbcTemplate jdbc;
-    private final JwtAuthFilter jwtAuthFilter;
 
     public SuperAdminService(Clock clock,
                              TeamRepository teamRepository,
                              UserRepository userRepository,
                              PasswordEncoder passwordEncoder,
                              TranslationService translator,
-                             JdbcTemplate jdbc,
-                             JwtAuthFilter jwtAuthFilter) {
+                             JdbcTemplate jdbc) {
         this.clock = clock;
         this.teamRepository = teamRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.translator = translator;
         this.jdbc = jdbc;
-        this.jwtAuthFilter = jwtAuthFilter;
     }
 
 
@@ -168,7 +164,6 @@ public class SuperAdminService {
         if (req.color() != null) team.setColor(req.color());
         if (req.active() != null) team.setActive(req.active());
         teamRepository.save(team);
-        jwtAuthFilter.clearAuthCache();
         long[] counts = loadPerTeamCounts().getOrDefault(id, new long[5]);
         return toSummary(team, counts, 0);
     }
@@ -220,7 +215,6 @@ public class SuperAdminService {
         }
 
         teamRepository.delete(team);
-        jwtAuthFilter.clearAuthCache();
     }
 
 

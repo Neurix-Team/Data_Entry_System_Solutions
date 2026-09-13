@@ -18,10 +18,14 @@ export const tokenStore = {
 
 const LANG_KEY = 'dems.lang';
 
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(async (config) => {
   const token = tokenStore.get();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  if (!token && !['get', 'head', 'options'].includes((config.method || 'get').toLowerCase())) {
+    const csrf = await axios.get<{ token: string }>(`${API_BASE}/auth/csrf`, { withCredentials: true });
+    config.headers['X-XSRF-TOKEN'] = csrf.data.token;
   }
   const lang = localStorage.getItem(LANG_KEY);
   config.headers['Accept-Language'] = lang === 'ar' ? 'ar' : 'en';

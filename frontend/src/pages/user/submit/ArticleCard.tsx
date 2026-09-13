@@ -1,3 +1,4 @@
+import { safeExternalUrl } from '../../../utils/safeUrl';
 import { IconClose, IconPlus } from '../../../components/Icons';
 import { useT } from '../../../i18n';
 
@@ -239,7 +240,7 @@ function ExtractedImagesSection({ rows, submitting, onRemove, onUpdate }: Extrac
           <div className="extracted-image-card" key={row.id}>
             <a
               className="extracted-image-thumb"
-              href={row.url}
+              href={safeExternalUrl(row.url)}
               target="_blank"
               rel="noopener noreferrer"
               title={t('user.submit.extractedImageOpen')}

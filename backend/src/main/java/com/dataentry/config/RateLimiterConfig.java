@@ -16,10 +16,11 @@ public class RateLimiterConfig {
             @Value("${app.security.login-rate.storage:database}") String storage,
             @Value("${app.security.login-rate.max-attempts:10}") int maxAttempts,
             @Value("${app.security.login-rate.window-seconds:300}") long windowSeconds,
-            LoginAttemptRepository loginAttemptRepository
+            LoginAttemptRepository loginAttemptRepository,
+            org.springframework.jdbc.core.JdbcTemplate jdbc
     ) {
         if ("database".equalsIgnoreCase(storage)) {
-            return new DatabaseLoginRateLimiter(loginAttemptRepository, maxAttempts, windowSeconds);
+            return new DatabaseLoginRateLimiter(loginAttemptRepository, jdbc, maxAttempts, windowSeconds);
         }
         return new InMemoryLoginRateLimiter(maxAttempts, windowSeconds);
     }

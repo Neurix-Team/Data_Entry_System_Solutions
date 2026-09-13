@@ -28,16 +28,36 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
     private final int limitPerWindow;
     private final long windowMs;
     private final Clock clock;
+    private final ClientAddressResolver addresses;
+    private static final int MAX_BUCKETS = 10_000;
 
     private final ConcurrentHashMap<String, Bucket> buckets = new ConcurrentHashMap<>();
 
+    @org.springframework.beans.factory.annotation.Autowired
     public ApiRateLimitFilter(
             @Value("${app.security.api-rate.per-minute:600}") int perMinute,
             @Value("${app.security.api-rate.window-ms:60000}") long windowMs,
-            Clock clock) {
+            Clock clock, ClientAddressResolver addresses) {
         this.limitPerWindow = perMinute;
         this.windowMs = windowMs;
         this.clock = clock;
+        this.addresses = addresses;
+    }
+
+    public ApiRateLimitFilter(int limit, long window, Clock clock) {
+        this(limit, window, clock, new ClientAddressResolver(""));
+    }
+
+    private synchronized Bucket bucket(String key, long now) {
+        Bucket existing = buckets.get(key);
+        if (existing != null) return existing;
+        if (buckets.size() >= MAX_BUCKETS) {
+            buckets.values().removeIf(b -> b.windowResetsAtMs <= now);
+            if (buckets.size() >= MAX_BUCKETS) return null;
+        }
+        Bucket created = new Bucket(now);
+        buckets.put(key, created);
+        return created;
     }
 
     @Override
@@ -51,9 +71,9 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
                                     HttpServletResponse res,
                                     FilterChain chain) throws ServletException, IOException {
         String key = principalOrIp(req);
-        Bucket b = buckets.computeIfAbsent(key, k -> new Bucket(clock.millis()));
-        if (!b.tryConsume(clock.millis())) {
-            long retryAfterSec = Math.max(1L, (b.windowResetsAtMs - clock.millis()) / 1000L);
+        Bucket b = bucket(key, clock.millis());
+        if (b == null || !b.tryConsume(clock.millis())) {
+            long retryAfterSec = b == null ? 60 : Math.max(1L, (b.windowResetsAtMs - clock.millis()) / 1000L);
             log.warn("rate limit tripped for key={} uri={} — {} req in {}ms window",
                     key, req.getRequestURI(), limitPerWindow, windowMs);
             res.setStatus(429);
@@ -73,12 +93,7 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
                 && !"anonymousUser".equals(auth.getName())) {
             return "u:" + auth.getName();
         }
-        String xff = req.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) {
-            int comma = xff.indexOf(',');
-            return "ip:" + (comma > 0 ? xff.substring(0, comma).trim() : xff.trim());
-        }
-        return "ip:" + req.getRemoteAddr();
+        return "ip:" + addresses.resolve(req);
     }
 
     private final class Bucket {
@@ -89,7 +104,7 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
             this.windowResetsAtMs = nowMs + windowMs;
         }
 
-        boolean tryConsume(long nowMs) {
+        synchronized boolean tryConsume(long nowMs) {
             if (nowMs >= windowResetsAtMs) {
                 synchronized (this) {
                     if (nowMs >= windowResetsAtMs) {

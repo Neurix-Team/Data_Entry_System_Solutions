@@ -1,59 +1,51 @@
 package com.dataentry.service;
 
+import com.dataentry.model.UploadUsage;
+import com.dataentry.repository.UploadUsageRepository;
+import com.dataentry.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-
 import java.time.Instant;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
-@Component
+/** Persistent upload-attempt budget. Aborted sessions do not refund the budget. */
+@Service
 public class UploadQuotaService {
-
-    private record Hit(Instant at, long bytes) {}
-
     private final long dailyBytes;
-    private final Map<Long, Deque<Hit>> byUser = new ConcurrentHashMap<>();
+    private final UploadUsageRepository usage;
+    private final UserRepository users;
 
-    public UploadQuotaService(
-            @Value("${app.uploads.per-user-daily-bytes:524288000}") long dailyBytes) {
+    public UploadQuotaService(@Value("${app.uploads.per-user-daily-bytes:524288000}") long dailyBytes,
+                              UploadUsageRepository usage, UserRepository users) {
         this.dailyBytes = dailyBytes;
+        this.usage = usage;
+        this.users = users;
     }
 
+    @Transactional
     public void chargeOrThrow(Long userId, long bytes) {
-        if (userId == null || bytes <= 0) return;
+        if (userId == null || bytes <= 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
+        // Serialize all reservations for this user, including first-row creation, across instances.
+        users.lockForUploadBudget(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
         Instant now = Instant.now();
-        Deque<Hit> q = byUser.computeIfAbsent(userId, k -> new ArrayDeque<>());
-        synchronized (q) {
-            if (usedSince(q, now.minusSeconds(24 * 3600)) + bytes > dailyBytes) {
-                throw quotaExceeded();
-            }
-            q.addLast(new Hit(now, bytes));
+        UploadUsage record = usage.findById(userId).orElseGet(() -> {
+            UploadUsage fresh = new UploadUsage();
+            fresh.setUserId(userId);
+            fresh.setWindowStartedAt(now);
+            return fresh;
+        });
+        if (!record.getWindowStartedAt().plusSeconds(86400).isAfter(now)) {
+            record.setWindowStartedAt(now);
+            record.setChargedBytes(0);
         }
-    }
-
-    public void assertRoom(Long userId, long bytes) {
-        if (userId == null || bytes <= 0) return;
-        Deque<Hit> q = byUser.computeIfAbsent(userId, k -> new ArrayDeque<>());
-        synchronized (q) {
-            if (usedSince(q, Instant.now().minusSeconds(24 * 3600)) + bytes > dailyBytes) {
-                throw quotaExceeded();
-            }
+        if (bytes > dailyBytes - record.getChargedBytes()) {
+            throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE,
+                    "Daily upload budget exceeded. Aborted uploads also count toward this budget.");
         }
-    }
-
-    private static long usedSince(Deque<Hit> q, Instant cutoff) {
-        while (!q.isEmpty() && q.peekFirst().at().isBefore(cutoff)) q.pollFirst();
-        return q.stream().mapToLong(Hit::bytes).sum();
-    }
-
-    private ResponseStatusException quotaExceeded() {
-        long mb = dailyBytes / (1024 * 1024);
-        return new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE,
-                "Daily upload quota (" + mb + " MB) exceeded — try again tomorrow.");
+        record.setChargedBytes(record.getChargedBytes() + bytes);
+        usage.save(record);
     }
 }

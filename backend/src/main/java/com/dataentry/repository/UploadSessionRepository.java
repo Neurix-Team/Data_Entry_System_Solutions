@@ -7,5 +7,6 @@ import java.time.Instant;
 import java.util.List;
 
 public interface UploadSessionRepository extends JpaRepository<UploadSession, String> {
+    long countByOwnerId(Long ownerId);
     List<UploadSession> findAllByExpiresAtBefore(Instant cutoff);
 }

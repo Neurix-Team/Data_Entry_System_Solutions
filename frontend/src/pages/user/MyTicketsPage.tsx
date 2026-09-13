@@ -1,3 +1,4 @@
+import { safeExternalUrl } from '../../utils/safeUrl';
 import { useEffect, useMemo, useState } from 'react';
 import { extractError } from '../../api/client';
 import { ticketsApi } from '../../api/resources';
@@ -180,7 +181,7 @@ export function MyTicketsPage() {
                     {selected.resources.map((r) => (
                       <li key={r.id}>
                         {r.name && <span>{r.name}: </span>}
-                        <a href={r.url} target="_blank" rel="noreferrer" dir="ltr">{r.url}</a>
+                        <a href={safeExternalUrl(r.url)} target="_blank" rel="noreferrer" dir="ltr">{r.url}</a>
                       </li>
                     ))}
                   </ul>
@@ -190,7 +191,7 @@ export function MyTicketsPage() {
               <>
                 {selected.websiteName && <Detail label={t('ticket.website')} value={selected.websiteName} />}
                 {selected.websiteLink && (
-                  <Detail label={t('ticket.link')} value={<a href={selected.websiteLink} target="_blank" rel="noreferrer">{selected.websiteLink}</a>} />
+                  <Detail label={t('ticket.link')} value={<a href={safeExternalUrl(selected.websiteLink)} target="_blank" rel="noreferrer">{selected.websiteLink}</a>} />
                 )}
               </>
             )}

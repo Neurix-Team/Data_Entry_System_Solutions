@@ -5,7 +5,6 @@ import com.dataentry.model.Role;
 import com.dataentry.model.Team;
 import com.dataentry.model.User;
 import com.dataentry.repository.UserRepository;
-import com.dataentry.security.JwtAuthFilter;
 import com.dataentry.security.JwtService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -20,20 +19,17 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final TranslationService translator;
-    private final JwtAuthFilter jwtAuthFilter;
     private final PasswordPolicy passwordPolicy;
 
     public AuthService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
                        JwtService jwtService,
                        TranslationService translator,
-                       JwtAuthFilter jwtAuthFilter,
                        PasswordPolicy passwordPolicy) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.translator = translator;
-        this.jwtAuthFilter = jwtAuthFilter;
         this.passwordPolicy = passwordPolicy;
     }
 
@@ -49,9 +45,10 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
         }
 
-        if (user.getRole() != Role.SUPER_ADMIN && user.getTeam() == null) {
+        if (user.getRole() != Role.SUPER_ADMIN
+                && (user.getTeam() == null || !user.getTeam().isActive())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    "Account is not attached to a team. Contact your administrator.");
+                    "Account team is unavailable. Contact your administrator.");
         }
 
         Long teamId = user.getTeam() != null ? user.getTeam().getId() : null;
@@ -68,7 +65,6 @@ public class AuthService {
                         "Session user no longer exists."));
         user.setTokenVersion(user.getTokenVersion() + 1);
         User saved = userRepository.save(user);
-        jwtAuthFilter.evictUser(saved.getId());
         Long teamId = saved.getTeam() != null ? saved.getTeam().getId() : null;
         String token = jwtService.generateToken(saved.getUsername(), saved.getRole().name(),
                 saved.getId(), teamId, saved.getTokenVersion());
@@ -127,7 +123,6 @@ public class AuthService {
             }
         }
         User saved = userRepository.save(user);
-        jwtAuthFilter.evictUser(saved.getId());
         return toDto(saved, impersonating);
     }
 
@@ -152,6 +147,5 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(req.newPassword()));
         user.setTokenVersion(user.getTokenVersion() + 1);
         userRepository.save(user);
-        jwtAuthFilter.evictUser(user.getId());
     }
 }

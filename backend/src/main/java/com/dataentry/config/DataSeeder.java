@@ -38,19 +38,19 @@ public class DataSeeder implements CommandLineRunner {
     private final JdbcTemplate jdbc;
     private final TranslationService translator;
 
-    @Value("${app.seed.enabled:true}")
+    @Value("${app.seed.enabled:false}")
     private boolean seedEnabled;
 
     @Value("${app.seed.admin-username:admin}")
     private String adminUsername;
 
-    @Value("${app.seed.admin-password:admin123}")
+    @Value("${app.seed.admin-password:}")
     private String adminPassword;
 
     @Value("${app.seed.superadmin-username:superadmin}")
     private String superAdminUsername;
 
-    @Value("${app.seed.superadmin-password:superadmin123}")
+    @Value("${app.seed.superadmin-password:}")
     private String superAdminPassword;
 
     public DataSeeder(TeamRepository teamRepository,
@@ -77,6 +77,11 @@ public class DataSeeder implements CommandLineRunner {
     @Transactional
     public void run(String... args) {
         if (!seedEnabled) return;
+        var policy = new com.dataentry.service.PasswordPolicy();
+        if (!policy.validate(adminPassword, adminUsername).isEmpty()
+                || !policy.validate(superAdminPassword, superAdminUsername).isEmpty()) {
+            throw new IllegalStateException("Explicit strong administrator passwords are required for seeding");
+        }
 
         cleanOrphanRows();
         Team defaultTeam = seedDefaultTeam();
@@ -323,18 +328,6 @@ public class DataSeeder implements CommandLineRunner {
             log.info("Seeded default admin user: {} (team={})", adminUsername, defaultTeam.getSlug());
         }
 
-        if (userRepository.findByUsername("agent1").isEmpty()) {
-            userRepository.save(withTranslatedDisplayName(User.builder()
-                    .username("agent1")
-                    .passwordHash(passwordEncoder.encode("agent123"))
-                    .displayName("Sample Data Entry Agent")
-                    .email("agent1@dataentry.local")
-                    .role(Role.USER)
-                    .team(defaultTeam)
-                    .active(true)
-                    .build()));
-            log.info("Seeded sample user: agent1 / agent123 (team={})", defaultTeam.getSlug());
-        }
     }
 
     private void seedSuperAdmin() {

@@ -129,7 +129,7 @@ public class PdfExtractionService {
                     List<PdfImageExtractor.Extracted> found =
                             imageExtractor.extractInto(input.toFile(), handle.directory());
                     if (found.isEmpty()) {
-                        staging.discard(handle.extractionId());
+                        staging.discard(handle.extractionId(), ownerId);
                     } else {
                         extractionId = handle.extractionId();
                         images = found.stream()

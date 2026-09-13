@@ -51,9 +51,8 @@ public class ExtractionStagingService {
 
  
     public Path resolveOwned(String extractionId, String filename, Long userId) {
-        Path dir = resolveDir(extractionId);
-        assertOwned(extractionId, userId);
-        Path target = dir.resolve(filename).normalize();
+        Path target = validateOwnedReference(extractionId, filename, userId);
+        Path dir = target.getParent();
         if (!target.startsWith(dir)) {
              
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
@@ -69,12 +68,8 @@ public class ExtractionStagingService {
 
  
     public boolean moveOut(String extractionId, String filename, Long userId, Path destination) {
-        Path source = resolveDir(extractionId).resolve(filename).normalize();
-        if (!source.startsWith(resolveDir(extractionId))) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
-        }
-        if (!Files.exists(source)) return false;
-        assertOwned(extractionId, userId);
+        Path source = validateOwnedReference(extractionId, filename, userId);
+        if (!Files.exists(source, LinkOption.NOFOLLOW_LINKS)) return false;
         try {
             Files.createDirectories(destination.getParent());
             Files.move(source, destination, StandardCopyOption.REPLACE_EXISTING);
@@ -85,30 +80,45 @@ public class ExtractionStagingService {
         }
     }
 
-     public void discard(String extractionId) {
-        Path dir = baseDir.resolve(extractionId).normalize();
-        if (!dir.startsWith(baseDir) || !Files.exists(dir)) return;
+    public void discard(String extractionId, Long userId) {
+        Path dir = resolveDir(extractionId);
+        assertOwned(extractionId, userId);
         deleteRecursively(dir);
     }
 
-    private Path resolveDir(String extractionId) {
-        if (extractionId == null || extractionId.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+    /** Validate all references before a caller starts any filesystem mutation. */
+    public Path validateOwnedReference(String extractionId, String filename, Long userId) {
+        Path dir = resolveDir(extractionId);
+        assertOwned(extractionId, userId);
+        if (filename == null || !filename.matches("[A-Za-z0-9_-]+\\.(?i:png|jpe?g|webp|gif|bmp|tiff?)")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid image filename");
         }
-        Path dir = baseDir.resolve(extractionId).normalize();
-        if (!dir.startsWith(baseDir)) {
+        Path target = dir.resolve(filename).normalize();
+        if (!target.getParent().equals(dir) || Files.isSymbolicLink(target)
+                || (Files.exists(target, LinkOption.NOFOLLOW_LINKS) && !Files.isRegularFile(target))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
-        if (!Files.exists(dir)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
-                    "Extraction has expired or does not exist");
+        return target;
+    }
+
+    private Path resolveDir(String extractionId) {
+        if (extractionId == null || !extractionId.matches(
+                "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid extraction identifier");
+        }
+        Path dir = baseDir.resolve(extractionId).normalize();
+        if (dir.equals(baseDir) || !dir.getParent().equals(baseDir) || Files.isSymbolicLink(dir)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
+        if (!Files.isDirectory(dir, LinkOption.NOFOLLOW_LINKS)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Extraction has expired or does not exist");
         }
         return dir;
     }
 
     private void assertOwned(String extractionId, Long userId) {
         Path marker = baseDir.resolve(extractionId).resolve(OWNER_FILE);
-        if (!Files.exists(marker)) {
+        if (!Files.isRegularFile(marker, LinkOption.NOFOLLOW_LINKS)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
         String stored;

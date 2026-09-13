@@ -28,7 +28,7 @@ public class TicketDtos {
 
     public record ExtractedImageRef(
             @NotBlank @Size(max = 250) String name,
-            @NotBlank @Size(max = 64) String extractionId,
+            @NotBlank @jakarta.validation.constraints.Pattern(regexp = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}") String extractionId,
             @NotBlank @Size(max = 120)
             @Pattern(regexp = "^[A-Za-z0-9._-]+$",
                     message = "Extracted image filename must contain only letters, digits, dot, dash or underscore")

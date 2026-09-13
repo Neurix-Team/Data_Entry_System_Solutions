@@ -45,6 +45,7 @@ class JwtAuthFilterTokenVersionTest {
         alice = User.builder()
                 .id(1L).username("alice").passwordHash("x")
                 .role(Role.USER).active(true).tokenVersion(5L)
+                .team(com.dataentry.model.Team.builder().id(1L).build())
                 .build();
         when(userRepo.findByUsername("alice")).thenReturn(Optional.of(alice));
     }
@@ -52,7 +53,6 @@ class JwtAuthFilterTokenVersionTest {
     @AfterEach
     void tearDown() {
         SecurityContextHolder.clearContext();
-        filter.clearAuthCache();
     }
 
     @Test
@@ -66,11 +66,11 @@ class JwtAuthFilterTokenVersionTest {
     }
 
     @Test
-    void higher_tv_in_token_than_db_still_authenticates() throws Exception {
+    void future_token_version_is_rejected() throws Exception {
         String token = jwtService.generateToken("alice", "USER", 1L, null, 6L);
         MockHttpServletResponse res = run(token);
         assertThat(res.getStatus()).isEqualTo(200);
-        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
     }
 
     @Test
@@ -116,7 +116,6 @@ class JwtAuthFilterTokenVersionTest {
 
     private MockHttpServletResponse run(String token) throws Exception {
         SecurityContextHolder.clearContext();
-        filter.clearAuthCache();
         MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/whatever");
         req.addHeader("Authorization", "Bearer " + token);
         MockHttpServletResponse res = new MockHttpServletResponse();
