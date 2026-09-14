@@ -48,7 +48,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         this.teamRepository = teamRepository;
     }
 
-    
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
