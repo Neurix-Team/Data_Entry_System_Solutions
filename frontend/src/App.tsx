@@ -18,10 +18,12 @@ const AdminTicketsPage = lazy(() => import('./pages/admin/AdminTicketsPage').the
 const AdminProjectsPage = lazy(() => import('./pages/admin/AdminProjectsPage').then((m) => ({ default: m.AdminProjectsPage })));
 const AdminReportsPage = lazy(() => import('./pages/admin/AdminReportsPage').then((m) => ({ default: m.AdminReportsPage })));
 const AdminUserActivityPage = lazy(() => import('./pages/admin/AdminUserActivityPage').then((m) => ({ default: m.AdminUserActivityPage })));
+const AdminAssignmentsPage = lazy(() => import('./pages/admin/AdminAssignmentsPage').then((m) => ({ default: m.AdminAssignmentsPage })));
 
 const SubmitTicketPage = lazy(() => import('./pages/user/SubmitTicketPage').then((m) => ({ default: m.SubmitTicketPage })));
 const MyTicketsPage = lazy(() => import('./pages/user/MyTicketsPage').then((m) => ({ default: m.MyTicketsPage })));
 const UserDashboardPage = lazy(() => import('./pages/user/UserDashboardPage').then((m) => ({ default: m.UserDashboardPage })));
+const MyAssignmentsPage = lazy(() => import('./pages/user/MyAssignmentsPage').then((m) => ({ default: m.MyAssignmentsPage })));
 
 const SuperLayout = lazy(() => import('./pages/super/SuperLayout').then((m) => ({ default: m.SuperLayout })));
 const SuperOverviewPage = lazy(() => import('./pages/super/SuperOverviewPage').then((m) => ({ default: m.SuperOverviewPage })));
@@ -94,12 +96,14 @@ export default function App() {
         <Route path="/admin/projects" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><AdminProjectsPage /></ProtectedRoute>} />
         <Route path="/admin/reports" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><AdminReportsPage /></ProtectedRoute>} />
         <Route path="/admin/users/:id/activity" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><AdminUserActivityPage /></ProtectedRoute>} />
+        <Route path="/admin/assignments" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><AdminAssignmentsPage /></ProtectedRoute>} />
         <Route path="/admin/project-folders" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><ProjectFoldersPage /></ProtectedRoute>} />
         <Route path="/admin/project-folders/:projectId" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><ProjectFolderDetailPage /></ProtectedRoute>} />
 
         <Route path="/dashboard" element={<UserDashboardPage />} />
         <Route path="/submit" element={<SubmitTicketPage />} />
         <Route path="/my-tickets" element={<MyTicketsPage />} />
+        <Route path="/assignments" element={<MyAssignmentsPage />} />
         <Route path="/project-folders" element={<ProjectFoldersPage />} />
         <Route path="/project-folders/:projectId" element={<ProjectFolderDetailPage />} />
 

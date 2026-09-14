@@ -27,6 +27,7 @@ A production-grade platform that turns scanned books, reports and documents into
 - **My Entries** — search, status tracking, full detail view with document download.
 - **Project Folders & quick upload** — drop many files into a project folder; each becomes a review-status entry, titled from the file. Uploads are **chunked and parallel**: every file goes up as 8 MB chunks with four requests in flight (two files at a time), a failed chunk is retried on its own, and the server writes each chunk straight into place — finalize is a rename, never a copy. A **circular percentage meter** per file and for the whole batch shows bytes moved, speed and time left, then "done in 4.2 s". Byte-identical duplicates are rejected; files up to **500 MB** (5 GB per user per day).
 - **In-app notifications** — bell with unread badge; agents are notified the moment an entry is approved; click to jump to the folder.
+- **My Assignments** — tasks the team leader hands to you, sorted by due date with overdue ones flagged; press **Done** when finished (undo if you pressed it by mistake) and the leader is notified.
 - **Neurix assistant** — floating chat that understands where features live and navigates you there (bilingual, history persisted).
 - **Profile** — avatar upload, display name, email, phone, password change.
 - **Dark mode** and **English / Arabic with full RTL layout**, one click each.
@@ -35,6 +36,7 @@ A production-grade platform that turns scanned books, reports and documents into
 
 - **Team dashboard** — headcount, active fields, departments, pending, completed today; weekly task-progress chart; top performers; **domain overview** per department (with subcategory drill-down); **agent leaderboard** with Today / Week / Month ranges.
 - **Team Members** — create/edit accounts, roles, active/inactive access, bulk add, bulk delete, per-member activity page.
+- **Assignments** — write a task, pick the team member, optionally set a due date; the member is notified, and the row flips to Done (with a timestamp) the moment they press Done. Reopen, edit or delete at any time; filter Open / Done.
 - **Projects** — multi-department projects with subtitle, start/end dates, days-left / overdue indicator, progress %, status (On Track / Delayed / Completed), assigned members.
 - **Departments** — per-project departments with a detail modal (entries, subcategories, active agents, last-30-days stats).
 - **Subcategories & custom form builder** — each subcategory owns its own form fields; no code changes needed.

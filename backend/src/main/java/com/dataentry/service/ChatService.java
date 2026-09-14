@@ -61,6 +61,11 @@ public class ChatService {
                     new String[]{"كل التذاكر", "جميع التذاكر", "كل المهام", "التذاكر", "تذاكر", "المهام", "مهام", "كل المشاكل", "جميع المهام"},
                     "All tickets", "كل التذاكر", true),
 
+            new Page("/admin/assignments",
+                    new String[]{"assignments", "assign task", "assign a task", "give task", "delegate", "hand out work", "assigned tasks", "new assignment"},
+                    new String[]{"تكليفات", "التكليفات", "تكليف", "كلف", "اسند", "اسناد", "وزع الشغل", "تكليف جديد", "ارفع تاسك", "تاسك", "تاسكات"},
+                    "Assignments", "التكليفات", true),
+
             new Page("/admin/fields",
                     new String[]{"custom fields", "fields", "form fields", "form builder", "add field"},
                     new String[]{"الحقول المخصصه", "الحقول", "حقول", "حقل", "بناء النموذج", "الحقل", "اضف حقل", "حقل جديد", "النموذج"},
@@ -79,7 +84,12 @@ public class ChatService {
             new Page("/my-tickets",
                     new String[]{"my tickets", "my tasks", "my entries", "my submissions", "own tickets"},
                     new String[]{"تذاكري", "مهامي", "طلباتي", "المقدمه مني", "بتاعتي", "الي قدمتها", "اللي قدمتها", "تذكرتي"},
-                    "My tickets", "تذاكري", false)
+                    "My tickets", "تذاكري", false),
+
+            new Page("/assignments",
+                    new String[]{"my assignments", "assigned to me", "what should i do", "my work", "to do", "todo"},
+                    new String[]{"تكليفاتي", "المطلوب مني", "شغلي", "اعمل ايه", "المكلف بيه", "التاسكات بتاعتي"},
+                    "My assignments", "تكليفاتي", false)
     );
 
     private static final List<PageNorm> PAGES_NORM;

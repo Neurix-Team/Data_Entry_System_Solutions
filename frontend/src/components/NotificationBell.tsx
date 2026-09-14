@@ -67,7 +67,9 @@ export function NotificationBell() {
     } : prev);
     try { await notificationsApi.markRead(n.id); } catch { /* silent; will resync on next poll */ }
 
-    if (n.projectId != null) {
+    if (n.refType === 'ASSIGNMENT') {
+      navigate(n.type === 'ASSIGNMENT_DONE' ? '/admin/assignments' : '/assignments');
+    } else if (n.projectId != null) {
       const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
       navigate(isAdmin ? `/admin/project-folders/${n.projectId}` : `/project-folders/${n.projectId}`);
     }

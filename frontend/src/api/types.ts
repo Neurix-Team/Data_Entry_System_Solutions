@@ -479,3 +479,38 @@ export interface UploadCompleteResponse {
   ticket: Ticket | null;
   document: TicketDocument | null;
 }
+
+
+export type AssignmentStatus = 'OPEN' | 'DONE';
+
+export interface AssignmentPerson {
+  id: number;
+  username: string;
+  displayName?: string | null;
+  displayNameEn?: string | null;
+  displayNameAr?: string | null;
+  avatarUpdatedAt?: string | null;
+}
+
+export interface Assignment {
+  id: number;
+  title: string;
+  description?: string | null;
+  status: AssignmentStatus;
+  /** ISO date (yyyy-mm-dd), no time component. */
+  dueDate?: string | null;
+  assignee: AssignmentPerson;
+  assignedBy?: AssignmentPerson | null;
+  createdAt: string;
+  completedAt?: string | null;
+}
+
+export interface AssignmentSummary {
+  open: number;
+  done: number;
+}
+
+export interface AssignmentList {
+  items: Assignment[];
+  summary: AssignmentSummary;
+}

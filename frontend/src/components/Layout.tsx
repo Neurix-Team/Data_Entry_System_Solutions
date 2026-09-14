@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useT } from '../i18n';
 import { Avatar } from './Avatar';
 import {
-  IconBuilding, IconChart, IconClose, IconDashboard, IconFolder,
+  IconBuilding, IconChart, IconCheck, IconClose, IconDashboard, IconFolder,
   IconLogout, IconMembers, IconSearch, IconSettings, IconTasks,
 } from './Icons';
 import { NotificationBell } from './NotificationBell';
@@ -104,6 +104,10 @@ export function Layout() {
               <span className="side-icon"><IconTasks /></span>
               {t('nav.tasks')}
             </NavLink>
+            <NavLink to="/admin/assignments" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
+              <span className="side-icon"><IconCheck /></span>
+              {t('nav.assignments')}
+            </NavLink>
             <NavLink to="/admin/reports" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
               <span className="side-icon"><IconChart /></span>
               {t('nav.reports')}
@@ -132,6 +136,10 @@ export function Layout() {
             <NavLink to="/my-tickets" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
               <span className="side-icon"><IconFolder /></span>
               {t('nav.myTasks')}
+            </NavLink>
+            <NavLink to="/assignments" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
+              <span className="side-icon"><IconCheck /></span>
+              {t('nav.myAssignments')}
             </NavLink>
             <NavLink to="/project-folders" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
               <span className="side-icon"><IconFolder /></span>

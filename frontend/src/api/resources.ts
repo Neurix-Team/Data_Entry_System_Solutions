@@ -4,6 +4,8 @@ import type {
   AdminUser,
   AiCheckResponse,
   ArticleInput,
+  Assignment,
+  AssignmentList,
   BulkCreateResponse,
   CustomField,
   Department,
@@ -262,4 +264,39 @@ export const uploadsApi = {
     api.post<UploadCompleteResponse>(`/uploads/sessions/${id}/complete`, undefined, { signal })
       .then(r => r.data),
   abort: (id: string) => api.delete(`/uploads/sessions/${id}`).then(() => undefined),
+};
+
+
+export interface AssignmentCreatePayload {
+  assigneeId: number;
+  title: string;
+  description?: string | null;
+  dueDate?: string | null;
+}
+
+export interface AssignmentUpdatePayload {
+  assigneeId?: number;
+  title?: string;
+  description?: string | null;
+  dueDate?: string | null;
+  clearDueDate?: boolean;
+}
+
+export const assignmentsApi = {
+  listAll: (signal?: AbortSignal) =>
+    api.get<AssignmentList>('/admin/assignments', { signal }).then(r => r.data),
+  create: (payload: AssignmentCreatePayload) =>
+    api.post<Assignment>('/admin/assignments', payload).then(r => r.data),
+  update: (id: number, payload: AssignmentUpdatePayload) =>
+    api.patch<Assignment>(`/admin/assignments/${id}`, payload).then(r => r.data),
+  reopen: (id: number) =>
+    api.post<Assignment>(`/admin/assignments/${id}/reopen`).then(r => r.data),
+  remove: (id: number) => api.delete(`/admin/assignments/${id}`).then(() => undefined),
+
+  listMine: (signal?: AbortSignal) =>
+    api.get<AssignmentList>('/user/assignments', { signal }).then(r => r.data),
+  markDone: (id: number) =>
+    api.post<Assignment>(`/user/assignments/${id}/done`).then(r => r.data),
+  reopenMine: (id: number) =>
+    api.post<Assignment>(`/user/assignments/${id}/reopen`).then(r => r.data),
 };

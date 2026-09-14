@@ -21,6 +21,7 @@ public class AuditService {
         public static final String PROJECT = "PROJECT";
         public static final String USER = "USER";
         public static final String TICKET = "TICKET";
+        public static final String ASSIGNMENT = "ASSIGNMENT";
         private EntityType() {}
     }
 
