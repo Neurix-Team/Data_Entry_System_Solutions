@@ -39,6 +39,8 @@ EXPOSE 9090
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=5 \
     CMD curl --fail --silent http://localhost:9090/actuator/health >/dev/null || exit 1
 
-ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=70.0 -XX:+ExitOnOutOfMemoryError"
+# jna.library.path: let tess4j find libtesseract even when the ld cache is stale or the
+# host mounts an unusual library layout; both amd64 and arm64 locations are listed.
+ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=70.0 -XX:+ExitOnOutOfMemoryError -Djna.library.path=/usr/lib/x86_64-linux-gnu:/usr/lib/aarch64-linux-gnu:/usr/lib"
 
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar"]

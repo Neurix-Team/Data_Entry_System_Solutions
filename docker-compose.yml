@@ -66,6 +66,8 @@ services:
       APP_UPLOADS_PER_USER_DAILY_BYTES: "${APP_UPLOADS_PER_USER_DAILY_BYTES:-5368709120}"
       TRANSLATION_BASE_URL: "${TRANSLATION_BASE_URL:-http://libretranslate:5000}"
       TRANSLATION_API_KEY: "${TRANSLATION_API_KEY:-}"
+      APP_OCR_TESSDATA_PATH: "${APP_OCR_TESSDATA_PATH:-}"
+      APP_OCR_LANGUAGES: "${APP_OCR_LANGUAGES:-ara+eng}"
     volumes:
       - dems-data:/app/data
     extra_hosts:

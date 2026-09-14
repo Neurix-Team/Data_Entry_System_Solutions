@@ -171,6 +171,33 @@ BACKUP_RETENTION_DAYS=7 sudo docker compose up -d backup
 # NEVER: docker volume prune — it deletes dems-postgres-data + dems-data and takes prod with it.
 ```
 
+## OCR engine is not available
+
+Symptom: importing a scan, an image or an Arabic PDF answers **503 "OCR engine is not
+available on this server (…)"**. The text in parentheses is the root cause; the app also
+runs an OCR self-test at boot and reports it on the health endpoint.
+
+1. Read the self-test result:
+   ```bash
+   sudo docker compose logs backend | grep -i "OCR self-test"
+   sudo docker compose exec backend curl -fsS http://localhost:9090/actuator/health | jq .components.ocr
+   ```
+   `ocr.status` is `UP` when Tesseract loaded and every configured language file was
+   found; `DEGRADED` otherwise, with `error` saying which of the two is wrong. OCR never
+   takes the overall health to `DOWN`, so the API keeps serving while you fix it.
+
+2. Match the `error`:
+
+   | `error` says | Cause | Fix |
+   |---|---|---|
+   | `native library did not load (UnsatisfiedLinkError: Unable to load library 'tesseract' …)` | The container was built from a stale image, or the backend is running outside Docker on a host without Tesseract | Docker: `sudo docker compose build backend && sudo docker compose up -d backend`. Bare metal: `sudo apt install tesseract-ocr tesseract-ocr-eng tesseract-ocr-ara libtesseract-dev` and restart the JVM |
+   | `native library did not load (… libjnidispatch …)` | JNA could not unpack its helper into `java.io.tmpdir` (read-only or `noexec` temp dir) | Give the JVM a writable, executable temp dir: add `-Djava.io.tmpdir=/app/data/tmp` to `JAVA_OPTS` (create the directory first) |
+   | `no tessdata directory with .traineddata files found (looked in …)` | Language packs are not installed, or live somewhere unusual | Install `tesseract-ocr-eng tesseract-ocr-ara`, or set `APP_OCR_TESSDATA_PATH=/path/to/tessdata` in `.env` and restart. Tesseract 5 hosts use `/usr/share/tesseract-ocr/5/tessdata`; Tesseract 4 hosts `/usr/share/tesseract-ocr/4.00/tessdata` — both are auto-detected |
+   | `language files missing in …: ara` | Only the English pack is installed | `sudo apt install tesseract-ocr-ara` (Docker: the image installs it — rebuild) |
+
+3. Confirm: the boot log shows `OCR self-test passed: tesseract 4.1.1 · datapath=… · languages=ara+eng`
+   and `components.ocr.status` is `UP`.
+
 ## Rolled a bad deploy
 
 ```bash

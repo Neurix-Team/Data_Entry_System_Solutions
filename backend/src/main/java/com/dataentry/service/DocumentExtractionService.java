@@ -223,7 +223,7 @@ public class DocumentExtractionService {
         } catch (UnsatisfiedLinkError | NoClassDefFoundError e) {
             log.error("Tesseract native library is missing", e);
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
-                    "OCR engine is not available on this server");
+                    OcrRuntime.unavailableMessage(e));
         } finally {
             if (tmp != null) {
                 try {

@@ -101,7 +101,7 @@ public class PdfExtractionService {
                 } catch (UnsatisfiedLinkError | NoClassDefFoundError e) {
                     log.error("Tesseract native library missing", e);
                     throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
-                            "OCR engine is not available on this server");
+                            OcrRuntime.unavailableMessage(e));
                 }
 
                 if (ocrText == null || ocrText.isBlank()) {

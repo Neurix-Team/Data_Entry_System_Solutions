@@ -14,21 +14,21 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
- 
+/**
+ * Serialises every OCR call through one fair permit (Tesseract is CPU-bound and not
+ * thread-safe per instance) and points each run at the tessdata directory that
+ * {@link OcrRuntime} detected on this machine.
+ */
 @Service
 public class OcrGate {
 
     private final Semaphore gate = new Semaphore(1, true);
     private final long waitSeconds;
-    private final String tessdataPath;
-    private final String languages;
+    private final OcrRuntime runtime;
 
-    public OcrGate(
-            @Value("${app.ocr.tessdata-path:/usr/share/tesseract-ocr/4.00/tessdata/}") String tessdataPath,
-            @Value("${app.ocr.languages:ara+eng}") String languages,
-            @Value("${app.ocr.wait-seconds:300}") long waitSeconds) {
-        this.tessdataPath = tessdataPath;
-        this.languages = languages;
+    public OcrGate(OcrRuntime runtime,
+                   @Value("${app.ocr.wait-seconds:300}") long waitSeconds) {
+        this.runtime = runtime;
         this.waitSeconds = waitSeconds;
     }
 
@@ -61,8 +61,8 @@ public class OcrGate {
                         "OCR engine is busy — try again in a moment");
             }
             Tesseract t = new Tesseract();
-            t.setDatapath(tessdataPath);
-            t.setLanguage(languages);
+            t.setDatapath(runtime.datapath());
+            t.setLanguage(runtime.languages());
             try {
                 return fn.apply(t);
             } catch (RuntimeException re) {

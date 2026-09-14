@@ -89,8 +89,9 @@ app:
       min-side-px: 64
       max-per-doc: 40
   ocr:
-    tessdata-path: /usr/share/tesseract-ocr/4.00/tessdata/
-    languages: ara+eng
+    # Blank = auto-detect (configured → $TESSDATA_PREFIX → Tesseract 5 and 4 system paths).
+    tessdata-path: ${APP_OCR_TESSDATA_PATH:}
+    languages: ${APP_OCR_LANGUAGES:ara+eng}
   translation:
     base-url: ${TRANSLATION_BASE_URL:}
     api-key: ${TRANSLATION_API_KEY:}
