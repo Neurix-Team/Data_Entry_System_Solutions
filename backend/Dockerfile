@@ -14,7 +14,7 @@ RUN --mount=type=cache,target=/root/.m2 \
 # Debian 13 ships 1.84, so on those bases every OCR call fails with
 # "OCR engine is not available (UnsatisfiedLinkError: ... undefined symbol ...)".
 # resolute ships Tesseract 5.5.0 + Leptonica 1.86.0, and Temurin publishes a JRE image for it.
-FROM eclipse-temurin:17-jre-resolute
+FROM eclipse-temurin:25-jre-resolute
 
 WORKDIR /app
 
