@@ -30,6 +30,7 @@ public class OcrHealthIndicator implements HealthIndicator {
         b.withDetail("datapath", s.datapath() == null ? "not found" : s.datapath());
         b.withDetail("languages", String.join("+", s.languages()));
         if (!s.missingLanguages().isEmpty()) b.withDetail("missingLanguages", s.missingLanguages());
+        if (s.smokeText() != null && !s.smokeText().isBlank()) b.withDetail("smokeTestRead", s.smokeText());
         if (s.error() != null) b.withDetail("error", s.error());
         return b.build();
     }

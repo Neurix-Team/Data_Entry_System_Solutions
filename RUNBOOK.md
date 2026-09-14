@@ -182,8 +182,8 @@ runs an OCR self-test at boot and reports it on the health endpoint.
    sudo docker compose logs backend | grep -i "OCR self-test"
    sudo docker compose exec backend curl -fsS http://localhost:9090/actuator/health | jq .components.ocr
    ```
-   `ocr.status` is `UP` when Tesseract loaded and every configured language file was
-   found; `DEGRADED` otherwise, with `error` saying which of the two is wrong. OCR never
+   `ocr.status` is `UP` when Tesseract loaded, every configured language file was found and a
+   test image OCR'd correctly; `DEGRADED` otherwise, with `error` saying which step failed. OCR never
    takes the overall health to `DOWN`, so the API keeps serving while you fix it.
 
 2. Match the `error`:
@@ -194,8 +194,10 @@ runs an OCR self-test at boot and reports it on the health endpoint.
    | `native library did not load (… libjnidispatch …)` | JNA could not unpack its helper into `java.io.tmpdir` (read-only or `noexec` temp dir) | Give the JVM a writable, executable temp dir: add `-Djava.io.tmpdir=/app/data/tmp` to `JAVA_OPTS` (create the directory first) |
    | `no tessdata directory with .traineddata files found (looked in …)` | Language packs are not installed, or live somewhere unusual | Install `tesseract-ocr-eng tesseract-ocr-ara`, or set `APP_OCR_TESSDATA_PATH=/path/to/tessdata` in `.env` and restart. Tesseract 5 hosts use `/usr/share/tesseract-ocr/5/tessdata`; Tesseract 4 hosts `/usr/share/tesseract-ocr/4.00/tessdata` — both are auto-detected |
    | `language files missing in …: ara` | Only the English pack is installed | `sudo apt install tesseract-ocr-ara` (Docker: the image installs it — rebuild) |
+   | `engine loaded but OCR of a test image failed (UnsatisfiedLinkError: Error looking up function 'pixBackgroundNormTo1MinMax' … liblept.so.5: undefined symbol …)` | Leptonica on the host is older than tess4j 5.20 needs (Ubuntu 22.04/24.04 ship 1.82, Debian 13 ships 1.84; 1.85+ is required). The pre-September-2026 image was built on Ubuntu jammy and hits exactly this | Rebuild from the current Dockerfile, which runs on Ubuntu 26.04 (Tesseract 5.5, Leptonica 1.86): `sudo docker compose build --no-cache backend && sudo docker compose up -d backend`. Bare metal: move to Ubuntu 26.04 packages or run the backend in Docker |
+   | `engine loaded but OCR of a test image failed (… No fonts found …)` | Headless JVM has no font to render the smoke image | `apt install fontconfig fonts-dejavu-core` (the image includes them) |
 
-3. Confirm: the boot log shows `OCR self-test passed: tesseract 4.1.1 · datapath=… · languages=ara+eng`
+3. Confirm: the boot log shows `OCR self-test passed: tesseract 5.5.0 · datapath=… · languages=ara+eng · smoke test read "OCR 123"`
    and `components.ocr.status` is `UP`.
 
 ## Rolled a bad deploy
