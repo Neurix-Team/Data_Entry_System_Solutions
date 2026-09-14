@@ -16,7 +16,11 @@ function homeFor(role: Role): string {
   return '/dashboard';
 }
 
-export function LoginPage() {
+interface LoginPageProps {
+  onShowGuidelines?: () => void;
+}
+
+export function LoginPage({ onShowGuidelines }: LoginPageProps = {}) {
   const { login, user } = useAuth();
   const { t, lang } = useT();
   const navigate = useNavigate();
@@ -179,6 +183,12 @@ export function LoginPage() {
           <p className="small muted auth-hint">
             {t('auth.hint')}
           </p>
+
+          {onShowGuidelines && (
+            <button type="button" className="auth-guidelines-link small" onClick={onShowGuidelines}>
+              {isAr ? 'إرشادات رفع الملفات' : 'Upload guidelines'}
+            </button>
+          )}
         </div>
       </main>
     </div>

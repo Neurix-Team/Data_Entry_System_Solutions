@@ -4,7 +4,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { useAuth } from './context/AuthContext';
 
 const Layout = lazy(() => import('./components/Layout').then((m) => ({ default: m.Layout })));
-const LoginPage = lazy(() => import('./pages/LoginPage').then((m) => ({ default: m.LoginPage })));
+const LoginRoute = lazy(() => import('./pages/LoginGate').then((m) => ({ default: m.LoginGate })));
 const LandingPage = lazy(() => import('./pages/landing/LandingPage').then((m) => ({ default: m.LandingPage })));
 const ProfilePage = lazy(() => import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 const ProjectFoldersPage = lazy(() => import('./pages/project-folders/ProjectFoldersPage').then((m) => ({ default: m.ProjectFoldersPage })));
@@ -63,7 +63,7 @@ export default function App() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
+        <Route path="/login" element={<LoginRoute />} />
 
       <Route
         element={
