@@ -136,7 +136,7 @@ public class DocumentExtractionService {
                 try { Files.deleteIfExists(tmp); } catch (IOException ignored) {}
             }
         }
-    }
+    }   
 
     private String parseTikaText(Path file, String declaredContentType, String originalName,
                                  List<String> warnings) {
