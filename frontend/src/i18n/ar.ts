@@ -109,6 +109,24 @@ export const ar: Dict = {
     reports: 'التقارير',
     submit: 'إدخال جديد',
     settings: 'الإعدادات',
+    chat: 'الشات',
+  },
+
+  chat: {
+    title: 'الشات',
+    newChat: 'محادثة جديدة',
+    connected: 'متصل — توصيل فوري',
+    connecting: 'جارٍ الاتصال…',
+    noConversations: 'مفيش محادثات لسه. ابدأ واحدة!',
+    pickConversation: 'اختار محادثة من القائمة، أو ابدأ شات جديد.',
+    pickPerson: 'اختار حد تكلم معاه',
+    searchPeople: 'دوّر بالاسم أو اسم المستخدم أو الفريق…',
+    noPeople: 'مفيش نتائج للبحث ده.',
+    placeholder: 'اكتب رسالتك… (Enter للإرسال، Shift+Enter لسطر جديد)',
+    send: 'إرسال',
+    attach: 'أرفق صورة أو PDF أو ملف وورد',
+    sendFailed: 'الرسالة ما اتبعتتش. حاول تاني.',
+    typing: '{name} بيكتب…',
   },
 
   status: {

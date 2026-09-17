@@ -69,6 +69,8 @@ export function NotificationBell() {
 
     if (n.refType === 'ASSIGNMENT') {
       navigate(n.type === 'ASSIGNMENT_DONE' ? '/admin/assignments' : '/assignments');
+    } else if (n.refType === 'CHAT') {
+      navigate(n.refId != null ? `/chat?c=${n.refId}` : '/chat');
     } else if (n.projectId != null) {
       const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
       navigate(isAdmin ? `/admin/project-folders/${n.projectId}` : `/project-folders/${n.projectId}`);

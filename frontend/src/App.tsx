@@ -24,6 +24,7 @@ const SubmitTicketPage = lazy(() => import('./pages/user/SubmitTicketPage').then
 const MyTicketsPage = lazy(() => import('./pages/user/MyTicketsPage').then((m) => ({ default: m.MyTicketsPage })));
 const UserDashboardPage = lazy(() => import('./pages/user/UserDashboardPage').then((m) => ({ default: m.UserDashboardPage })));
 const MyAssignmentsPage = lazy(() => import('./pages/user/MyAssignmentsPage').then((m) => ({ default: m.MyAssignmentsPage })));
+const ChatPage = lazy(() => import('./pages/chat/ChatPage'));
 
 const SuperLayout = lazy(() => import('./pages/super/SuperLayout').then((m) => ({ default: m.SuperLayout })));
 const SuperOverviewPage = lazy(() => import('./pages/super/SuperOverviewPage').then((m) => ({ default: m.SuperOverviewPage })));
@@ -106,6 +107,7 @@ export default function App() {
         <Route path="/assignments" element={<MyAssignmentsPage />} />
         <Route path="/project-folders" element={<ProjectFoldersPage />} />
         <Route path="/project-folders/:projectId" element={<ProjectFolderDetailPage />} />
+        <Route path="/chat" element={<ChatPage />} />
 
         <Route path="/profile" element={<ProfilePage />} />
       </Route>

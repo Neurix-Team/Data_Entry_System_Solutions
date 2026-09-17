@@ -25,19 +25,22 @@ public class UserService {
     private final Localizer localizer;
     private final AuditService audit;
     private final PasswordPolicy passwordPolicy;
+    private final NotificationService notifications;
 
     public UserService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
                        TranslationService translator,
                        Localizer localizer,
                        AuditService audit,
-                       PasswordPolicy passwordPolicy) {
+                       PasswordPolicy passwordPolicy,
+                       NotificationService notifications) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.translator = translator;
         this.localizer = localizer;
         this.audit = audit;
         this.passwordPolicy = passwordPolicy;
+        this.notifications = notifications;
     }
 
     private void enforcePolicy(String password, String username) {
@@ -74,6 +77,12 @@ public class UserService {
         User saved = userRepository.save(user);
         audit.record(AuditService.Action.CREATE, AuditService.EntityType.USER,
                 saved.getId(), "username=" + saved.getUsername() + " role=" + saved.getRole());
+        // Welcome notification lands in the new account's bell and links to the chat page.
+        notifications.emit(saved, "WELCOME",
+                "👋 " + (saved.getDisplayName() == null || saved.getDisplayName().isBlank()
+                        ? saved.getUsername() : saved.getDisplayName())
+                        + " — أهلاً بك! تواصل مع فريقك عبر الشات · Welcome! Reach your team via chat",
+                "CHAT", null, null);
         return toDto(saved);
     }
 

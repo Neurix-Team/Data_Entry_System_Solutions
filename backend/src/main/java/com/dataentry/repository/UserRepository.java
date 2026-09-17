@@ -39,4 +39,15 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<Object[]> findMembersOfProjectsInTeam(
             @org.springframework.data.repository.query.Param("projectIds") java.util.Collection<Long> projectIds,
             @org.springframework.data.repository.query.Param("teamId") Long teamId);
+
+    /* Chat helpers — native so the Hibernate teamFilter (team_id = :teamId) cannot
+       hide super admins (team_id IS NULL) from direct user lookups. */
+
+    @org.springframework.data.jpa.repository.Query(value = "select * from users where id = :id", nativeQuery = true)
+    Optional<User> findChatUserById(@org.springframework.data.repository.query.Param("id") Long id);
+
+    @org.springframework.data.jpa.repository.Query(
+            value = "select * from users where role = 'SUPER_ADMIN' and active = true",
+            nativeQuery = true)
+    List<User> findActiveSuperAdminsForChat();
 }

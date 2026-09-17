@@ -107,6 +107,24 @@ export const en = {
     reports: 'Reports',
     submit: 'New Entry',
     settings: 'Settings',
+    chat: 'Chat',
+  },
+
+  chat: {
+    title: 'Chat',
+    newChat: 'New chat',
+    connected: 'Live — instant delivery',
+    connecting: 'Connecting…',
+    noConversations: 'No conversations yet. Start one!',
+    pickConversation: 'Select a conversation from the list, or start a new chat.',
+    pickPerson: 'Choose someone to chat with',
+    searchPeople: 'Search by name, username or team…',
+    noPeople: 'No people match your search.',
+    placeholder: 'Type a message… (Enter to send, Shift+Enter for a new line)',
+    send: 'Send',
+    attach: 'Attach image, PDF or Word file',
+    sendFailed: 'Message failed. Please try again.',
+    typing: '{name} is typing…',
   },
 
   status: {

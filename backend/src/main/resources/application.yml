@@ -66,6 +66,8 @@ app:
   attachments:
     dir: ${APP_ATTACHMENTS_DIR:${user.dir}/data/attachments}
     max-file-bytes: ${APP_ATTACHMENTS_MAX_FILE_BYTES:524288000}
+  chat:
+    max-file-bytes: ${APP_CHAT_MAX_FILE_BYTES:26214400}
   security:
     trusted-proxies: ${APP_TRUSTED_PROXIES:}
     login-rate:
