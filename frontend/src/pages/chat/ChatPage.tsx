@@ -410,7 +410,6 @@ export default function ChatPage() {
             </div>
 
             {error && <div className="chat-error" role="alert">{error}</div>}
-// __RENDER3__
             {pendingFiles.length > 0 && (
               <div className="chat-files-row">
                 {pendingFiles.map((f, i) => (
@@ -470,7 +469,6 @@ export default function ChatPage() {
           </>
         )}
       </section>
-// __CONTACTS__
 
       {contactsOpen && (
         <div className="chat-contacts-backdrop" onClick={() => setContactsOpen(false)}>
