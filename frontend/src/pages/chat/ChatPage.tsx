@@ -343,7 +343,6 @@ export default function ChatPage() {
           </ul>
         )}
       </aside>
-// __RENDER2__
 
       <section className="chat-window">
         {!active ? (
