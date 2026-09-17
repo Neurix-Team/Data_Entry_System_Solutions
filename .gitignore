@@ -50,6 +50,10 @@ ehthumbs.db
 .claude/skills/
 .impeccable/
 
+.qa_deps/
+output/
+tmp/
+
 *.swp
 *.swo
 *~
