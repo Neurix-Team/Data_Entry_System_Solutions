@@ -3,6 +3,8 @@ package com.dataentry.model;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.Filter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 
@@ -89,6 +91,7 @@ public class User implements TeamOwned {
 
     /** Failed MFA attempts within the current lockout cycle. */
     @Column(name = "mfa_failed_attempts", nullable = false)
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     @Builder.Default
     private int mfaFailedAttempts = 0;
 
