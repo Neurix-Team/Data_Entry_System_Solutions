@@ -174,13 +174,14 @@ services:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - dems-grafana-data:/var/lib/grafana
+    # F-08: bind to loopback only. Grafana stays off the public internet;
+    # reach it via `ssh -L 3001:localhost:3001 <host>` when needed. If public
+    # access is ever required, expose it deliberately through Cloudflare Access
+    # (or re-add the neurix.proxy labels) — never raw 0.0.0.0:3001.
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
     restart: unless-stopped
     mem_limit: 512m
-    labels:
-      - "neurix.proxy.domain=grafana.neurix.uk"
-      - "neurix.proxy.port=3001"
 
   libretranslate:
     image: libretranslate/libretranslate:latest
