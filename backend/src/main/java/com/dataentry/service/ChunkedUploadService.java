@@ -64,6 +64,7 @@ public class ChunkedUploadService {
     private final int chunkBytes;
     private final long maxFileBytes;
     private final Duration sessionTtl;
+    private final int maxOpenSessions;
 
     private final Map<String, Object> completionLocks = new ConcurrentHashMap<>();
 
@@ -75,7 +76,8 @@ public class ChunkedUploadService {
                                 @Value("${app.uploads.incoming-dir:./data/attachments/.incoming}") String incomingDir,
                                 @Value("${app.uploads.chunk-bytes:8388608}") int chunkBytes,
                                 @Value("${app.attachments.max-file-bytes:524288000}") long maxFileBytes,
-                                @Value("${app.uploads.session-ttl-hours:24}") long sessionTtlHours) {
+                                @Value("${app.uploads.session-ttl-hours:24}") long sessionTtlHours,
+                                @Value("${app.uploads.max-open-sessions-per-user:500}") int maxOpenSessions) {
         this.sessions = sessions;
         this.departmentRepository = departmentRepository;
         this.folders = folders;
@@ -85,6 +87,7 @@ public class ChunkedUploadService {
         this.chunkBytes = Math.max(256 * 1024, chunkBytes);
         this.maxFileBytes = maxFileBytes;
         this.sessionTtl = Duration.ofHours(Math.max(1, sessionTtlHours));
+        this.maxOpenSessions = Math.max(1, maxOpenSessions);
         try {
             Files.createDirectories(this.incomingDir);
         } catch (IOException e) {
@@ -132,7 +135,10 @@ public class ChunkedUploadService {
         }
 
         quota.chargeOrThrow(user.getId(), size);
-        if (sessions.countByOwnerId(user.getId()) >= 20) {
+        long openSessions = sessions.countByOwnerId(user.getId());
+        if (openSessions >= maxOpenSessions) {
+            log.warn("Upload rejected for user {}: {} open upload sessions (limit {}), file '{}' ({} bytes)",
+                    user.getId(), openSessions, maxOpenSessions, filename, size);
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many open upload sessions");
         }
 
@@ -202,6 +208,8 @@ public class ChunkedUploadService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Could not read chunk");
         }
         if (written != expected) {
+            log.warn("Chunk {} of upload session {} (user {}) length mismatch: expected {} bytes, got {}",
+                    index, sessionId, user.getId(), expected, written);
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Chunk " + index + " length mismatch: expected " + expected + " bytes, got " + written);
         }

@@ -35,7 +35,7 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
 
     @org.springframework.beans.factory.annotation.Autowired
     public ApiRateLimitFilter(
-            @Value("${app.security.api-rate.per-minute:600}") int perMinute,
+            @Value("${app.security.api-rate.per-minute:6000}") int perMinute,
             @Value("${app.security.api-rate.window-ms:60000}") long windowMs,
             Clock clock, ClientAddressResolver addresses) {
         this.limitPerWindow = perMinute;
@@ -79,9 +79,8 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
             res.setStatus(429);
             res.setHeader("Retry-After", Long.toString(retryAfterSec));
             res.setContentType("application/json");
-            res.getWriter().write(
-                    "{\"error\":\"Too many requests. Slow down and retry after "
-                    + retryAfterSec + " s.\"}");
+            String msg = "Too many requests. Slow down and retry after " + retryAfterSec + " s.";
+            res.getWriter().write("{\"error\":\"" + msg + "\",\"message\":\"" + msg + "\"}");
             return;
         }
         chain.doFilter(req, res);

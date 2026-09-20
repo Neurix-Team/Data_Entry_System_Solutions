@@ -35,8 +35,9 @@ export class ChunkedUploadUnsupportedError extends Error {
 
 export const DEFAULT_CHUNK_PARALLELISM = 4;
 
-const MAX_ATTEMPTS = 4;
+const MAX_ATTEMPTS = 6;
 const RETRY_DELAYS_MS = [400, 1200, 3000];
+const MAX_RETRY_AFTER_MS = 30_000;
 const COMPLETE_ATTEMPTS = 3;
 const PROGRESS_INTERVAL_MS = 80;
 const SPEED_WINDOW_MS = 4000;
@@ -113,6 +114,21 @@ function isRetryable(err: unknown): boolean {
   const status = err.response?.status;
   if (status == null) return true;
   return status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+// A chunk PUT is idempotent (same bytes, same offset), and a 400 there is usually a body
+// the network cut short, so a chunk is worth retrying on it too.
+function isRetryableChunk(err: unknown): boolean {
+  if (isRetryable(err)) return true;
+  return axios.isAxiosError(err) && err.response?.status === 400;
+}
+
+function retryDelayMs(err: unknown, attempt: number): number {
+  const base = RETRY_DELAYS_MS[Math.min(attempt - 1, RETRY_DELAYS_MS.length - 1)];
+  if (!axios.isAxiosError(err)) return base;
+  const seconds = Number(err.response?.headers?.['retry-after']);
+  if (!Number.isFinite(seconds) || seconds <= 0) return base;
+  return Math.min(MAX_RETRY_AFTER_MS, Math.max(base, seconds * 1000));
 }
 
 function isEndpointMissing(err: unknown): boolean {
@@ -215,11 +231,11 @@ export async function uploadFileChunked(opts: ChunkedUploadOptions): Promise<Upl
         return;
       } catch (err) {
         inflight.delete(index);
-        if (ctl.signal.aborted || !isRetryable(err) || attempt >= MAX_ATTEMPTS) throw err;
+        if (ctl.signal.aborted || !isRetryableChunk(err) || attempt >= MAX_ATTEMPTS) throw err;
         let sum = ackedBytes;
         for (const v of inflight.values()) sum += v;
         emitter.resetLoaded(sum);
-        await sleep(RETRY_DELAYS_MS[Math.min(attempt - 1, RETRY_DELAYS_MS.length - 1)], ctl.signal);
+        await sleep(retryDelayMs(err, attempt), ctl.signal);
       }
     }
   }
@@ -256,7 +272,7 @@ export async function uploadFileChunked(opts: ChunkedUploadOptions): Promise<Upl
       return result;
     } catch (err) {
       if (!isRetryable(err) || attempt >= COMPLETE_ATTEMPTS) throw err;
-      await sleep(RETRY_DELAYS_MS[Math.min(attempt - 1, RETRY_DELAYS_MS.length - 1)], signal);
+      await sleep(retryDelayMs(err, attempt), signal);
     }
   }
 }

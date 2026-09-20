@@ -173,6 +173,8 @@ public class TicketDocumentService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Could not read file");
         }
         if (!ALLOWED_MIME_TYPES.contains(detectedMime)) {
+            log.warn("Upload rejected for user {}: '{}' detected as {} ({} bytes)",
+                    currentUser.getId(), originalFilename, detectedMime, actualSize);
             throw new ResponseStatusException(HttpStatus.UNSUPPORTED_MEDIA_TYPE,
                     "File type '" + detectedMime + "' is not allowed");
         }

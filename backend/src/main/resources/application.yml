@@ -2,6 +2,8 @@ server:
   port: 8080
   forward-headers-strategy: none
   tomcat:
+    threads:
+      max: ${SERVER_TOMCAT_MAX_THREADS:400}
     max-http-form-post-size: 60MB
     max-swallow-size: 60MB
   compression:
@@ -18,7 +20,7 @@ spring:
     username: ${DB_USERNAME:daleel}
     password: ${DB_PASSWORD:}
     hikari:
-      maximum-pool-size: ${DB_POOL_MAX_SIZE:20}
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:40}
       minimum-idle: ${DB_POOL_MIN_IDLE:10}
       connection-timeout: 30000
       validation-timeout: 5000
@@ -59,7 +61,8 @@ app:
   auth:
     cookie-secure: ${APP_AUTH_COOKIE_SECURE:true}
   uploads:
-    per-user-daily-bytes: ${APP_UPLOADS_PER_USER_DAILY_BYTES:5368709120}
+    per-user-daily-bytes: ${APP_UPLOADS_PER_USER_DAILY_BYTES:1099511627776}
+    max-open-sessions-per-user: ${APP_UPLOADS_MAX_OPEN_SESSIONS_PER_USER:500}
     incoming-dir: ${APP_UPLOADS_INCOMING_DIR:${app.attachments.dir}/.incoming}
     chunk-bytes: ${APP_UPLOADS_CHUNK_BYTES:8388608}
     session-ttl-hours: ${APP_UPLOADS_SESSION_TTL_HOURS:24}
@@ -79,6 +82,10 @@ app:
     admin-username: ${APP_SEED_ADMIN_USERNAME:admin}
     admin-password: ${APP_SEED_ADMIN_PASSWORD:}
     superadmin-username: ${APP_SEED_SUPERADMIN_USERNAME:superadmin}
+    # Requests per minute per client address. Everyone behind the reverse proxy shares one
+    # address unless APP_TRUSTED_PROXIES is set, so this has to cover the whole office.
+    api-rate:
+      per-minute: ${APP_API_RATE_PER_MINUTE:6000}
     superadmin-password: ${APP_SEED_SUPERADMIN_PASSWORD:}
   impersonation:
     ttl-ms: ${APP_IMPERSONATION_TTL_MS:1800000}

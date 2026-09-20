@@ -80,7 +80,8 @@ class ChunkedUploadServiceTest {
                 tmp.resolve("incoming").toString(),
                 CHUNK,
                 500L * 1024 * 1024,
-                24);
+                24,
+                500);
     }
 
     private static byte[] pseudoRandom(int n) {

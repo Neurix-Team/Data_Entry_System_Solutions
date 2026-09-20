@@ -3,6 +3,8 @@ package com.dataentry.service;
 import com.dataentry.model.UploadUsage;
 import com.dataentry.repository.UploadUsageRepository;
 import com.dataentry.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -13,11 +15,13 @@ import java.time.Instant;
 /** Persistent upload-attempt budget. Aborted sessions do not refund the budget. */
 @Service
 public class UploadQuotaService {
+    private static final Logger log = LoggerFactory.getLogger(UploadQuotaService.class);
+
     private final long dailyBytes;
     private final UploadUsageRepository usage;
     private final UserRepository users;
 
-    public UploadQuotaService(@Value("${app.uploads.per-user-daily-bytes:524288000}") long dailyBytes,
+    public UploadQuotaService(@Value("${app.uploads.per-user-daily-bytes:1099511627776}") long dailyBytes,
                               UploadUsageRepository usage, UserRepository users) {
         this.dailyBytes = dailyBytes;
         this.usage = usage;
@@ -42,6 +46,8 @@ public class UploadQuotaService {
             record.setChargedBytes(0);
         }
         if (bytes > dailyBytes - record.getChargedBytes()) {
+            log.warn("Upload rejected for user {}: daily budget exhausted ({} of {} bytes used, {} requested)",
+                    userId, record.getChargedBytes(), dailyBytes, bytes);
             throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE,
                     "Daily upload budget exceeded. Aborted uploads also count toward this budget.");
         }
