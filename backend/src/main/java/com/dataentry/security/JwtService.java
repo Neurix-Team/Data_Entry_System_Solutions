@@ -27,10 +27,34 @@ public class JwtService {
     private final long expirationMs;
     private final long mfaPendingExpirationMs;
 
+    private static final long DEFAULT_EXPIRATION_MS = 86_400_000L;
+    private static final long DEFAULT_MFA_PENDING_EXPIRATION_MS = 300_000L;
+
+    /**
+     * Spring only applies a placeholder default when the variable is unset, so a blank
+     * {@code JWT_EXPIRATION_MS=} (which .env.example and docker-compose both produce) would
+     * reach a {@code long} parameter as "" and stop the backend from booting. Read the
+     * lifetimes as text and fall back to the defaults when they are blank.
+     */
     @org.springframework.beans.factory.annotation.Autowired
     public JwtService(@Value("${app.jwt.secret}") String secret,
-                      @Value("${app.jwt.expiration-ms}") long expirationMs,
-                      @Value("${app.jwt.mfa-pending-expiration-ms:300000}") long mfaPendingExpirationMs) {
+                      @Value("${app.jwt.expiration-ms:}") String expirationMs,
+                      @Value("${app.jwt.mfa-pending-expiration-ms:}") String mfaPendingExpirationMs) {
+        this(secret,
+                parseMs(expirationMs, DEFAULT_EXPIRATION_MS),
+                parseMs(mfaPendingExpirationMs, DEFAULT_MFA_PENDING_EXPIRATION_MS));
+    }
+
+    private static long parseMs(String raw, long fallback) {
+        if (raw == null || raw.isBlank()) return fallback;
+        try {
+            return Long.parseLong(raw.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalStateException("Token lifetime must be a number of milliseconds, got '" + raw + "'.");
+        }
+    }
+
+    public JwtService(String secret, long expirationMs, long mfaPendingExpirationMs) {
         if (secret == null || secret.isBlank()) {
             throw new IllegalStateException(
                     "JWT_SECRET is missing — set it via env (min 32 chars of high entropy).");

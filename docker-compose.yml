@@ -50,7 +50,7 @@ services:
     container_name: dems-backend
     environment:
       JWT_SECRET: "${JWT_SECRET:?JWT_SECRET must be set (min 32 chars) — see .env}"
-      JWT_EXPIRATION_MS: "${JWT_EXPIRATION_MS:-}"
+      JWT_EXPIRATION_MS: "${JWT_EXPIRATION_MS:-86400000}"
       SPRING_PROFILES_ACTIVE: "docker"
       SPRING_DATASOURCE_URL: "jdbc:postgresql://${DB_DOCKER_HOST:-postgres}:${DB_PORT:-5432}/${DB_NAME:-dataentry}"
       SPRING_DATASOURCE_USERNAME: "${DB_USERNAME:-daleel}"
