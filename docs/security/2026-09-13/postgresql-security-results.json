@@ -1,0 +1,31 @@
+{
+  "suite": "com.dataentry.security.SecurityAuditIT",
+  "tests": 22,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "cases": [
+    "adminCannotCreateSuperAdminRole",
+    "uploadBudgetIsPersistedAndCannotBeExceeded",
+    "adminCanUpdateOwnTeamUser",
+    "anonymousCannotReadProtectedResources",
+    "adminCannotDeleteOrDisableGlobalAdministrator",
+    "ordinaryUserCannotUseAdminOrSuperRoutes",
+    "adminCannotResetGlobalSuperAdminPassword",
+    "teamMemberCannotReadAnotherTeamsAvatar",
+    "disabledTeamCannotLogIn",
+    "loginRequiresCsrfAndSupportsActualCookieTokenHandshake",
+    "disabledTeamCannotReuseExistingJwt",
+    "concurrentLoginAttemptsRespectDatabaseBudget",
+    "concurrentUploadsCannotOverspendPersistentBudget",
+    "ordinaryUserCannotImpersonateATeam",
+    "cookieHasTransportAndScriptProtection",
+    "tokenVersionChangeRevokesExistingSessionImmediately",
+    "adminCannotModifyAnotherTeamsUser",
+    "normalJwtCannotUseExternalExportApi",
+    "sameTeamAvatarIsAvailableAndNotPubliclyCached",
+    "securityHeadersArePresent",
+    "untrustedCorsOriginIsRejected",
+    "cookieAuthenticatedMutationRequiresCsrf"
+  ]
+}

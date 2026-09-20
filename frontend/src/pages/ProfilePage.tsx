@@ -1,8 +1,10 @@
-import { ChangeEvent, FormEvent, useMemo, useRef, useState } from 'react';
-import { authApi } from '../api/auth';
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { authApi, mfaApi } from '../api/auth';
 import { extractError } from '../api/client';
 import { avatarUrl, profileApi } from '../api/profile';
+import type { MfaRecoveryCodes, MfaStatus } from '../api/types';
 import { Avatar } from '../components/Avatar';
+import { MfaSetup } from '../components/auth/MfaSetup';
 import { PasswordInput } from '../components/PasswordInput';
 import { useToast } from '../components/toast/ToastContext';
 import { useAuth } from '../context/AuthContext';
@@ -32,6 +34,17 @@ export function ProfilePage() {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [photoBusy, setPhotoBusy] = useState<'upload' | 'remove' | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
+
+  // --- two-factor state -------------------------------------------------------------
+  const [mfaStatus, setMfaStatus] = useState<MfaStatus | null>(null);
+  const [mfaBusy, setMfaBusy] = useState(false);
+  const [mfaError, setMfaError] = useState<string | null>(null);
+  const [showEnroll, setShowEnroll] = useState(false);
+  const [showDisable, setShowDisable] = useState(false);
+  const [disableCode, setDisableCode] = useState('');
+  const [showRegen, setShowRegen] = useState(false);
+  const [regenPassword, setRegenPassword] = useState('');
+  const [freshCodes, setFreshCodes] = useState<MfaRecoveryCodes | null>(null);
 
   const currentSrc = useMemo(
     () => (user ? avatarUrl(user.id, user.avatarUpdatedAt) : null),
@@ -96,6 +109,63 @@ export function ProfilePage() {
     } finally {
       setChangingPassword(false);
     }
+  }
+
+  // --- two-factor handlers ----------------------------------------------------------
+
+  const isPrivileged = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+
+  useEffect(() => {
+    mfaApi.status().then(setMfaStatus).catch(() => setMfaStatus(null));
+  }, []);
+
+  async function reloadMfa() {
+    try {
+      setMfaStatus(await mfaApi.status());
+    } catch { /* keep the last known state */ }
+  }
+
+  async function onDisableMfa(e: FormEvent) {
+    e.preventDefault();
+    setMfaError(null);
+    if (!disableCode.trim()) return;
+    setMfaBusy(true);
+    try {
+      await mfaApi.disable(disableCode.trim());
+      toast.success(t('mfa.disabled'));
+      setShowDisable(false);
+      setDisableCode('');
+      await reloadMfa();
+    } catch (err) {
+      setMfaError(extractError(err, t('mfa.wrongCode')));
+    } finally {
+      setMfaBusy(false);
+    }
+  }
+
+  async function onRegenCodes(e: FormEvent) {
+    e.preventDefault();
+    setMfaError(null);
+    if (!regenPassword) return;
+    setMfaBusy(true);
+    try {
+      const res = await mfaApi.regenerateRecoveryCodes(regenPassword);
+      setFreshCodes(res);
+      setShowRegen(false);
+      setRegenPassword('');
+      toast.success(t('mfa.codesRegenerated'));
+      await reloadMfa();
+    } catch (err) {
+      setMfaError(extractError(err, t('common.somethingWrong')));
+    } finally {
+      setMfaBusy(false);
+    }
+  }
+
+  async function onEnrollDone() {
+    setShowEnroll(false);
+    await reloadMfa();
+    toast.success(t('mfa.enrolled'));
   }
 
   async function onPickPhoto(e: ChangeEvent<HTMLInputElement>) {
@@ -330,6 +400,137 @@ export function ProfilePage() {
                 </button>
               </div>
             </form>
+          </section>
+
+          <section className="profile-card">
+            <h3>{t('mfa.title')}</h3>
+            <p className="small muted">{t('mfa.sectionHint')}</p>
+
+            {mfaError && (
+              <div className="alert alert-error" role="alert" style={{ marginTop: '0.75rem' }}>
+                {mfaError}
+              </div>
+            )}
+
+            {mfaStatus && !showEnroll && (
+              <ul className="profile-meta-list" style={{ margin: '0.75rem 0' }}>
+                <li>
+                  <dt>{t('mfa.title')}</dt>
+                  <dd>
+                    {mfaStatus.enrolled
+                      ? (mfaStatus.enabledAt
+                          ? t('mfa.enabledSince', { date: new Date(mfaStatus.enabledAt).toLocaleDateString() })
+                          : t('mfa.enabled'))
+                      : (isPrivileged ? t('mfa.requiredBadge') : t('mfa.optional'))}
+                  </dd>
+                </li>
+                {mfaStatus.enrolled && (
+                  <li>
+                    <dt>{t('mfa.codesTitle')}</dt>
+                    <dd>{t('mfa.recoveryLeft', { count: mfaStatus.recoveryCodesRemaining })}</dd>
+                  </li>
+                )}
+              </ul>
+            )}
+
+            {!mfaStatus && <p className="small muted">…</p>}
+
+            {mfaStatus && !mfaStatus.enrolled && !showEnroll && (
+              <button type="button" className="btn btn-primary" onClick={() => setShowEnroll(true)}>
+                {t('mfa.enable')}
+              </button>
+            )}
+
+            {mfaStatus && mfaStatus.enrolled && !showDisable && !showRegen && !freshCodes && (
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <button type="button" className="btn" onClick={() => { setShowRegen(true); setMfaError(null); }}>
+                  {t('mfa.regenerate')}
+                </button>
+                {isPrivileged ? (
+                  <span className="small muted">{t('mfa.disableBlocked')}</span>
+                ) : (
+                  <button type="button" className="btn" onClick={() => { setShowDisable(true); setMfaError(null); }}>
+                    {t('mfa.disable')}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {showEnroll && (
+              <MfaSetup onDone={onEnrollDone} onCancel={() => setShowEnroll(false)} />
+            )}
+
+            {showDisable && (
+              <form onSubmit={onDisableMfa} noValidate>
+                <p className="small muted">{t('mfa.disableHint')}</p>
+                <div className="field">
+                  <label className="field-label" htmlFor="mfa-disable-code">{t('mfa.codeLabel')}</label>
+                  <input
+                    id="mfa-disable-code"
+                    className="input"
+                    value={disableCode}
+                    onChange={(e) => setDisableCode(e.target.value.replace(/[^0-9]/g, ''))}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    required
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button type="submit" className="btn btn-primary" disabled={mfaBusy || !disableCode}>
+                    {t('mfa.disableConfirm')}
+                  </button>
+                  <button type="button" className="btn" onClick={() => setShowDisable(false)}>
+                    {t('common.cancel')}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {showRegen && (
+              <form onSubmit={onRegenCodes} noValidate>
+                <p className="small muted">{t('mfa.regenerateHint')}</p>
+                <div className="field">
+                  <label className="field-label" htmlFor="mfa-regen-password">{t('mfa.passwordLabel')}</label>
+                  <PasswordInput
+                    id="mfa-regen-password"
+                    value={regenPassword}
+                    onChange={(e) => setRegenPassword(e.target.value)}
+                    autoComplete="current-password"
+                    required
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button type="submit" className="btn btn-primary" disabled={mfaBusy || !regenPassword}>
+                    {t('mfa.regenerate')}
+                  </button>
+                  <button type="button" className="btn" onClick={() => setShowRegen(false)}>
+                    {t('common.cancel')}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {freshCodes && (
+              <div>
+                <p className="small muted">{t('mfa.codesHint')}</p>
+                <ul
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(2, 1fr)',
+                    gap: '0.25rem 1.5rem',
+                    margin: '0.75rem 0',
+                    padding: 0,
+                    listStyle: 'none',
+                    fontFamily: 'monospace',
+                  }}
+                >
+                  {freshCodes.codes.map((c) => <li key={c}>{c}</li>)}
+                </ul>
+                <button type="button" className="btn" onClick={() => setFreshCodes(null)}>
+                  {t('mfa.savedCodes')}
+                </button>
+              </div>
+            )}
           </section>
         </div>
 

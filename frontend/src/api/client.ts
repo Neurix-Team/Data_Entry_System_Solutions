@@ -58,8 +58,11 @@ async function tryRefresh(): Promise<boolean> {
     refreshing = axios
       .post<LoginResponse>(`${API_BASE}/auth/refresh`, null, { withCredentials: true })
       .then((r) => {
-        tokenStore.set(r.data.token);
-        return true;
+        if (r.data.token) {
+          tokenStore.set(r.data.token);
+          return true;
+        }
+        return false;
       })
       .catch(() => false)
       .finally(() => {
@@ -75,8 +78,10 @@ api.interceptors.response.use(
     const status = err?.response?.status;
     const url: string = err?.config?.url ?? '';
     const alreadyRefreshed = Boolean(err?.config?._retriedAfterRefresh);
+    // MFA-step failures (a wrong code) are expected input errors — they must not
+    // trigger a silent refresh or a global sign-out.
     if (status === 401 && !alreadyRefreshed && !url.includes('/auth/refresh')
-        && !url.includes('/auth/login') && await tryRefresh()) {
+        && !url.includes('/auth/login') && !url.includes('/auth/mfa/') && await tryRefresh()) {
       const config = err.config;
       config._retriedAfterRefresh = true;
       const token = tokenStore.get();

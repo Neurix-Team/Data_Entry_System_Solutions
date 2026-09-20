@@ -56,6 +56,15 @@ app:
   jwt:
     secret: ${JWT_SECRET:change-me-in-production-a-very-long-random-secret-key-min-32-chars}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+    # Lifetime of the half-authenticated ticket issued between the password and TOTP steps.
+    mfa-pending-expiration-ms: ${JWT_MFA_PENDING_EXPIRATION_MS:300000}
+  mfa:
+    issuer: ${APP_MFA_ISSUER:DataEntry}
+    digits: ${APP_MFA_DIGITS:6}
+    period-seconds: ${APP_MFA_PERIOD_SECONDS:30}
+    window-steps: ${APP_MFA_WINDOW_STEPS:1}
+    # ADMIN/SUPER_ADMIN accounts must enroll a device before a session token is issued.
+    required-for-privileged: ${APP_MFA_REQUIRED_FOR_PRIVILEGED:true}
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:8082}
   auth:
@@ -73,6 +82,10 @@ app:
     max-file-bytes: ${APP_CHAT_MAX_FILE_BYTES:26214400}
   security:
     trusted-proxies: ${APP_TRUSTED_PROXIES:}
+    # Requests per minute per client address. Everyone behind the reverse proxy shares one
+    # address unless APP_TRUSTED_PROXIES is set, so this has to cover the whole office.
+    api-rate:
+      per-minute: ${APP_API_RATE_PER_MINUTE:6000}
     login-rate:
       storage: ${APP_LOGIN_RATE_STORAGE:database}
       max-attempts: 10
@@ -82,10 +95,6 @@ app:
     admin-username: ${APP_SEED_ADMIN_USERNAME:admin}
     admin-password: ${APP_SEED_ADMIN_PASSWORD:}
     superadmin-username: ${APP_SEED_SUPERADMIN_USERNAME:superadmin}
-    # Requests per minute per client address. Everyone behind the reverse proxy shares one
-    # address unless APP_TRUSTED_PROXIES is set, so this has to cover the whole office.
-    api-rate:
-      per-minute: ${APP_API_RATE_PER_MINUTE:6000}
     superadmin-password: ${APP_SEED_SUPERADMIN_PASSWORD:}
   impersonation:
     ttl-ms: ${APP_IMPERSONATION_TTL_MS:1800000}

@@ -1,0 +1,17 @@
+{
+  "summary": {
+    "name": "com.dataentry.service.DocumentExtractionSecurityTest",
+    "tests": "5",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "5.03"
+  },
+  "cases": [
+    "arabicTextStillExtracts",
+    "oversizedTextRemainsBoundedWithoutUnlimitedRetry",
+    "externalXmlEntityCannotReadLocalFile",
+    "officeImageBudgetSkipsOversizedEntryAndKeepsValidImage",
+    "arabicDocxStillExtractsAfterParserUpgrade"
+  ]
+}

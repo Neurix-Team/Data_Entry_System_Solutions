@@ -1,0 +1,118 @@
+[
+  {
+    "suite": "com.dataentry.security.SecurityAuditIT",
+    "tests": "12",
+    "failures": "3",
+    "errors": "0",
+    "cases": [
+      {
+        "name": "adminCannotCreateSuperAdminRole",
+        "outcome": "passed",
+        "message": ""
+      },
+      {
+        "name": "anonymousCannotReadProtectedResources",
+        "outcome": "passed",
+        "message": ""
+      },
+      {
+        "name": "ordinaryUserCannotUseAdminOrSuperRoutes",
+        "outcome": "passed",
+        "message": ""
+      },
+      {
+        "name": "adminCannotResetGlobalSuperAdminPassword",
+        "outcome": "failed",
+        "message": "Status expected:<404> but was:<200>"
+      },
+      {
+        "name": "teamMemberCannotReadAnotherTeamsAvatar",
+        "outcome": "failed",
+        "message": "Status expected:<404> but was:<200>"
+      },
+      {
+        "name": "disabledTeamCannotLogIn",
+        "outcome": "failed",
+        "message": "Status expected:<403> but was:<200>"
+      },
+      {
+        "name": "ordinaryUserCannotImpersonateATeam",
+        "outcome": "passed",
+        "message": ""
+      },
+      {
+        "name": "cookieHasTransportAndScriptProtection",
+        "outcome": "passed",
+        "message": ""
+      },
+      {
+        "name": "adminCannotModifyAnotherTeamsUser",
+        "outcome": "passed",
+        "message": ""
+      },
+      {
+        "name": "normalJwtCannotUseExternalExportApi",
+        "outcome": "passed",
+        "message": ""
+      },
+      {
+        "name": "securityHeadersArePresent",
+        "outcome": "passed",
+        "message": ""
+      },
+      {
+        "name": "untrustedCorsOriginIsRejected",
+        "outcome": "passed",
+        "message": ""
+      }
+    ]
+  },
+  {
+    "suite": "com.dataentry.security.SecurityBoundaryAuditIT",
+    "tests": "8",
+    "failures": "6",
+    "errors": "0",
+    "cases": [
+      {
+        "name": "changingUntrustedForwardedForMustNotBypassRateLimit",
+        "outcome": "failed",
+        "message": "\nexpected: 429\n but was: 200"
+      },
+      {
+        "name": "extractionRootCannotBeDeletedThroughDotIdentifier",
+        "outcome": "failed",
+        "message": "[all other staging directories must survive] \nExpecting path:\n  /tmp/junit7344005120023382605/staging/70a3db4f-b32b-44c5-9f5a-5c788d8147b2/keep.png\nto exist (symbolic links were followed)."
+      },
+      {
+        "name": "revokedAndExpiredApiTokensAreRejected",
+        "outcome": "passed",
+        "message": ""
+      },
+      {
+        "name": "stagingTraversalAndOtherOwnersAreBlocked",
+        "outcome": "passed",
+        "message": ""
+      },
+      {
+        "name": "cachedJwtMustStillRespectExpiration",
+        "outcome": "failed",
+        "message": "[expired cached JWT must be rejected] \nexpected: null\n but was: UsernamePasswordAuthenticationToken [Principal=com.dataentry.model.User@a58f9a6, Credentials=[PROTECTED], Authenticated=true, Details=WebAuthenticationDetails [RemoteIpAddress=127.0.0.1, SessionId=null], Granted Authorities=[ROLE_USER]]"
+      },
+      {
+        "name": "proxyAppendedHeaderCannotResetLoginAttemptBudget",
+        "outcome": "failed",
+        "message": "\nexpected: 429\n but was: 401"
+      },
+      {
+        "name": "missingImageReferenceCannotDeleteAnotherUsersExtraction",
+        "outcome": "failed",
+        "message": "[another user's staged image must survive] \nExpecting path:\n  /tmp/junit17825585347446460901/staging/087694ea-4ade-4320-822d-3518d772175d/keep.png\nto exist (symbolic links were followed)."
+      },
+      {
+        "name": "jwtUidMustMatchTheCurrentAccountIdentity",
+        "outcome": "failed",
+        "message": "\nexpected: null\n but was: UsernamePasswordAuthenticationToken [Principal=com.dataentry.model.User@602b0e5d, Credentials=[PROTECTED], Authenticated=true, Details=WebAuthenticationDetails [RemoteIpAddress=127.0.0.1, SessionId=null], Granted Authorities=[ROLE_ADMIN, ROLE_USER]]"
+      }
+    ]
+  }
+]

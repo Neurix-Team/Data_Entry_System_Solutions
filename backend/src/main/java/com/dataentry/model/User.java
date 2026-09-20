@@ -65,6 +65,42 @@ public class User implements TeamOwned {
     @Builder.Default
     private long tokenVersion = 0L;
 
+            /**
+     * TOTP MFA (RFC 6238). The shared secret lives AES-GCM encrypted at rest and never leaves the
+     * backend. While enrollment is in progress the secret is held in {@code mfaSecretEncrypted}
+     * with {@code mfaEnabled == false}, so a botched enrollment can never lock the account.
+     */
+    @Column(name = "mfa_enabled", nullable = false)
+    @Builder.Default
+    private boolean mfaEnabled = false;
+
+    @Column(name = "mfa_secret_enc")
+    private String mfaSecretEncrypted;
+
+    /**
+     * Last accepted TOTP timestep — prevents code replay within the validity window.
+     * Null until the first code is ever accepted.
+     */
+    @Column(name = "mfa_last_step")
+    private Long mfaLastStep;
+
+    @Column(name = "mfa_enabled_at")
+    private Instant mfaEnabledAt;
+
+    /** Failed MFA attempts within the current lockout cycle. */
+    @Column(name = "mfa_failed_attempts", nullable = false)
+    @Builder.Default
+    private int mfaFailedAttempts = 0;
+
+    /** Account is MFA-locked until this instant (null = not locked). */
+    @Column(name = "mfa_locked_until")
+    private Instant mfaLockedUntil;
+
+    /** True when the account is currently MFA-locked and the second factor must not be challenged. */
+    public boolean isMfaLocked() {
+        return mfaLockedUntil != null && mfaLockedUntil.isAfter(Instant.now());
+    }
+
     public boolean isAdminLike() {
         return role == Role.ADMIN || role == Role.SUPER_ADMIN;
     }

@@ -41,4 +41,13 @@ public class AdminUserController {
         userService.delete(id, current.getId());
         return ResponseEntity.noContent().build();
     }
+
+    /**
+     * Clears a user's second factor and MFA lockout so they can enroll a new device. Used
+     * when someone loses every factor; audited as MFA_RESET.
+     */
+    @PostMapping("/{id}/mfa/reset")
+    public ResponseEntity<UserDtos.UserResponse> resetMfa(@PathVariable Long id) {
+        return ResponseEntity.ok(userService.resetMfa(id));
+    }
 }

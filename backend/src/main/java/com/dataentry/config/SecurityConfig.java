@@ -75,6 +75,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/auth/csrf").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/refresh").permitAll()
+                        // The one-time ticket in the body is the credential for the MFA
+                        // challenge step; every other /api/auth/mfa/** route stays
+                        // authenticated — a pending ticket is honoured by JwtAuthFilter
+                        // only on the routes the challenge actually needs.
+                        .requestMatchers(HttpMethod.POST, "/api/auth/mfa/verify").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/ws/**").permitAll() // JWT validated in ChatHandshakeInterceptor

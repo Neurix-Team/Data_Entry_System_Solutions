@@ -1,0 +1,13 @@
+{
+  "summary": {
+    "name": "com.dataentry.service.DataExplorerServiceTest",
+    "tests": "1",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "18.26"
+  },
+  "cases": [
+    "search_keepsLegacyTicketWhenRequiredRelationsAreMissing"
+  ]
+}

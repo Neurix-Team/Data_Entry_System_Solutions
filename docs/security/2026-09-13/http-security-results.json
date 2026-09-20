@@ -1,0 +1,60 @@
+{
+  "fixtureOnly": true,
+  "database": "isolated PostgreSQL 18",
+  "checks": [
+    {
+      "check": "anonymous protected route",
+      "expected": 403,
+      "actual": 403,
+      "passed": true
+    },
+    {
+      "check": "login requires csrf",
+      "expected": 403,
+      "actual": 403,
+      "passed": true
+    },
+    {
+      "check": "csrf handshake",
+      "expected": 200,
+      "actual": 200,
+      "passed": true
+    },
+    {
+      "check": "valid login",
+      "expected": 200,
+      "actual": 200,
+      "passed": true
+    },
+    {
+      "check": "cookie authenticated profile",
+      "expected": 200,
+      "actual": 200,
+      "passed": true
+    },
+    {
+      "check": "cookie mutation without csrf rejected",
+      "expected": 403,
+      "actual": 403,
+      "passed": true
+    },
+    {
+      "check": "csrf refresh",
+      "expected": 200,
+      "actual": 200,
+      "passed": true
+    },
+    {
+      "check": "cookie mutation with csrf accepted",
+      "expected": 204,
+      "actual": 204,
+      "passed": true
+    },
+    {
+      "check": "logout removes browser authentication",
+      "expected": 403,
+      "actual": 403,
+      "passed": true
+    }
+  ]
+}

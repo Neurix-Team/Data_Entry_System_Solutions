@@ -52,6 +52,7 @@ public class UserDtos {
             String phone,
             String role,
             boolean active,
+            boolean mfaEnabled,
             Instant createdAt,
             Instant avatarUpdatedAt
     ) {}

@@ -1,0 +1,165 @@
+{
+  "note": "Latest per-suite reports across multiple runs, not one full final run",
+  "suites": [
+    {
+      "name": "com.dataentry.config.ProductionSecurityCheckTest",
+      "tests": "9",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "1.9"
+    },
+    {
+      "name": "com.dataentry.controller.TicketBulkSubmitMvcTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "114.792"
+    },
+    {
+      "name": "com.dataentry.controller.TicketDocumentUploadMvcTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "28.903"
+    },
+    {
+      "name": "com.dataentry.controller.UploadSessionControllerMvcTest",
+      "tests": "3",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "29.522"
+    },
+    {
+      "name": "com.dataentry.repository.TicketRepositoryTest",
+      "tests": "6",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "17.398"
+    },
+    {
+      "name": "com.dataentry.security.ApiRateLimitFilterTest",
+      "tests": "6",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "0.055"
+    },
+    {
+      "name": "com.dataentry.security.JwtAuthFilterTokenVersionTest",
+      "tests": "5",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "2.654"
+    },
+    {
+      "name": "com.dataentry.security.JwtServiceTokenVersionTest",
+      "tests": "3",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "0.01"
+    },
+    {
+      "name": "com.dataentry.security.SecurityAuditIT",
+      "tests": "22",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "157.11"
+    },
+    {
+      "name": "com.dataentry.security.SecurityBoundaryAuditIT",
+      "tests": "11",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "2.33"
+    },
+    {
+      "name": "com.dataentry.security.SecurityHeadersFilterTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "0.006"
+    },
+    {
+      "name": "com.dataentry.service.ChunkedUploadServiceTest",
+      "tests": "5",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "0.403"
+    },
+    {
+      "name": "com.dataentry.service.DashboardServiceTest",
+      "tests": "3",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "0.704"
+    },
+    {
+      "name": "com.dataentry.service.DataExplorerServiceTest",
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "18.26"
+    },
+    {
+      "name": "com.dataentry.service.DatasetServiceTest",
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "0.377"
+    },
+    {
+      "name": "com.dataentry.service.DocumentExtractionSecurityTest",
+      "tests": "5",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "5.03"
+    },
+    {
+      "name": "com.dataentry.service.PasswordPolicyTest",
+      "tests": "8",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "0.078"
+    },
+    {
+      "name": "com.dataentry.service.PdfOcrServiceTest",
+      "tests": "7",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "0.011"
+    },
+    {
+      "name": "com.dataentry.service.TicketServiceTest",
+      "tests": "7",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "0.6"
+    },
+    {
+      "name": "com.dataentry.service.TicketTranslationPreparerTest",
+      "tests": "10",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "0.132"
+    }
+  ]
+}

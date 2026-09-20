@@ -16,7 +16,7 @@ The project is in notably better shape than a typical pre-hardening codebase —
 
 1. A committed `.env` in Git history (b5a95f2 → removed in c03c6f7) containing a placeholder JWT secret — the commit message itself documents the forgery risk. Any instance that ever booted with it must rotate.
 2. Actuator endpoints are `permitAll()` in the first security chain (`SecurityConfig.actuatorSecurityFilterChain`) — environment/health/metrics exposure.
-3. MFA is absent for privileged accounts.
+3. ~~MFA is absent for privileged accounts.~~ **Remediated (2026-09-20):** TOTP second factor with first-run enrollment, recovery codes, durable lockout and admin reset — see F-03 below.
 4. No `POST /refresh`, `/forgot-password`, `/reset-password`, OTP, or email-verification endpoints exist — password resets are handled via a documented SQL/BCrypt procedure (`SECURITY.md`), which is operational, not a self-service flow.
 5. No Cloudflare Turnstile / CAPTCHA anywhere.
 6. Brute-force protection exists (login only); there is no self-serve registration (accounts are admin-seeded), which mitigates enumeration/bot abuse.
@@ -69,11 +69,19 @@ Severity scale: Critical / High / Medium / Low.
 - **Business impact:** Information disclosure; potential credential exposure.
 - **Recommended remediation:** Restrict the chain: permit `health` and `prometheus` only; deny everything else. Confirm `management.endpoints.web.exposure.include` covers only `health,info,prometheus,metrics`. Keep Actuator off the public internet.
 
-### F-03 — No MFA for privileged accounts — **Medium**
+### F-03 — No MFA for privileged accounts — **Medium → REMEDIATED (2026-09-20)**
 - **Affected component:** `AuthService`, `AuthController` — password-only factor.
 - **Security risk:** A phished/leaked admin or super-admin password yields full cross-team compromise.
 - **Business impact:** Privileged account takeover.
 - **Recommended remediation:** Enforce TOTP for SUPER_ADMIN (mandatory) and ADMIN (strongly recommended) as a dedicated MFA module, not inlined into the login flow.
+- **Status: REMEDIATED.** A dedicated MFA module now backs the sign-in path:
+  - `TotpService` (RFC 6238, HMAC-SHA1, ±1-step window, replay-proof via the persisted last-accepted timestep) and `SecretCipher` (AES-GCM at-rest encryption of shared secrets; key derived from JWT_SECRET with a domain separator, so one secret cannot leak into the other's use).
+  - Login returns a 5-minute `mfa_pending` ticket instead of a session (`AuthService.issueSessionOrChallenge`); `POST /api/auth/mfa/verify` (ticket + code; a single-use recovery code also resolves the challenge) completes the sign-in. `JwtAuthFilter.mfaSatisfied` confines pending tickets to exactly the challenge routes — never protected APIs, never re-enrollment of an already protected account — and `AuthService.refresh` refuses them outright.
+  - Privileged roles (ADMIN/SUPER_ADMIN) must enroll before a session is issued (`MfaPolicy`, `app.mfa.required-for-privileged` default on); first-run enrollment happens during sign-in on the pending ticket, so enforcement cannot lock every operator out at once. USER accounts opt in from the profile page and may opt back out with a valid code.
+  - Durable per-account lockout: 5 failed codes → 15-minute lock, persisted in `mfa_failed_attempts` / `mfa_locked_until` and recorded by `MfaFailureRecorder` in its own committed transaction (immune to the 401 rollback that would otherwise reset the counter). Audited as `MFA_CHALLENGE_FAILED` / `MFA_ENABLED` / `MFA_DISABLED` / `MFA_RESET` / `MFA_RECOVERY_CODES`.
+  - Ten single-use recovery codes (`mfa_recovery_codes`, SHA-256 hashes, plaintext shown exactly once), password-gated regeneration, and a team-scoped operator reset `POST /api/admin/users/{id}/mfa/reset` for lost devices.
+  - V7/V8 Flyway migrations; config surface `app.mfa.*` (issuer / digits / period-seconds / window-steps / required-for-privileged) and `app.jwt.mfa-pending-expiration-ms`.
+  - Verified by `AuthControllerMfaTest` (10 tests: challenge response, verification, durable lockout, pending-ticket containment including refresh-upgrade and re-enroll takeover attempts, first-run enrollment for a mandatory role, recovery-code single use, disable rules, admin reset) — all passing.
 
 ### F-04 — No refresh-token rotation; single long-lived token in cookie — **Medium**
 - **Affected component:** `JwtService` / `AuthController` — no `/refresh`; `logout` clears the cookie client-side only.
@@ -149,7 +157,7 @@ Severity scale: Critical / High / Medium / Low.
 | P0 | F-02: lock Actuator chain to health/prometheus only | Phases 18/19 |
 | P1 | F-08: restrict Grafana exposure; F-06: rate-limit password change & export API | Phase 12 |
 | P1 | F-04: refresh-token / short-token decision + implementation | Phase 4 |
-| P2 | F-03: MFA for SUPER_ADMIN/ADMIN | Phase 24 |
+| P2 | F-03: MFA for SUPER_ADMIN/ADMIN — **DONE (2026-09-20)** | Phase 24 (delivered) |
 | P2 | F-07: password policy tuning; F-12: backup encryption; F-13: CI security ITs | Phases 3/27/31 |
 | P3 | F-05 documentation; F-09/F-10/F-11 hardening | Phases 13/17/28 |
 

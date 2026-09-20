@@ -13,11 +13,32 @@ public class AuthDtos {
             @NotBlank @Size(max = 200) String password
     ) {}
 
+    /**
+     * Result of POST /api/auth/login.
+     *
+     * <p>Either a session exists ({@code mfaRequired == false}, {@code token} populated) or the
+     * password was right and the second factor is still owed ({@code mfaRequired == true},
+     * {@code token == null}, {@code mfaTicket} populated). The challenge branch deliberately
+     * carries no user object and no session cookie.</p>
+     */
     public record LoginResponse(
             String token,
             long expiresInMs,
-            UserDto user
-    ) {}
+            UserDto user,
+            boolean mfaRequired,
+            String mfaTicket,
+            int mfaPeriodSeconds
+    ) {
+        /** Ordinary fully-authenticated login. */
+        public static LoginResponse authenticated(String token, long expiresInMs, UserDto user) {
+            return new LoginResponse(token, expiresInMs, user, false, null, 0);
+        }
+
+        /** Credentials were right, but the factor is still owed: no token is issued yet. */
+        public static LoginResponse challenge(String mfaTicket, int periodSeconds) {
+            return new LoginResponse(null, 0L, null, true, mfaTicket, periodSeconds);
+        }
+    }
 
     public record TeamRef(
             Long id,

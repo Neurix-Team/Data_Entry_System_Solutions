@@ -1,0 +1,35 @@
+[
+  {
+    "path": "/",
+    "status": 200,
+    "headers": {
+      "Cache-Control": "no-cache",
+      "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+      "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options": "DENY",
+      "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+    }
+  },
+  {
+    "path": "/login",
+    "status": 200,
+    "headers": {
+      "Cache-Control": "no-cache",
+      "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+      "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options": "DENY",
+      "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+    }
+  },
+  {
+    "path": "/assets/index-BuBCa2Mc.js",
+    "status": 200,
+    "headers": {
+      "Cache-Control": "max-age=2592000",
+      "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+      "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options": "DENY",
+      "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+    }
+  }
+]

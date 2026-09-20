@@ -30,6 +30,16 @@ public class AuditService {
         public static final String UPDATE = "UPDATE";
         public static final String DELETE = "DELETE";
         public static final String STATUS_CHANGE = "STATUS_CHANGE";
+        /** MFA enrollment confirmed — the account is now behind a second factor. */
+        public static final String MFA_ENABLED = "MFA_ENABLED";
+        /** MFA turned off by the account owner (password + code required). */
+        public static final String MFA_DISABLED = "MFA_DISABLED";
+        /** MFA cleared by an operator because the user lost every factor. */
+        public static final String MFA_RESET = "MFA_RESET";
+        /** Fresh recovery codes issued; previously issued ones stop working. */
+        public static final String MFA_RECOVERY_CODES = "MFA_RECOVERY_CODES";
+        /** A second-factor check failed; repeated entries feed the lockout story. */
+        public static final String MFA_CHALLENGE_FAILED = "MFA_CHALLENGE_FAILED";
         private Action() {}
     }
 

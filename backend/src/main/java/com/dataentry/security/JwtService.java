@@ -17,11 +17,20 @@ import java.util.Map;
 @Service
 public class JwtService {
 
+    /**
+     * Marks a token issued after password verification but before the second factor.
+     * {@link JwtAuthFilter} refuses to build a session out of one.
+     */
+    public static final String MFA_PENDING_CLAIM = "mfa_pending";
+
     private final SecretKey key;
     private final long expirationMs;
+    private final long mfaPendingExpirationMs;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public JwtService(@Value("${app.jwt.secret}") String secret,
-                      @Value("${app.jwt.expiration-ms}") long expirationMs) {
+                      @Value("${app.jwt.expiration-ms}") long expirationMs,
+                      @Value("${app.jwt.mfa-pending-expiration-ms:300000}") long mfaPendingExpirationMs) {
         if (secret == null || secret.isBlank()) {
             throw new IllegalStateException(
                     "JWT_SECRET is missing — set it via env (min 32 chars of high entropy).");
@@ -41,16 +50,33 @@ public class JwtService {
         }
         this.key = Keys.hmacShaKeyFor(bytes);
         this.expirationMs = expirationMs;
+        this.mfaPendingExpirationMs = mfaPendingExpirationMs > 0 ? mfaPendingExpirationMs : 300_000L;
+    }
+
+    /** Convenience for tests and tooling: default five-minute pending-ticket lifetime. */
+    public JwtService(String secret, long expirationMs) {
+        this(secret, expirationMs, 300_000L);
     }
 
     public String generateToken(String username, String role, Long userId, Long teamId, long tokenVersion) {
+        return generateToken(username, role, userId, teamId, tokenVersion, false);
+    }
+
+    /**
+     * @param mfaPending true for the half-authenticated token handed out while a second
+     *                   factor is still owed. Those tokens live minutes, not hours, and the
+     *                   filter only honours them on the MFA endpoints.
+     */
+    public String generateToken(String username, String role, Long userId, Long teamId,
+                                long tokenVersion, boolean mfaPending) {
         Date now = new Date();
-        Date expiry = new Date(now.getTime() + expirationMs);
+        Date expiry = new Date(now.getTime() + (mfaPending ? mfaPendingExpirationMs : expirationMs));
         Map<String, Object> claims = new HashMap<>();
         claims.put("role", role);
         claims.put("uid", userId);
         if (teamId != null) claims.put("tid", teamId);
         claims.put("tv", tokenVersion);
+        if (mfaPending) claims.put(MFA_PENDING_CLAIM, Boolean.TRUE);
         return Jwts.builder()
                 .subject(username)
                 .claims(claims)
@@ -81,7 +107,18 @@ public class JwtService {
         }
     }
 
-    public long getExpirationMs() {
+        public long getExpirationMs() {
         return expirationMs;
+    }
+
+    /** Lifetime, in ms, of an MFA-pending (half-authenticated) token. */
+    public long getMfaPendingExpirationMs() {
+        return mfaPendingExpirationMs;
+    }
+
+    /** Issue the short-lived token handed out while the second factor is still owed. */
+    public String generateMfaPendingToken(String username, String role, Long userId,
+                                          Long teamId, long tokenVersion) {
+        return generateToken(username, role, userId, teamId, tokenVersion, true);
     }
 }

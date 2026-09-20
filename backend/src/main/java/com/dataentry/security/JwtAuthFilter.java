@@ -70,10 +70,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                                     && user.getId() != null && n.longValue() == user.getId();
                             boolean teamActive = user.getRole() == Role.SUPER_ADMIN
                                     || (user.getTeam() != null && user.getTeam().isActive());
-                            if (identityMatches && user.isActive() && teamActive
+                                                        if (identityMatches && user.isActive() && teamActive
                                     && tokenVersionCurrent(claims, user)) {
-                                AuthEntry entry = buildEntry(request, user);
-                                if (entry != null) applyAuth(request, entry);
+                                if (mfaSatisfied(claims, user, request)) {
+                                    AuthEntry entry = buildEntry(request, user);
+                                    if (entry != null) applyAuth(request, entry);
+                                }
                             }
                         }
                     }
@@ -132,7 +134,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         SecurityContextHolder.getContext().setAuthentication(authToken);
     }
 
-    private boolean tokenVersionCurrent(Claims claims, User user) {
+        private boolean tokenVersionCurrent(Claims claims, User user) {
         Object tv = claims.get("tv");
         long claimed = 0L;
         if (tv instanceof Number n) {
@@ -142,6 +144,38 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         log.debug("Rejected stale JWT for user={} (claim tv={}, current tv={})",
                 user.getUsername(), claimed, user.getTokenVersion());
         return false;
+    }
+
+    /**
+     * A token carrying {@code mfa_pending == true} proves the password but not the second
+     * factor, so it is honoured on exactly the routes the challenge needs: finishing the
+     * challenge, reading MFA state, signing out, and — for an account whose device is not
+     * confirmed yet — first-run enrollment. An already-enrolled account can never re-enroll
+     * or disable on a pending ticket, which is what stops a password-only attacker from
+     * swapping the victim's factor for their own. A fully authenticated token passes
+     * unconditionally.
+     */
+    private boolean mfaSatisfied(Claims claims, User user, HttpServletRequest request) {
+        if (!Boolean.TRUE.equals(claims.get(JwtService.MFA_PENDING_CLAIM, Boolean.class))) {
+            return true;
+        }
+        String path = request.getRequestURI();
+        if (path == null) return false;
+        String method = request.getMethod();
+        boolean verify = "POST".equals(method) && "/api/auth/mfa/verify".equals(path);
+        boolean status = "GET".equals(method) && "/api/auth/mfa/status".equals(path);
+        boolean logout = "POST".equals(method) && "/api/auth/logout".equals(path);
+        boolean me = "GET".equals(method) && "/api/auth/me".equals(path);
+        boolean firstRunEnrollment = "POST".equals(method)
+                && ("/api/auth/mfa/enroll".equals(path)
+                        || "/api/auth/mfa/enroll/confirm".equals(path))
+                && user != null
+                && !user.isMfaEnabled();
+        boolean allowed = verify || status || logout || me || firstRunEnrollment;
+        if (!allowed) {
+            log.debug("Blocked {} {} for an MFA-pending token.", method, path);
+        }
+        return allowed;
     }
 
     private Long parseHeaderTeamId(HttpServletRequest request) {

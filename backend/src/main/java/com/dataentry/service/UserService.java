@@ -26,6 +26,7 @@ public class UserService {
     private final AuditService audit;
     private final PasswordPolicy passwordPolicy;
     private final NotificationService notifications;
+    private final MfaService mfaService;
 
     public UserService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
@@ -33,7 +34,8 @@ public class UserService {
                        Localizer localizer,
                        AuditService audit,
                        PasswordPolicy passwordPolicy,
-                       NotificationService notifications) {
+                       NotificationService notifications,
+                       MfaService mfaService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.translator = translator;
@@ -41,6 +43,7 @@ public class UserService {
         this.audit = audit;
         this.passwordPolicy = passwordPolicy;
         this.notifications = notifications;
+        this.mfaService = mfaService;
     }
 
     private void enforcePolicy(String password, String username) {
@@ -136,6 +139,20 @@ public class UserService {
         audit.record(AuditService.Action.DELETE, AuditService.EntityType.USER, id, "username=" + u.getUsername());
     }
 
+    /**
+     * Operator reset: wipes the account's second factor and clears its lockout so the owner
+     * can enroll a new device. Guarded by the same team-ownership check as an update; the
+     * act itself is audited by MfaService as MFA_RESET.
+     */
+    @Transactional
+    public UserDtos.UserResponse resetMfa(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        assertTeamManagedAccount(user);
+        mfaService.reset(user);
+        return toDto(user);
+    }
+
     private void assertTeamManagedAccount(User user) {
         if (user.getRole() == Role.SUPER_ADMIN) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
@@ -151,7 +168,7 @@ public class UserService {
                 u.getDisplayNameEn(),
                 u.getDisplayNameAr(),
                 u.getEmail(), u.getPhone(),
-                u.getRole().name(), u.isActive(), u.getCreatedAt(),
+                u.getRole().name(), u.isActive(), u.isMfaEnabled(), u.getCreatedAt(),
                 u.getAvatarUpdatedAt()
         );
     }

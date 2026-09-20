@@ -62,6 +62,11 @@ public class AuthController {
         }
         AuthDtos.LoginResponse resp = authService.login(req);
         rateLimiter.reset(key);
+        if (resp.token() == null) {
+            // MFA challenge: no session exists yet, so no cookie is written. The ticket
+            // travels in the body and returns at POST /api/auth/mfa/verify.
+            return ResponseEntity.ok(resp);
+        }
         ResponseCookie cookie = buildAuthCookie(resp.token(), Duration.ofMillis(resp.expiresInMs()));
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
