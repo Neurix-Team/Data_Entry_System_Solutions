@@ -28,6 +28,9 @@ public class AuthController {
     private final boolean cookieSecure;
     private final com.dataentry.security.ClientAddressResolver addresses;
 
+    /** Refresh exchanges are throttled per account and per network. */
+    private static final String PASSWORD_CHANGE_KEY_PREFIX = "pwchange:";
+
     @org.springframework.beans.factory.annotation.Autowired
     public AuthController(AuthService authService,
                           LoginRateLimiter rateLimiter,
@@ -59,6 +62,49 @@ public class AuthController {
         }
         AuthDtos.LoginResponse resp = authService.login(req);
         rateLimiter.reset(key);
+        ResponseCookie cookie = buildAuthCookie(resp.token(), Duration.ofMillis(resp.expiresInMs()));
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .body(resp);
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthDtos.LoginResponse> refresh(
+            jakarta.servlet.http.HttpServletRequest http) {
+        // Resolve the presented token exactly like JwtAuthFilter: Bearer header first,
+        // then the HttpOnly cookie. Refresh must work on a cold tab (cookie only).
+        String token = null;
+        String auth = http.getHeader("Authorization");
+        if (auth != null && auth.startsWith("Bearer ")) {
+            token = auth.substring(7);
+        } else if (http.getCookies() != null) {
+            for (jakarta.servlet.http.Cookie c : http.getCookies()) {
+                if (JwtAuthFilter.AUTH_COOKIE.equals(c.getName())
+                        && c.getValue() != null && !c.getValue().isBlank()) {
+                    token = c.getValue();
+                    break;
+                }
+            }
+        }
+        if (token == null || token.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No session to refresh.");
+        }
+        // Throttle per presented-token identity so an attacker cannot ride an old token
+        // to mint unlimited fresh ones; network key stops blind hammering.
+        String accountKey = "refresh:account:" + token.hashCode();
+        String networkKey = "refresh:network:" + addresses.resolve(http);
+        if (!rateLimiter.tryAcquire(networkKey) || !rateLimiter.tryAcquire(accountKey)) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "Too many refresh attempts. Try again later.");
+        }
+        AuthDtos.LoginResponse resp;
+        try {
+            resp = authService.refresh(token);
+        } catch (ResponseStatusException e) {
+            rateLimiter.reset(accountKey);
+            throw e;
+        }
+        rateLimiter.reset(accountKey);
         ResponseCookie cookie = buildAuthCookie(resp.token(), Duration.ofMillis(resp.expiresInMs()));
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
@@ -104,11 +150,20 @@ public class AuthController {
     @PostMapping("/me/password")
     public ResponseEntity<Void> changePassword(
             @AuthenticationPrincipal User user,
-            @Valid @RequestBody AuthDtos.ChangePasswordRequest req) {
+            @Valid @RequestBody AuthDtos.ChangePasswordRequest req,
+            HttpServletRequest http) {
         if (user == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not signed in.");
         }
+        // Throttle current-password guessing by an authenticated session.
+        String key = PASSWORD_CHANGE_KEY_PREFIX + user.getId();
+        String networkKey = "pwchange:network:" + addresses.resolve(http);
+        if (!rateLimiter.tryAcquire(networkKey) || !rateLimiter.tryAcquire(key)) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "Too many password changes. Try again later.");
+        }
         authService.changePassword(user, req);
+        rateLimiter.reset(key);
         return ResponseEntity.noContent().build();
     }
 

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { IMPERSONATE_HEADER, impersonation } from './impersonation';
+import type { LoginResponse } from './types';
 
 export const API_BASE = import.meta.env.VITE_API_BASE ?? '/api';
 
@@ -47,10 +48,42 @@ export const setUnauthorizedHandler = (fn: () => void) => {
   onUnauthorized = fn;
 };
 
+// On a 401, try one silent /auth/refresh before giving up. The auth cookie keeps the
+// session alive across reloads, so an expired Bearer token can usually be exchanged
+// for a fresh one without forcing the user back to the login page.
+let refreshing: Promise<boolean> | null = null;
+
+async function tryRefresh(): Promise<boolean> {
+  if (!refreshing) {
+    refreshing = axios
+      .post<LoginResponse>(`${API_BASE}/auth/refresh`, null, { withCredentials: true })
+      .then((r) => {
+        tokenStore.set(r.data.token);
+        return true;
+      })
+      .catch(() => false)
+      .finally(() => {
+        refreshing = null;
+      });
+  }
+  return refreshing;
+}
+
 api.interceptors.response.use(
   (r) => r,
-  (err) => {
-    if (err?.response?.status === 401 && onUnauthorized) {
+  async (err) => {
+    const status = err?.response?.status;
+    const url: string = err?.config?.url ?? '';
+    const alreadyRefreshed = Boolean(err?.config?._retriedAfterRefresh);
+    if (status === 401 && !alreadyRefreshed && !url.includes('/auth/refresh')
+        && !url.includes('/auth/login') && await tryRefresh()) {
+      const config = err.config;
+      config._retriedAfterRefresh = true;
+      const token = tokenStore.get();
+      if (token) config.headers = { ...config.headers, Authorization: `Bearer ${token}` };
+      return api.request(config);
+    }
+    if (status === 401 && onUnauthorized) {
       onUnauthorized();
     }
     return Promise.reject(err);

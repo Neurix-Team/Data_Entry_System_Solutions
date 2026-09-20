@@ -1,6 +1,8 @@
 package com.dataentry.security;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
@@ -64,6 +66,19 @@ public class JwtService {
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
+    }
+
+    /**
+     * Parses a signed token and returns its claims even when the token has expired.
+     * The signature is always verified first — an expired-but-valid token is the only
+     * lenient case (used by the refresh flow); tampered or malformed tokens throw.
+     */
+    public Claims parseLenient(String token) {
+        try {
+            return parse(token);
+        } catch (ExpiredJwtException e) {
+            return e.getClaims();
+        }
     }
 
     public long getExpirationMs() {

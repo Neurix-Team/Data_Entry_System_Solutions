@@ -6,14 +6,22 @@ import com.dataentry.model.Team;
 import com.dataentry.model.User;
 import com.dataentry.repository.UserRepository;
 import com.dataentry.security.JwtService;
+import io.jsonwebtoken.Claims;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Date;
+
 @Service
 public class AuthService {
+
+    /** Expired tokens within this window may be exchanged at /api/auth/refresh. */
+    static final Duration REFRESH_GRACE = Duration.ofDays(7);
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -69,6 +77,54 @@ public class AuthService {
         String token = jwtService.generateToken(saved.getUsername(), saved.getRole().name(),
                 saved.getId(), teamId, saved.getTokenVersion());
         return new AuthDtos.LoginResponse(token, jwtService.getExpirationMs(), toDto(saved, false));
+    }
+
+    /**
+     * Exchanges a valid or recently-expired token (within {@link #REFRESH_GRACE}) for a
+     * fresh one. Identity, account state, team state and the revocation version
+     * (tokenVersion) are fully re-validated — a token that was revoked by
+     * logout-everywhere or a password change is rejected even inside the grace window,
+     * which is what keeps a stolen token's blast radius bounded.
+     */
+    @Transactional(readOnly = true)
+    public AuthDtos.LoginResponse refresh(String oldToken) {
+        Claims claims;
+        try {
+            claims = jwtService.parseLenient(oldToken);
+        } catch (io.jsonwebtoken.JwtException e) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid token.");
+        }
+        String username = claims.getSubject();
+        if (username == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid token.");
+        }
+        Date expiry = claims.getExpiration();
+        if (expiry == null
+                || expiry.toInstant().isBefore(Instant.now().minus(REFRESH_GRACE))) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Session expired. Sign in again.");
+        }
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid token."));
+        Object uid = claims.get("uid");
+        boolean identityMatches = uid instanceof Number n
+                && user.getId() != null && n.longValue() == user.getId();
+        if (!identityMatches || !user.isActive()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid token.");
+        }
+        if (user.getRole() != Role.SUPER_ADMIN
+                && (user.getTeam() == null || !user.getTeam().isActive())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Account team is unavailable. Contact your administrator.");
+        }
+        if (claims.get("tv") instanceof Number tv && tv.longValue() != user.getTokenVersion()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Session revoked. Sign in again.");
+        }
+
+        Long teamId = user.getTeam() != null ? user.getTeam().getId() : null;
+        String token = jwtService.generateToken(user.getUsername(), user.getRole().name(),
+                user.getId(), teamId, user.getTokenVersion());
+        return new AuthDtos.LoginResponse(token, jwtService.getExpirationMs(), toDto(user, false));
     }
 
     public static AuthDtos.UserDto toDto(User user, boolean impersonating) {

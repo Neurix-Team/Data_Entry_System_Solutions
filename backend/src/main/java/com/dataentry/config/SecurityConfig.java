@@ -48,7 +48,14 @@ public class SecurityConfig {
                 .securityMatcher(EndpointRequest.toAnyEndpoint())
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+                // F-02 remediation: only the endpoints Prometheus/healthchecks need are
+                // public; env/heapdump/loggers/threaddump and the rest are denied.
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/actuator/health", "/actuator/health/**",
+                                "/actuator/info", "/actuator/metrics", "/actuator/metrics/**",
+                                "/actuator/prometheus").permitAll()
+                        .anyRequest().denyAll()
+                );
         return http.build();
     }
 
@@ -67,6 +74,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/api/auth/csrf").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/refresh").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/ws/**").permitAll() // JWT validated in ChatHandshakeInterceptor
