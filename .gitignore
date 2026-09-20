@@ -69,5 +69,6 @@ docs/*
 !docs/video/
 docs/video/*.mp4
 docs/video/*.webm
+!docs/security/
 
 .claude/
