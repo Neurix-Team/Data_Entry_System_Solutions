@@ -1,4 +1,4 @@
-ackage com.dataentry.service;
+package com.dataentry.service;
 
 import com.dataentry.dto.AuthDtos;
 import com.dataentry.model.Role;
