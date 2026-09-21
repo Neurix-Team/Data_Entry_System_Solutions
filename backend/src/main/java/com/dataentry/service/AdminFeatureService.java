@@ -76,10 +76,11 @@ public class AdminFeatureService {
         return TenantContext.isSuperAdmin() ? null : TenantContext.getTeamId();
     }
 
+    /** {@code what} must already agree with "belong" — plural, e.g. "Announcements". */
     private void requireTeamScope(String what) {
         if (teamScope() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    what + " belongs to a team — enter one first.");
+                    what + " belong to a team — enter one first.");
         }
     }
 
@@ -188,7 +189,7 @@ public class AdminFeatureService {
 
     @Transactional(readOnly = true)
     public AdminFeatureDtos.WeeklyReport weekly() {
-        requireTeamScope("The weekly report");
+        requireTeamScope("Weekly reports");
         Long teamId = teamScope();
         Instant to = Instant.now(clock);
         Instant from = weekStart();
@@ -215,7 +216,7 @@ public class AdminFeatureService {
 
     /** Push the weekly summary to every team leader (in-app + browser push). */
     public AdminFeatureDtos.DispatchResult dispatchWeekly() {
-        requireTeamScope("The weekly report");
+        requireTeamScope("Weekly reports");
         AdminFeatureDtos.WeeklyReport report = weekly();
         List<User> admins = activeOf(users
                 .findAllByTeamIdAndRoleOrderByCreatedAtAsc(teamScope(), Role.ADMIN));

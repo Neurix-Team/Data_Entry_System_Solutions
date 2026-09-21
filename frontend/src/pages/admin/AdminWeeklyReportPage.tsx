@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { extractError } from '../../api/client';
+import { impersonation } from '../../api/impersonation';
 import { adminFeaturesApi } from '../../api/resources';
 import type { WeeklyReport } from '../../api/types';
+import { TeamScopeNotice } from '../../components/admin/TeamScopeNotice';
 import { useToast } from '../../components/toast/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 import { useT } from '../../i18n';
 
 /**
@@ -11,16 +14,22 @@ import { useT } from '../../i18n';
  */
 export function AdminWeeklyReportPage() {
   const { t, lang } = useT();
+  const { user } = useAuth();
   const toast = useToast();
   const [report, setReport] = useState<WeeklyReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dispatching, setDispatching] = useState(false);
 
+  // A super admin's session carries no single team, and this report is always about one.
+  // Checked up front so the page asks for a team instead of showing the backend's refusal.
+  const needsTeam = user?.role === 'SUPER_ADMIN' && !impersonation.current();
+
   const load = useCallback(() => {
+    if (needsTeam) return;
     adminFeaturesApi.weekly()
       .then((r) => { setReport(r); setError(null); })
       .catch((e) => setError(extractError(e)));
-  }, []);
+  }, [needsTeam]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -45,17 +54,18 @@ export function AdminWeeklyReportPage() {
           <h1>{t('weekly.title')}</h1>
           <p className="subtitle">{t('weekly.subtitle')}</p>
         </div>
-        <button type="button" className="btn btn-primary" disabled={dispatching} onClick={dispatch}>
+        <button type="button" className="btn btn-primary" disabled={dispatching || needsTeam} onClick={dispatch}>
           📤 {dispatching ? t('common.loading') : t('weekly.sendNow')}
         </button>
       </div>
 
-      {error && <div className="alert alert-error">{error}</div>}
-      {!report && !error && (
+      {needsTeam && <TeamScopeNotice what={t('weekly.title')} />}
+      {!needsTeam && error && <div className="alert alert-error">{error}</div>}
+      {!needsTeam && !report && !error && (
         <div className="card"><span className="muted">{t('common.loading')}</span></div>
       )}
 
-      {report && (
+      {!needsTeam && report && (
         <>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
             <div className="card" style={{ flex: 1, minWidth: 160, margin: 0 }}>

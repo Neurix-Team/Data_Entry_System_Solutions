@@ -977,12 +977,17 @@ export const ar: Dict = {
     freest: 'فاضي',
     empty: 'مفيش أعضاء نشطين في الفريق.',
   },
+  teamScope: {
+    notice: '{what} محتاجة فريق واحد تتعامل معاه، وحساب السوبر أدمن مش مربوط بفريق بعينه. اختار فريق عشان تكمّل.',
+    pickTeam: 'اختيار فريق',
+  },
   import: {
     title: 'استيراد من CSV',
     subtitle: 'ارفع ملف CSV (من Excel: حفظ باسم → CSV) وحوّله مدخلات جاهزة دفعة واحدة.',
     fileLabel: 'ملف CSV',
     start: 'استورد',
     colsTitle: 'الأعمدة المدعومة:',
+    downloadTemplate: 'تحميل نموذج CSV',
     colsHint: 'الأعمدة الإضافية بتتطابق تلقائياً مع الحقول المخصصة (بـ fieldKey أو الاسم). كل صف بيحتاج departmentId أو departmentName.',
     created: 'تم إنشاء {n} مدخل ✅',
     skipped: '{n} صف اترفض',

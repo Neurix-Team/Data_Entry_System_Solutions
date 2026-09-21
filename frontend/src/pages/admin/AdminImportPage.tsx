@@ -6,6 +6,11 @@ import { useToast } from '../../components/toast/ToastContext';
 import { useT } from '../../i18n';
 
 /** C1: bulk-create entries from a CSV (Excel "Save As CSV"). Row-level errors report back. */
+/** Quotes a cell only when RFC 4180 requires it: a comma, quote or newline inside it. */
+function csvCell(value: string): string {
+  return /[",\r\n]/.test(value) ? '"' + value.replace(/"/g, '""') + '"' : value;
+}
+
 export function AdminImportPage() {
   const { t, lang } = useT();
   const toast = useToast();
@@ -14,6 +19,28 @@ export function AdminImportPage() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * A CSV with the right header row, one example row, and nothing else. Handed out so the
+   * required columns are never a guess — the file this page produces is the file it accepts.
+   */
+  function downloadTemplate() {
+    const header = ['title', 'content', 'websiteName', 'websiteLink',
+      'departmentId', 'departmentName', 'projectId', 'projectName', 'subcategoryId'];
+    const example = ['Example entry title', 'Example entry content goes here.',
+      'Example Site', 'https://example.com', '', 'Department name here', '', '', ''];
+    const csv = [header, example]
+      .map((row) => row.map(csvCell).join(','))
+      .join('\r\n') + '\r\n';
+    // The BOM keeps Excel from mangling non-ASCII text if someone edits the example in place.
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'import-template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   async function start() {
     if (!file || busy) return;
@@ -71,6 +98,10 @@ export function AdminImportPage() {
             {' '}<code>projectName</code>, <code>subcategoryId</code>
           </div>
           <div style={{ marginTop: 4 }}>{t('import.colsHint')}</div>
+          <button type="button" className="btn btn-ghost btn-sm" style={{ marginTop: 8 }}
+                  onClick={downloadTemplate}>
+            ⬇️ {t('import.downloadTemplate')}
+          </button>
         </div>
       </div>
 

@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { extractError } from '../../api/client';
+import { impersonation } from '../../api/impersonation';
 import { adminFeaturesApi } from '../../api/resources';
 import type { Announcement } from '../../api/types';
+import { TeamScopeNotice } from '../../components/admin/TeamScopeNotice';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { useToast } from '../../components/toast/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 import { useT } from '../../i18n';
 
 const AUDIENCES: Array<Announcement['audience']> = ['ALL', 'USERS', 'ADMINS'];
@@ -11,8 +14,12 @@ const AUDIENCES: Array<Announcement['audience']> = ['ALL', 'USERS', 'ADMINS'];
 /** C2: one message, the whole team — in-app + browser push, plus a history. */
 export function AdminAnnouncementsPage() {
   const { t, lang } = useT();
+  const { user } = useAuth();
   const toast = useToast();
   const confirm = useConfirm();
+  // A super admin's session carries no single team, and a broadcast is always sent to one.
+  // The history list below is unaffected — it already spans every team for this role.
+  const needsTeam = user?.role === 'SUPER_ADMIN' && !impersonation.current();
   const [rows, setRows] = useState<Announcement[] | null>(null);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -59,6 +66,9 @@ export function AdminAnnouncementsPage() {
         </div>
       </div>
 
+      {needsTeam ? (
+        <TeamScopeNotice what={t('announcements.title')} />
+      ) : (
       <div className="card" style={{ marginBottom: 16 }}>
         {error && <div className="alert alert-error">{error}</div>}
         <div className="field">
@@ -95,6 +105,7 @@ export function AdminAnnouncementsPage() {
           </button>
         </div>
       </div>
+      )}
 
       <div className="page-header">
         <div><h2 style={{ fontSize: 16, margin: 0 }}>{t('announcements.history')}</h2></div>

@@ -975,6 +975,10 @@ export const en = {
     freest: 'Most free',
     empty: 'No active team members.',
   },
+  teamScope: {
+    notice: '{what} needs one team to work with, and a super admin session is not tied to any single team. Pick a team to continue.',
+    pickTeam: 'Pick a team',
+  },
   import: {
     title: 'Import from CSV',
     subtitle: 'Upload a CSV (Excel: Save As → CSV) and turn it into ready-made entries in one go.',
@@ -982,6 +986,7 @@ export const en = {
     start: 'Import',
     colsTitle: 'Supported columns:',
     colsHint: 'Extra columns map onto custom fields automatically (by fieldKey or label). Every row needs departmentId or departmentName.',
+    downloadTemplate: 'Download a template CSV',
     created: '{n} entries created ✅',
     skipped: '{n} rows rejected',
     allDone: 'Imported all {n} entries 🎉',
