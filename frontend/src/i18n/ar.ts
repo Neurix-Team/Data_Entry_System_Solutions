@@ -168,6 +168,7 @@ export const ar: Dict = {
   },
 
   chat: {
+    newMessage: 'رسالة جديدة',
     title: 'الشات',
     newChat: 'محادثة جديدة',
     connected: 'متصل — توصيل فوري',

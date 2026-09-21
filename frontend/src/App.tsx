@@ -1,6 +1,8 @@
 import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { IncomingMessageToast } from './components/chat/IncomingMessageToast';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { ChatSocketProvider } from './context/ChatSocketContext';
 import { useAuth } from './context/AuthContext';
 
 const Layout = lazy(() => import('./components/Layout').then((m) => ({ default: m.Layout })));
@@ -68,8 +70,10 @@ function RootEntry() {
 
 export default function App() {
   return (
-    <Suspense fallback={<RouteLoading />}>
-      <Routes>
+    <ChatSocketProvider>
+      <IncomingMessageToast />
+      <Suspense fallback={<RouteLoading />}>
+        <Routes>
         <Route path="/login" element={<LoginRoute />} />
 
       <Route
@@ -127,7 +131,8 @@ export default function App() {
 
         <Route path="/" element={<RootEntry />} />
         <Route path="*" element={<RootRedirect />} />
-      </Routes>
-    </Suspense>
+        </Routes>
+      </Suspense>
+    </ChatSocketProvider>
   );
 }

@@ -126,8 +126,21 @@
   background: var(--bg-sunken, rgba(0,0,0,0.02));
 }
 
-.chat-row { display: flex; }
+.chat-row {
+  display: flex;
+  /* Only a freshly-mounted row replays this — React keeps existing bubbles' DOM
+     nodes (matched by key) when the list re-renders, so this never re-triggers
+     on messages already on screen. */
+  animation: chatRowIn 220ms ease-out both;
+}
 .chat-row.mine { justify-content: flex-end; }
+@keyframes chatRowIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-row { animation: none; }
+}
 
 .chat-bubble {
   max-width: min(72%, 560px);

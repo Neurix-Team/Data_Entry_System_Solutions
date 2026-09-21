@@ -4131,3 +4131,93 @@ kbd {
   font-size: var(--fs-sm);
   color: var(--text-tertiary);
 }
+
+
+/* ─── Incoming-message toast ─────────────────────────────────────────────────
+   A corner stack, distinct from the centered .toast system: this one announces
+   something that happened elsewhere (a chat message), not the result of an
+   action the viewer just took, so it must never block the screen. */
+.chat-toast-stack {
+  position: fixed;
+  top: 76px;
+  inset-inline-end: 16px;
+  z-index: 260;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(360px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.chat-toast {
+  pointer-events: auto;
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--bg-surface);
+  color: inherit;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 20px 40px -16px rgba(0, 0, 0, 0.3), 0 4px 10px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  text-align: start;
+  font: inherit;
+  animation: chatToastIn 320ms var(--ease-out) both;
+}
+.chat-toast:hover { border-color: var(--brand); }
+
+@keyframes chatToastIn {
+  from { opacity: 0; transform: translateX(24px) scale(0.97); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+.chat-toast-stack.rtl .chat-toast { animation-name: chatToastInRtl; }
+@keyframes chatToastInRtl {
+  from { opacity: 0; transform: translateX(-24px) scale(0.97); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+.chat-toast-icon {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--brand-soft);
+  color: var(--brand);
+  flex-shrink: 0;
+}
+.chat-toast-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.chat-toast-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chat-toast-preview {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chat-toast-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+.chat-toast-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-toast { animation: none; }
+}

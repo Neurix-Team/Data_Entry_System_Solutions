@@ -4,6 +4,7 @@ import { extractError } from '../api/client';
 import { notificationsApi } from '../api/resources';
 import type { NotificationFeed, NotificationItem } from '../api/types';
 import { useAuth } from '../context/AuthContext';
+import { useChatSocketContext } from '../context/ChatSocketContext';
 import { useT } from '../i18n';
 import { disablePush, enablePush, getPushStatus, type PushStatus } from '../push/push';
 import { IconBell } from './Icons';
@@ -45,6 +46,19 @@ export function NotificationBell() {
       window.removeEventListener('focus', onFocus);
     };
   }, [user, refresh]);
+
+  // A chat message is also a notification (the backend writes both from the same event);
+  // reacting to the live socket means the badge and the ring happen the instant it lands,
+  // not up to 60 seconds later on the next poll.
+  const { subscribe } = useChatSocketContext();
+  useEffect(() => {
+    if (!user) return;
+    return subscribe((frame) => {
+      if (frame.type === 'MESSAGE' && frame.message && frame.message.senderId !== user.id) {
+        refresh();
+      }
+    });
+  }, [user, subscribe, refresh]);
 
   // Browser-push state is only worth checking while the dropdown is open.
   useEffect(() => {

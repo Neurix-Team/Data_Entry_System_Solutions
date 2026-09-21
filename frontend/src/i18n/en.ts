@@ -167,6 +167,7 @@ export const en = {
 
   chat: {
     title: 'Chat',
+    newMessage: 'New message',
     newChat: 'New chat',
     connected: 'Live — instant delivery',
     connecting: 'Connecting…',

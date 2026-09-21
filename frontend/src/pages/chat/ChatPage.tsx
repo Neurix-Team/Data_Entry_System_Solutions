@@ -13,7 +13,7 @@ import {
   type ChatMessageItem,
   type ChatWsOut,
 } from '../../api/chatMessaging';
-import { useChatSocket } from '../../hooks/useChatSocket';
+import { useChatSocketContext } from '../../context/ChatSocketContext';
 import './chat.css';
 
 interface PendingBubble {
@@ -168,7 +168,10 @@ export default function ChatPage() {
     }
   }, [markRead, myId, t, upsertMessage]);
 
-  const socket = useChatSocket(handleWs);
+  // One connection for the whole app (see ChatSocketProvider) — this page just listens
+  // to it rather than opening its own, so leaving /chat never drops anyone else's socket.
+  const socket = useChatSocketContext();
+  useEffect(() => socket.subscribe(handleWs), [socket, handleWs]);
   sendRef.current = socket.send;
 // __BOOT__
 
