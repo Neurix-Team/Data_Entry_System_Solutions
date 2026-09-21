@@ -13,6 +13,7 @@ import type { Department } from '../../api/types';
 import { IconClose, IconPlus } from '../../components/Icons';
 import { Modal } from '../../components/Modal';
 import { ProgressRing } from '../../components/ProgressRing';
+import { SearchableSelect } from '../../components/SearchableSelect';
 import { UploadHud } from '../../components/UploadHud';
 import { useToast } from '../../components/toast/ToastContext';
 import { useT } from '../../i18n';
@@ -398,22 +399,17 @@ export function QuickUploadModal({ open, projectId, onClose, onCreated }: Props)
               : 'This project has no departments yet — a default one will be created automatically.'}
           </div>
         ) : (
-          <select
+          <SearchableSelect
             id="quick-upload-dept"
-            className="input"
-            value={departmentId}
-            onChange={(e) => setDepartmentId(e.target.value === '' ? '' : Number(e.target.value))}
+            value={departmentId === '' ? '' : String(departmentId)}
+            onChange={(v) => setDepartmentId(v === '' ? '' : Number(v))}
             disabled={submitting}
-          >
-            <option value="">
-              {ar ? '— اختر قسم —' : '— Pick a department —'}
-            </option>
-            {departments.map((d) => (
-              <option key={d.id} value={d.id}>
-                {pickLocalized(d, 'name', lang) || d.name}
-              </option>
-            ))}
-          </select>
+            placeholder={ar ? '— اختر قسم —' : '— Pick a department —'}
+            options={departments.map((d) => ({
+              value: String(d.id),
+              label: pickLocalized(d, 'name', lang) || d.name,
+            }))}
+          />
         )}
         <p className="muted small" style={{ marginTop: '0.35rem' }}>
           {ar
