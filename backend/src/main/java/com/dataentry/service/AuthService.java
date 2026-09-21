@@ -1,4 +1,4 @@
-package com.dataentry.service;
+ackage com.dataentry.service;
 
 import com.dataentry.dto.AuthDtos;
 import com.dataentry.model.Role;
@@ -66,19 +66,15 @@ public class AuthService {
     }
 
 
-    /** Issues a session, or — when MFA is in force for this account — a challenge ticket. */
+    /**
+     * Issues a session directly. Two-factor authentication was retired from the sign-in path
+     * by product decision (2026-09-21): a correct password is the whole credential now, for
+     * every role. {@link #completeMfa} and the {@code /api/auth/mfa/*} endpoints are dead code
+     * kept only because {@code AuthDtos.LoginResponse.challenge(...)} — the only thing that
+     * could route a login here — no longer has a caller; nothing issues a pending ticket, so
+     * they can never be reached from a real sign-in.
+     */
     AuthDtos.LoginResponse issueSessionOrChallenge(User user) {
-        if (mfaService.isLocked(user)) {
-            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
-                    mfaService.lockoutMessage(user));
-        }
-        boolean enrolled = mfaService.isEnrolled(user);
-        // An enrolled account owes a code; a privileged account with no device yet owes
-        // first-run enrollment — both continue on the short-lived pending ticket.
-        if (enrolled || mfaService.isMandatory(user.getRole())) {
-            return AuthDtos.LoginResponse.challenge(
-                    mfaService.issueChallengeTicket(user), mfaService.periodSeconds());
-        }
         return issueSession(user);
     }
 

@@ -39,37 +39,6 @@ export interface LoginResponse {
   token: string | null;
   expiresInMs: number;
   user: User;
-  /** True when the password was accepted but a second factor is still owed. */
-  mfaRequired?: boolean;
-  /** One-time ticket for POST /auth/mfa/verify; present only on the challenge branch. */
-  mfaTicket?: string | null;
-  mfaPeriodSeconds?: number;
-}
-
-export interface MfaStatus {
-  enrolled: boolean;
-  pendingEnrollment: boolean;
-  required: boolean;
-  locked: boolean;
-  enabledAt: string | null;
-  digits: number;
-  periodSeconds: number;
-  recoveryCodesRemaining: number;
-}
-
-export interface MfaEnrollResponse {
-  secret: string;
-  otpauthUri: string;
-  issuer: string;
-  account: string;
-  digits: number;
-  periodSeconds: number;
-}
-
-export interface MfaRecoveryCodes {
-  count: number;
-  codes: string[];
-  message: string;
 }
 
 export interface Department {
