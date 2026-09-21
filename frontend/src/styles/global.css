@@ -2291,7 +2291,7 @@ html[dir='rtl'] .chat-msg-user .chat-bubble {
   color: var(--text-primary);
   border: 1px solid var(--border);
   box-shadow: 0 24px 48px -18px rgba(0, 0, 0, 0.32), 0 4px 12px rgba(0, 0, 0, 0.08);
-  min-width: 320px;
+  min-width: min(320px, 100%);
   font-size: 0.95rem;
   line-height: 1.45;
   pointer-events: auto;
@@ -2301,7 +2301,7 @@ html[dir='rtl'] .chat-msg-user .chat-bubble {
 .toast-success {
   padding: 22px 22px;
   font-size: 1rem;
-  min-width: 340px;
+  min-width: min(340px, 100%);
 }
 .toast-success .toast-icon svg { width: 26px; height: 26px; }
 .toast-success .toast-message { font-weight: 600; }
@@ -3559,7 +3559,6 @@ html[dir='rtl'] .udash-recent-item:hover { transform: translateX(-4px); }
   .subtitle { font-size: 0.875rem; }
   .topbar { height: 60px; padding: 0 0.75rem; }
   .topbar-search { display: none; }
-  .notification-btn { display: none; }
 
   .sidebar { width: 88vw; max-width: 320px; }
 
@@ -4187,6 +4186,16 @@ kbd {
   color: var(--brand);
   flex-shrink: 0;
 }
+/* A group's stand-in for a person's avatar — global, because the toast renders on every
+   page while chat.css only ships with the chat page's own chunk. */
+.chat-toast-group-avatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--brand-soft);
+  color: var(--brand);
+  flex-shrink: 0;
+}
 .chat-toast-body {
   min-width: 0;
   display: flex;
@@ -4220,4 +4229,52 @@ kbd {
 
 @media (prefers-reduced-motion: reduce) {
   .chat-toast { animation: none; }
+}
+
+
+/* ─── Responsive fixes across the shared shell ───────────────────────────────── */
+
+/* The notification dropdown. Was an inline 340px-wide absolute box, which on a phone
+   hangs off the screen's edge; below 640px it becomes a full-width sheet under the topbar. */
+.notification-menu {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + 8px);
+  width: min(340px, calc(100vw - 24px));
+  max-height: 460px;
+  overflow: auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md, 0 8px 24px rgba(0, 0, 0, 0.12));
+  z-index: 1000;
+}
+@media (max-width: 640px) {
+  .notification-menu {
+    position: fixed;
+    top: calc(60px + 8px);
+    inset-inline: 12px;
+    width: auto;
+    max-height: calc(100vh - 60px - 24px);
+    max-height: calc(100dvh - 60px - 24px);
+  }
+}
+
+/* Several pages set the stat grid's column count inline (5, 3, 2 across), which no media
+   query can override without !important — so between a phone and a desktop those grids
+   stayed at full column count and squeezed each card to ~100px. Two across in that range;
+   the existing <=640px rule already stacks them to one. */
+@media (min-width: 641px) and (max-width: 900px) {
+  .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+
+/* A main column beside a narrower one, which stacks on a tablet/phone instead of
+   squeezing both (used to be an inline 2fr/1fr grid that never collapsed). */
+.split-2-1 {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 2fr 1fr;
+}
+@media (max-width: 900px) {
+  .split-2-1 { grid-template-columns: minmax(0, 1fr); }
 }

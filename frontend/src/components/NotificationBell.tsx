@@ -114,6 +114,8 @@ export function NotificationBell() {
       navigate(n.type === 'ASSIGNMENT_DONE' ? '/admin/assignments' : '/assignments');
     } else if (n.refType === 'CHAT') {
       navigate(n.refId != null ? `/chat?c=${n.refId}` : '/chat');
+    } else if (n.refType === 'CHAT_GROUP') {
+      navigate(n.refId != null ? `/chat?g=${n.refId}` : '/chat');
     } else if (n.projectId != null) {
       const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
       navigate(isAdmin ? `/admin/project-folders/${n.projectId}` : `/project-folders/${n.projectId}`);
@@ -175,22 +177,7 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <div
-          role="menu"
-          style={{
-            position: 'absolute',
-            insetInlineEnd: 0,
-            top: 'calc(100% + 8px)',
-            width: 340,
-            maxHeight: 460,
-            overflow: 'auto',
-            background: 'var(--bg-surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            boxShadow: 'var(--shadow-md, 0 8px 24px rgba(0,0,0,0.12))',
-            zIndex: 1000,
-          }}
-        >
+        <div role="menu" className="notification-menu">
           <div style={{
             padding: '0.75rem 0.9rem',
             borderBottom: '1px solid var(--border)',

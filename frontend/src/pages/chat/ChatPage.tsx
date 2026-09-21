@@ -5,14 +5,20 @@ import { useAuth } from '../../context/AuthContext';
 import { useT } from '../../i18n';
 import { Avatar } from '../../components/Avatar';
 import { avatarUrl } from '../../api/profile';
-import { IconChat, IconClose, IconPaperclip, IconSearch, IconSend } from '../../components/Icons';
 import {
-  attachmentUrl, chatApi,
+  IconChat, IconChevronDown, IconClose, IconMembers, IconPaperclip, IconPlus, IconSearch, IconSend,
+} from '../../components/Icons';
+import {
+  attachmentUrl, chatApi, chatGroupApi, groupAttachmentUrl,
   type ChatContact,
   type ChatConversationItem,
+  type ChatGroupDetail,
+  type ChatGroupItem,
   type ChatMessageItem,
   type ChatWsOut,
 } from '../../api/chatMessaging';
+import { CreateGroupModal } from '../../components/chat/CreateGroupModal';
+import { GroupMembersModal } from '../../components/chat/GroupMembersModal';
 import { useChatSocketContext } from '../../context/ChatSocketContext';
 import './chat.css';
 
@@ -21,6 +27,9 @@ interface PendingBubble {
   body: string;
   createdAt: string;
 }
+
+/** What the window is showing: a 1:1 conversation or a group. Never both. */
+type Target = { kind: 'dm'; id: number } | { kind: 'group'; id: number };
 
 let seq = 0;
 function newClientMsgId(): string {
@@ -34,6 +43,13 @@ function fileSize(bytes: number): string {
   return `${bytes} B`;
 }
 
+function previewOf(m: ChatMessageItem): string {
+  if (m.body) return m.body;
+  const first = m.attachments[0];
+  if (!first) return '';
+  return (first.kind === 'IMAGE' ? '📷 ' : '📎 ') + first.filename;
+}
+
 export default function ChatPage() {
   const { user } = useAuth();
   const { lang, t } = useT();
@@ -41,12 +57,16 @@ export default function ChatPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [conversations, setConversations] = useState<ChatConversationItem[]>([]);
-  const [activeId, setActiveId] = useState<number | null>(null);
+  const [groups, setGroups] = useState<ChatGroupItem[]>([]);
+  const [target, setTarget] = useState<Target | null>(null);
+  const [groupDetail, setGroupDetail] = useState<ChatGroupDetail | null>(null);
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [pending, setPending] = useState<PendingBubble[]>([]);
   const [contacts, setContacts] = useState<ChatContact[] | null>(null);
   const [contactsOpen, setContactsOpen] = useState(false);
   const [contactQuery, setContactQuery] = useState('');
+  const [createGroupOpen, setCreateGroupOpen] = useState(false);
+  const [membersOpen, setMembersOpen] = useState(false);
   const [input, setInput] = useState('');
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
@@ -54,19 +74,27 @@ export default function ChatPage() {
   const [typingName, setTypingName] = useState<string | null>(null);
   const [booting, setBooting] = useState(true);
 
-  const activeIdRef = useRef<number | null>(null);
+  const targetRef = useRef<Target | null>(null);
   const sendRef = useRef<(p: Record<string, unknown>) => boolean>(() => false);
   const typingSentAtRef = useRef(0);
   const typingHideRef = useRef<number | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  activeIdRef.current = activeId;
-  const myId = user?.id ?? 0;
-// __LOGIC__
-
   const conversationsRef = useRef<ChatConversationItem[]>([]);
+  const groupDetailRef = useRef<ChatGroupDetail | null>(null);
+
+  targetRef.current = target;
   conversationsRef.current = conversations;
+  groupDetailRef.current = groupDetail;
+  const myId = user?.id ?? 0;
+
+  const isViewing = (kind: Target['kind'], id: number | null | undefined) =>
+    id != null && targetRef.current?.kind === kind && targetRef.current.id === id;
+
+  /** The id field the server expects on a frame for whatever the window currently shows. */
+  const frameTarget = (tg: Target) => (tg.kind === 'dm' ? { conversationId: tg.id } : { groupId: tg.id });
+
+  // ── 1:1 ────────────────────────────────────────────────────────────────────────
 
   const upsertMessage = useCallback((m: ChatMessageItem, clientMsgId?: string | null) => {
     if (clientMsgId) setPending((prev) => prev.filter((p) => p.clientMsgId !== clientMsgId));
@@ -77,26 +105,27 @@ export default function ChatPage() {
       next[idx] = m;
       return next;
     });
+  }, []);
+
+  const bumpConversation = useCallback((m: ChatMessageItem) => {
     const mine = m.senderId === myId;
     setConversations((prev) => {
       const idx = prev.findIndex((c) => c.id === m.conversationId);
       if (idx === -1) return prev;
       const cur = prev[idx];
-      const preview = m.body || (m.attachments[0]
-        ? (m.attachments[0].kind === 'IMAGE' ? '📷 ' : '📎 ') + m.attachments[0].filename
-        : '');
       const bumped: ChatConversationItem = {
         ...cur,
-        lastMessagePreview: preview,
+        lastMessagePreview: previewOf(m),
         lastMessageAt: m.createdAt,
         unreadCount: mine
           ? cur.unreadCount
-          : (activeIdRef.current === m.conversationId ? 0 : cur.unreadCount + 1),
+          : (isViewing('dm', m.conversationId) ? 0 : cur.unreadCount + 1),
       };
       const next = [...prev];
       next.splice(idx, 1);
       return [bumped, ...next];
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myId]);
 
   const loadConversations = useCallback(async () => {
@@ -108,52 +137,139 @@ export default function ChatPage() {
     }
   }, []);
 
-  const markRead = useCallback((conversationId: number) => {
-    const ok = sendRef.current({ type: 'READ', conversationId });
-    if (!ok) chatApi.markRead(conversationId).catch(() => undefined);
-    setConversations((prev) => prev.map((c) => (
-      c.id === conversationId ? { ...c, unreadCount: 0 } : c)));
+  // ── groups ─────────────────────────────────────────────────────────────────────
+
+  const loadGroups = useCallback(async () => {
+    try {
+      setGroups(await chatGroupApi.list());
+    } catch { /* groups are additive — a failure here must not blank the 1:1 list */ }
   }, []);
 
-  const openConversation = useCallback(async (id: number) => {
-    setActiveId(id);
-    activeIdRef.current = id;
+  const loadGroupDetail = useCallback(async (id: number) => {
+    try {
+      setGroupDetail(await chatGroupApi.detail(id));
+    } catch { /* header falls back to the list's name/count */ }
+  }, []);
+
+  const bumpGroup = useCallback((m: ChatMessageItem) => {
+    const mine = m.senderId === myId;
+    setGroups((prev) => {
+      const idx = prev.findIndex((g) => g.id === m.groupId);
+      if (idx === -1) return prev;
+      const cur = prev[idx];
+      const bumped: ChatGroupItem = {
+        ...cur,
+        lastMessagePreview: m.kind === 'SYSTEM' ? m.body : previewOf(m),
+        lastMessageAt: m.createdAt,
+        unreadCount: (mine || m.kind === 'SYSTEM' || isViewing('group', m.groupId))
+          ? cur.unreadCount
+          : cur.unreadCount + 1,
+      };
+      const next = [...prev];
+      next.splice(idx, 1);
+      return [bumped, ...next];
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myId]);
+
+  // ── read + open ────────────────────────────────────────────────────────────────
+
+  const markRead = useCallback((tg: Target) => {
+    const ok = sendRef.current({ type: 'READ', ...frameTarget(tg) });
+    if (tg.kind === 'dm') {
+      if (!ok) chatApi.markRead(tg.id).catch(() => undefined);
+      setConversations((prev) => prev.map((c) => (c.id === tg.id ? { ...c, unreadCount: 0 } : c)));
+    } else {
+      if (!ok) chatGroupApi.markRead(tg.id).catch(() => undefined);
+      setGroups((prev) => prev.map((g) => (g.id === tg.id ? { ...g, unreadCount: 0 } : g)));
+    }
+  }, []);
+
+  const openTarget = useCallback(async (tg: Target) => {
+    setTarget(tg);
+    targetRef.current = tg;
     setMessages([]);
     setPending([]);
     setError(null);
-    setSearchParams({ c: String(id) }, { replace: true });
+    setTypingName(null);
+    setGroupDetail(null);
+    setSearchParams(tg.kind === 'dm' ? { c: String(tg.id) } : { g: String(tg.id) }, { replace: true });
     try {
-      const page = await chatApi.messages(id);
-      setMessages(page.messages);
-      markRead(id);
+      if (tg.kind === 'dm') {
+        const page = await chatApi.messages(tg.id);
+        setMessages(page.messages);
+      } else {
+        const [page] = await Promise.all([chatGroupApi.messages(tg.id), loadGroupDetail(tg.id)]);
+        setMessages(page.messages);
+      }
+      markRead(tg);
     } catch (e) {
       setError(extractError(e));
     }
-  }, [markRead, setSearchParams]);
+  }, [loadGroupDetail, markRead, setSearchParams]);
+
+  const closeTarget = useCallback(() => {
+    setTarget(null);
+    targetRef.current = null;
+    setMessages([]);
+    setGroupDetail(null);
+    setSearchParams({}, { replace: true });
+  }, [setSearchParams]);
+
+  // ── live frames ────────────────────────────────────────────────────────────────
 
   const handleWs = useCallback((m: ChatWsOut) => {
     switch (m.type) {
       case 'MESSAGE': {
         if (!m.message) return;
-        if (m.message.senderId !== myId && activeIdRef.current === m.message.conversationId) {
-          markRead(m.message.conversationId);
+        const msg = m.message;
+        if (msg.groupId != null) {
+          if (isViewing('group', msg.groupId)) {
+            if (msg.senderId !== myId) markRead({ kind: 'group', id: msg.groupId });
+            upsertMessage(msg, m.clientMsgId ?? undefined);
+          }
+          bumpGroup(msg);
+          return;
         }
-        upsertMessage(m.message, m.clientMsgId ?? undefined);
+        if (msg.senderId !== myId && isViewing('dm', msg.conversationId)) {
+          markRead({ kind: 'dm', id: msg.conversationId as number });
+        }
+        if (isViewing('dm', msg.conversationId)) upsertMessage(msg, m.clientMsgId ?? undefined);
+        bumpConversation(msg);
         break;
       }
       case 'READ': {
-        if (m.conversationId === activeIdRef.current && m.readerId != null && m.readerId !== myId) {
+        if (isViewing('dm', m.conversationId) && m.readerId != null && m.readerId !== myId) {
           setMessages((prev) => prev.map((x) => (
             x.senderId === myId && !x.readAt ? { ...x, readAt: new Date().toISOString() } : x)));
         }
         break;
       }
       case 'TYPING': {
-        if (m.conversationId !== activeIdRef.current || m.fromUserId === myId) return;
-        const conv = conversationsRef.current.find((c) => c.id === m.conversationId);
-        setTypingName(conv?.otherName ?? null);
+        if (m.fromUserId === myId) return;
+        let who: string | null = null;
+        if (m.groupId != null) {
+          if (!isViewing('group', m.groupId)) return;
+          const member = groupDetailRef.current?.members.find((x) => x.userId === m.fromUserId);
+          who = member ? (isAr ? (member.displayNameAr || member.displayName) : (member.displayNameEn || member.displayName))
+            : t('chat.someoneTyping');
+        } else {
+          if (!isViewing('dm', m.conversationId)) return;
+          who = conversationsRef.current.find((c) => c.id === m.conversationId)?.otherName ?? null;
+        }
+        setTypingName(who);
         if (typingHideRef.current != null) window.clearTimeout(typingHideRef.current);
         typingHideRef.current = window.setTimeout(() => setTypingName(null), 2600);
+        break;
+      }
+      case 'GROUP_UPDATED': {
+        loadGroups();
+        if (isViewing('group', m.groupId)) loadGroupDetail(m.groupId as number);
+        break;
+      }
+      case 'GROUP_REMOVED': {
+        loadGroups();
+        if (isViewing('group', m.groupId)) closeTarget();
         break;
       }
       case 'ERROR': {
@@ -166,37 +282,53 @@ export default function ChatPage() {
       default:
         break;
     }
-  }, [markRead, myId, t, upsertMessage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markRead, myId, t, isAr, upsertMessage, bumpConversation, bumpGroup, loadGroups, loadGroupDetail, closeTarget]);
 
   // One connection for the whole app (see ChatSocketProvider) — this page just listens
   // to it rather than opening its own, so leaving /chat never drops anyone else's socket.
   const socket = useChatSocketContext();
   useEffect(() => socket.subscribe(handleWs), [socket, handleWs]);
   sendRef.current = socket.send;
-// __BOOT__
+
+  // ── boot + polling ─────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!user) return;
-    loadConversations().finally(() => setBooting(false));
-    const param = searchParams.get('c');
-    if (param) {
-      const id = Number(param);
-      if (Number.isFinite(id) && id > 0) openConversation(id);
-    }
-    const onFocus = () => loadConversations();
-    window.addEventListener('focus', onFocus);
-    const poll = window.setInterval(loadConversations, 20000);
+    Promise.all([loadConversations(), loadGroups()]).finally(() => setBooting(false));
+    const dm = Number(searchParams.get('c'));
+    const grp = Number(searchParams.get('g'));
+    if (Number.isFinite(grp) && grp > 0) openTarget({ kind: 'group', id: grp });
+    else if (Number.isFinite(dm) && dm > 0) openTarget({ kind: 'dm', id: dm });
+    const refresh = () => { loadConversations(); loadGroups(); };
+    window.addEventListener('focus', refresh);
+    const poll = window.setInterval(refresh, 20000);
     return () => {
-      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('focus', refresh);
       window.clearInterval(poll);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
+  // A toast/notification can send us to a different chat while this page is already open.
+  useEffect(() => {
+    const dm = Number(searchParams.get('c'));
+    const grp = Number(searchParams.get('g'));
+    const wanted: Target | null = Number.isFinite(grp) && grp > 0
+      ? { kind: 'group', id: grp }
+      : Number.isFinite(dm) && dm > 0 ? { kind: 'dm', id: dm } : null;
+    if (wanted && (targetRef.current?.kind !== wanted.kind || targetRef.current.id !== wanted.id)) {
+      openTarget(wanted);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, pending, typingName]);
+
+  // ── actions ────────────────────────────────────────────────────────────────────
 
   async function openContacts() {
     setContactsOpen(true);
@@ -214,7 +346,7 @@ export default function ChatPage() {
       const conv = await chatApi.start(contact.id);
       setConversations((prev) => (
         prev.some((c) => c.id === conv.id) ? prev : [conv, ...prev]));
-      await openConversation(conv.id);
+      await openTarget({ kind: 'dm', id: conv.id });
     } catch (e) {
       setError(extractError(e));
     }
@@ -230,25 +362,29 @@ export default function ChatPage() {
   function onInputChange(v: string) {
     setInput(v);
     const now = Date.now();
-    if (activeId && now - typingSentAtRef.current > 2000) {
+    if (target && now - typingSentAtRef.current > 2000) {
       typingSentAtRef.current = now;
-      sendRef.current({ type: 'TYPING', conversationId: activeId });
+      sendRef.current({ type: 'TYPING', ...frameTarget(target) });
     }
   }
 
   async function onSend() {
-    if (!activeId || sending) return;
+    if (!target || sending) return;
     const body = input.trim();
     if (!body && pendingFiles.length === 0) return;
     setError(null);
+    const tg = target;
     if (pendingFiles.length > 0) {
       setSending(true);
       try {
-        const item = await chatApi.sendFiles(activeId, pendingFiles, body);
+        const item = tg.kind === 'dm'
+          ? await chatApi.sendFiles(tg.id, pendingFiles, body)
+          : await chatGroupApi.sendFiles(tg.id, pendingFiles, body);
         setInput('');
         setPendingFiles([]);
         upsertMessage(item);
-        markRead(activeId);
+        if (tg.kind === 'dm') bumpConversation(item); else bumpGroup(item);
+        markRead(tg);
       } catch (e) {
         setError(extractError(e));
       } finally {
@@ -257,7 +393,7 @@ export default function ChatPage() {
       return;
     }
     const clientMsgId = newClientMsgId();
-    const ok = sendRef.current({ type: 'SEND', conversationId: activeId, body, clientMsgId });
+    const ok = sendRef.current({ type: 'SEND', ...frameTarget(tg), body, clientMsgId });
     if (ok) {
       setPending((prev) => [...prev, { clientMsgId, body, createdAt: new Date().toISOString() }]);
       setInput('');
@@ -265,7 +401,9 @@ export default function ChatPage() {
       // WS down — REST fallback
       setSending(true);
       try {
-        const item = await chatApi.sendText(activeId, body);
+        const item = tg.kind === 'dm'
+          ? await chatApi.sendText(tg.id, body)
+          : await chatGroupApi.sendText(tg.id, body);
         setInput('');
         upsertMessage(item);
       } catch (e) {
@@ -274,11 +412,14 @@ export default function ChatPage() {
         setSending(false);
       }
     }
-    markRead(activeId);
+    markRead(tg);
   }
-// __RENDER__
 
-  const active = conversations.find((c) => c.id === activeId) || null;
+  // ── derived view state ─────────────────────────────────────────────────────────
+
+  const activeDm = target?.kind === 'dm' ? conversations.find((c) => c.id === target.id) ?? null : null;
+  const activeGroup = target?.kind === 'group' ? groups.find((g) => g.id === target.id) ?? null : null;
+  const hasActive = target != null && (activeDm != null || activeGroup != null);
 
   const filteredContacts = (contacts ?? []).filter((c) => {
     const q = contactQuery.trim().toLowerCase();
@@ -300,89 +441,170 @@ export default function ChatPage() {
     ? (n.displayNameAr || n.otherNameAr || n.displayName || n.otherName || n.username || '?')
     : (n.displayNameEn || n.otherNameEn || n.displayName || n.otherName || n.username || '?');
 
+  const inGroup = target?.kind === 'group';
+  const attachHref = (id: number) => (inGroup ? groupAttachmentUrl(id) : attachmentUrl(id));
+
   return (
-    <div className={`chat-page${isAr ? ' chat-rtl' : ''}`}>
+    <div className={`chat-page${isAr ? ' chat-rtl' : ''}${hasActive ? ' has-active' : ''}`}>
       <aside className="chat-list">
         <div className="chat-list-head">
           <h2>{t('chat.title')}</h2>
-          <button type="button" className="btn btn-primary btn-sm" onClick={openContacts}>
-            + {t('chat.newChat')}
-          </button>
+          <div className="chat-list-actions">
+            <button type="button" className="btn btn-sm" onClick={() => setCreateGroupOpen(true)}>
+              <IconMembers size={14} /> {t('chat.newGroup')}
+            </button>
+            <button type="button" className="btn btn-primary btn-sm" onClick={openContacts}>
+              <IconPlus size={14} /> {t('chat.newChat')}
+            </button>
+          </div>
         </div>
         <div className={`chat-conn${socket.connected ? ' on' : ''}`}>
           {socket.connected ? t('chat.connected') : t('chat.connecting')}
         </div>
         {booting ? (
           <div className="chat-empty muted">{t('common.loading')}</div>
-        ) : conversations.length === 0 ? (
+        ) : conversations.length === 0 && groups.length === 0 ? (
           <div className="chat-empty muted">{t('chat.noConversations')}</div>
         ) : (
-          <ul className="chat-conv-items">
-            {conversations.map((c) => (
-              <li key={c.id}>
-                <button
-                  type="button"
-                  className={`chat-conv${c.id === activeId ? ' active' : ''}`}
-                  onClick={() => openConversation(c.id)}
-                >
-                  <Avatar
-                    name={nameOf(c)}
-                    size="md"
-                    src={avatarUrl(c.otherUserId, c.otherAvatarUpdatedAt)}
-                  />
-                  <span className="chat-conv-meta">
-                    <span className="chat-conv-name">
-                      {nameOf(c)}
-                      <span className="chat-conv-role">{roleLabel(c.otherRole)}</span>
-                    </span>
-                    <span className="chat-conv-preview">{c.lastMessagePreview || '—'}</span>
-                  </span>
-                  {c.unreadCount > 0 && (
-                    <span className="chat-badge">{c.unreadCount > 99 ? '99+' : c.unreadCount}</span>
-                  )}
-                </button>
-              </li>
-            ))}
-          </ul>
+          <div className="chat-conv-scroll">
+            {groups.length > 0 && (
+              <>
+                <div className="chat-section-title">{t('chat.groupsHeading')}</div>
+                <ul className="chat-conv-items">
+                  {groups.map((g) => (
+                    <li key={`g${g.id}`}>
+                      <button
+                        type="button"
+                        className={`chat-conv${target?.kind === 'group' && target.id === g.id ? ' active' : ''}`}
+                        onClick={() => openTarget({ kind: 'group', id: g.id })}
+                      >
+                        <span className="chat-group-avatar" aria-hidden="true"><IconMembers size={18} /></span>
+                        <span className="chat-conv-meta">
+                          <span className="chat-conv-name">
+                            {g.name}
+                            <span className="chat-conv-role">{t('chat.group.members', { n: g.memberCount })}</span>
+                          </span>
+                          <span className="chat-conv-preview">{g.lastMessagePreview || '—'}</span>
+                        </span>
+                        {g.unreadCount > 0 && (
+                          <span className="chat-badge">{g.unreadCount > 99 ? '99+' : g.unreadCount}</span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {conversations.length > 0 && (
+              <>
+                {groups.length > 0 && <div className="chat-section-title">{t('chat.directHeading')}</div>}
+                <ul className="chat-conv-items">
+                  {conversations.map((c) => (
+                    <li key={`c${c.id}`}>
+                      <button
+                        type="button"
+                        className={`chat-conv${target?.kind === 'dm' && target.id === c.id ? ' active' : ''}`}
+                        onClick={() => openTarget({ kind: 'dm', id: c.id })}
+                      >
+                        <Avatar
+                          name={nameOf(c)}
+                          size="md"
+                          src={avatarUrl(c.otherUserId, c.otherAvatarUpdatedAt)}
+                        />
+                        <span className="chat-conv-meta">
+                          <span className="chat-conv-name">
+                            {nameOf(c)}
+                            <span className="chat-conv-role">{roleLabel(c.otherRole)}</span>
+                          </span>
+                          <span className="chat-conv-preview">{c.lastMessagePreview || '—'}</span>
+                        </span>
+                        {c.unreadCount > 0 && (
+                          <span className="chat-badge">{c.unreadCount > 99 ? '99+' : c.unreadCount}</span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
         )}
       </aside>
 
       <section className="chat-window">
-        {!active ? (
+        {!hasActive ? (
           <div className="chat-placeholder">
             <IconChat size={44} />
             <p>{t('chat.pickConversation')}</p>
-            <button type="button" className="btn btn-primary" onClick={openContacts}>
-              {t('chat.newChat')}
-            </button>
+            <div className="chat-placeholder-actions">
+              <button type="button" className="btn btn-primary" onClick={openContacts}>
+                {t('chat.newChat')}
+              </button>
+              <button type="button" className="btn" onClick={() => setCreateGroupOpen(true)}>
+                {t('chat.newGroup')}
+              </button>
+            </div>
           </div>
         ) : (
           <>
             <header className="chat-window-head">
-              <Avatar name={nameOf(active)} size="md"
-                      src={avatarUrl(active.otherUserId, active.otherAvatarUpdatedAt)} />
-              <div className="chat-window-title">
-                <strong>{nameOf(active)}</strong>
-                <span className="muted small">
-                  {roleLabel(active.otherRole)}{active.otherTeam ? ` · ${active.otherTeam}` : ''}
-                </span>
-              </div>
+              <button type="button" className="chat-back-btn" onClick={closeTarget}
+                      aria-label={t('chat.back')} title={t('chat.back')}>
+                <IconChevronDown size={20} />
+              </button>
+              {activeGroup ? (
+                <>
+                  <span className="chat-group-avatar" aria-hidden="true"><IconMembers size={18} /></span>
+                  <div className="chat-window-title">
+                    <strong>{groupDetail?.name ?? activeGroup.name}</strong>
+                    <span className="muted small">
+                      {t('chat.group.members', { n: groupDetail?.members.length ?? activeGroup.memberCount })}
+                      {activeGroup.isAdmin ? ` · ${t('chat.group.admin')}` : ''}
+                    </span>
+                  </div>
+                  <button type="button" className="btn btn-sm chat-head-action"
+                          onClick={() => setMembersOpen(true)}>
+                    <IconMembers size={14} /> <span>{t('chat.group.viewMembers')}</span>
+                  </button>
+                </>
+              ) : activeDm ? (
+                <>
+                  <Avatar name={nameOf(activeDm)} size="md"
+                          src={avatarUrl(activeDm.otherUserId, activeDm.otherAvatarUpdatedAt)} />
+                  <div className="chat-window-title">
+                    <strong>{nameOf(activeDm)}</strong>
+                    <span className="muted small">
+                      {roleLabel(activeDm.otherRole)}{activeDm.otherTeam ? ` · ${activeDm.otherTeam}` : ''}
+                    </span>
+                  </div>
+                </>
+              ) : null}
             </header>
 
             <div className="chat-scroll" ref={scrollRef}>
-              {messages.map((m) => {
+              {messages.map((m, i) => {
+                if (m.kind === 'SYSTEM') {
+                  return (
+                    <div key={m.id ?? `sys-${i}`} className="chat-system-row">
+                      <span className="chat-system-note">{m.body}</span>
+                    </div>
+                  );
+                }
                 const mine = m.senderId === myId;
                 return (
-                  <div key={m.id} className={`chat-row${mine ? ' mine' : ''}`}>
+                  <div key={m.id ?? `m-${i}`} className={`chat-row${mine ? ' mine' : ''}`}>
                     <div className="chat-bubble">
+                      {inGroup && !mine && m.senderName && (
+                        <div className="chat-sender">{m.senderName}</div>
+                      )}
                       {m.body && <div className="chat-text">{m.body}</div>}
                       {m.attachments.map((a) => a.kind === 'IMAGE' ? (
-                        <a key={a.id} href={attachmentUrl(a.id)} target="_blank" rel="noreferrer"
+                        <a key={a.id} href={attachHref(a.id)} target="_blank" rel="noreferrer"
                            className="chat-att-img">
-                          <img src={attachmentUrl(a.id)} alt={a.filename} loading="lazy" />
+                          <img src={attachHref(a.id)} alt={a.filename} loading="lazy" />
                         </a>
                       ) : (
-                        <a key={a.id} href={attachmentUrl(a.id)} className="chat-att-file" download>
+                        <a key={a.id} href={attachHref(a.id)} className="chat-att-file" download>
                           <span className="chat-att-ico">{a.kind === 'PDF' ? '📄' : '📝'}</span>
                           <span className="chat-att-name">
                             {a.filename}
@@ -394,7 +616,7 @@ export default function ChatPage() {
                       <span className="chat-time">
                         {new Date(m.createdAt).toLocaleTimeString(isAr ? 'ar-EG' : 'en-GB',
                           { hour: '2-digit', minute: '2-digit' })}
-                        {mine && <span className="chat-read">{m.readAt ? '✓✓' : '✓'}</span>}
+                        {mine && !inGroup && <span className="chat-read">{m.readAt ? '✓✓' : '✓'}</span>}
                       </span>
                     </div>
                   </div>
@@ -513,6 +735,26 @@ export default function ChatPage() {
           </div>
         </div>
       )}
+
+      <CreateGroupModal
+        open={createGroupOpen}
+        onClose={() => setCreateGroupOpen(false)}
+        onCreated={(g) => {
+          setCreateGroupOpen(false);
+          setGroups((prev) => (prev.some((x) => x.id === g.id) ? prev : [g, ...prev]));
+          openTarget({ kind: 'group', id: g.id });
+        }}
+      />
+
+      <GroupMembersModal
+        groupId={membersOpen && target?.kind === 'group' ? target.id : null}
+        onClose={() => setMembersOpen(false)}
+        onChanged={() => {
+          loadGroups();
+          if (target?.kind === 'group') loadGroupDetail(target.id);
+        }}
+        onLeft={() => { setMembersOpen(false); closeTarget(); loadGroups(); }}
+      />
     </div>
   );
 }

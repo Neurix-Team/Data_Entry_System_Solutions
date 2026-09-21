@@ -88,6 +88,14 @@ public class ChatSocketSessionRegistry {
         }
     }
 
+    /** Group broadcast: the same envelope to every member, sender included (their other tabs). */
+    public void pushToMany(java.util.Collection<Long> userIds, ChatMessagingDtos.WsOut payload) {
+        if (userIds == null) return;
+        for (Long id : userIds) {
+            push(id, payload);
+        }
+    }
+
     public record ChatConversationParticipants(Long userAId, Long userBId) {}
 
     private Long userIdOf(WebSocketSession session) {

@@ -6,7 +6,7 @@ import { useChatSocketContext } from '../../context/ChatSocketContext';
 import { useT } from '../../i18n';
 import { playMessageChime } from '../../utils/chime';
 import { Avatar } from '../Avatar';
-import { IconChat, IconClose } from '../Icons';
+import { IconChat, IconClose, IconMembers } from '../Icons';
 
 const VISIBLE_MS = 6000;
 const MAX_STACK = 3;
@@ -54,12 +54,15 @@ export function IncomingMessageToast() {
       if (frame.type !== 'MESSAGE' || !frame.message) return;
       const m = frame.message;
       if (m.senderId === user.id) return; // never announce my own message back to me
+      // "X added Y" and friends are the server narrating, not someone talking to you.
+      if (m.kind === 'SYSTEM') return;
 
       const here = locationRef.current;
-      const openConversationId = here.pathname === '/chat'
-        ? Number(new URLSearchParams(here.search).get('c'))
-        : null;
-      if (openConversationId === m.conversationId) return; // already looking right at it
+      const params = new URLSearchParams(here.search);
+      const onChat = here.pathname === '/chat';
+      const openId = onChat ? Number(params.get(m.groupId != null ? 'g' : 'c')) : null;
+      const arrivedIn = m.groupId != null ? m.groupId : m.conversationId;
+      if (openId === arrivedIn) return; // already looking right at it
 
       playMessageChime();
       const id = seq++;
@@ -78,13 +81,24 @@ export function IncomingMessageToast() {
           key={id}
           type="button"
           className="chat-toast"
-          onClick={() => { navigate(`/chat?c=${message.conversationId}`); dismiss(id); }}
+          onClick={() => {
+            navigate(message.groupId != null ? `/chat?g=${message.groupId}` : `/chat?c=${message.conversationId}`);
+            dismiss(id);
+          }}
         >
           <span className="chat-toast-icon" aria-hidden="true"><IconChat size={14} /></span>
-          <Avatar name={message.senderName} size="sm" />
+          {message.groupId != null
+            ? <span className="chat-toast-group-avatar" aria-hidden="true"><IconMembers size={16} /></span>
+            : <Avatar name={message.senderName} size="sm" />}
           <span className="chat-toast-body">
-            <span className="chat-toast-name">{message.senderName}</span>
-            <span className="chat-toast-preview">{previewOf(message)}</span>
+            <span className="chat-toast-name">
+              {message.groupId != null ? (message.groupName ?? message.senderName) : message.senderName}
+            </span>
+            <span className="chat-toast-preview">
+              {message.groupId != null && message.senderName
+                ? `${message.senderName}: ${previewOf(message)}`
+                : previewOf(message)}
+            </span>
           </span>
           <span
             className="chat-toast-close"

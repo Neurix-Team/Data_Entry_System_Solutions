@@ -66,6 +66,19 @@ public class ChatFilesService {
 
     /** Validates, charges the daily upload budget and stores the file under chat/{conversationId}/. */
     public SavedFile store(Long conversationId, MultipartFile file, Long uploaderId) {
+        return store("" + conversationId, file, uploaderId);
+    }
+
+    /**
+     * Same as {@link #store(Long, MultipartFile, Long)} but for a group — namespaced under a
+     * {@code group-} prefix so a group id can never collide with a 1:1 conversation id that
+     * happens to share the same number; they are separate sequences.
+     */
+    public SavedFile storeForGroup(Long groupId, MultipartFile file, Long uploaderId) {
+        return store("group-" + groupId, file, uploaderId);
+    }
+
+    private SavedFile store(String roomKey, MultipartFile file, Long uploaderId) {
         if (file == null || file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Empty file");
         }
@@ -91,7 +104,7 @@ public class ChatFilesService {
         }
         quota.chargeOrThrow(uploaderId, file.getSize());
 
-        Path dir = baseDir.resolve(String.valueOf(conversationId)).normalize();
+        Path dir = baseDir.resolve(roomKey).normalize();
         if (!dir.startsWith(baseDir)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
         }
@@ -121,7 +134,17 @@ public class ChatFilesService {
 
     public DownloadHandle resolveStored(Long conversationId, String storedName, String filename,
                                         String contentType, long size) {
-        Path dir = baseDir.resolve(String.valueOf(conversationId)).normalize();
+        return resolveStored("" + conversationId, storedName, filename, contentType, size);
+    }
+
+    public DownloadHandle resolveStoredForGroup(Long groupId, String storedName, String filename,
+                                                String contentType, long size) {
+        return resolveStored("group-" + groupId, storedName, filename, contentType, size);
+    }
+
+    private DownloadHandle resolveStored(String roomKey, String storedName, String filename,
+                                         String contentType, long size) {
+        Path dir = baseDir.resolve(roomKey).normalize();
         if (!dir.startsWith(baseDir)) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         Path path = dir.resolve(storedName).normalize();
         if (!path.startsWith(baseDir) || !Files.exists(path)) {

@@ -331,7 +331,7 @@ export function SuperDataPage() {
 
 function TicketDetails({ row, t }: { row: ExplorerRow; t: (k: string) => string }) {
   return (
-    <div style={{ display: 'grid', gap: 16, gridTemplateColumns: '2fr 1fr' }}>
+    <div className="split-2-1">
       <div>
         <SectionTitle label={t('super.data.content') || 'Content'} />
         <div style={{

@@ -233,7 +233,8 @@ public class ChatMessagingService {
         // Realtime push to both parties (covers the sender's other tabs/devices too).
         registry.pushToBoth(new ChatSocketSessionRegistry.ChatConversationParticipants(
                         conv.getUserA().getId(), conv.getUserB().getId()),
-                new ChatMessagingDtos.WsOut("MESSAGE", conversationId, item, null, sender.getId(), null, clientMsgId));
+                new ChatMessagingDtos.WsOut("MESSAGE", conversationId, item, null, sender.getId(), null,
+                        clientMsgId, null));
 
         // Offline fallback: notification bell catches up on next login/poll.
         User recipient = conv.otherOf(sender);
@@ -252,7 +253,7 @@ public class ChatMessagingService {
             Long otherId = readerId.equals(conv.getUserA().getId())
                     ? conv.getUserB().getId() : conv.getUserA().getId();
             registry.push(otherId, new ChatMessagingDtos.WsOut(
-                    "READ", conversationId, null, readerId, null, null, null));
+                    "READ", conversationId, null, readerId, null, null, null, null));
         }
         return marked;
     }
@@ -263,7 +264,7 @@ public class ChatMessagingService {
         Long otherId = senderId.equals(conv.getUserA().getId())
                 ? conv.getUserB().getId() : conv.getUserA().getId();
         registry.push(otherId, new ChatMessagingDtos.WsOut(
-                "TYPING", conversationId, null, null, senderId, null, null));
+                "TYPING", conversationId, null, null, senderId, null, null, null));
     }
 // __PART4__
 
@@ -407,7 +408,7 @@ public class ChatMessagingService {
                         a.getSizeBytes(),
                         ChatFilesService.kindOf(a.getContentType(), a.getOriginalFilename())))
                 .toList();
-        return new ChatMessagingDtos.MessageItem(
+        return ChatMessagingDtos.MessageItem.direct(
                 m.getId(),
                 m.getConversation().getId(),
                 m.getSender().getId(),
@@ -418,6 +419,22 @@ public class ChatMessagingService {
                 m.getReadAt(),
                 attachmentItems
         );
+    }
+
+    /** Shared with {@link com.dataentry.service.ChatGroupService} — same preview rule either way. */
+    static String previewOfShared(String body, List<ChatMessagingDtos.AttachmentItem> attachments) {
+        if (body != null && !body.isBlank()) {
+            return body.length() > 120 ? body.substring(0, 120) + "…" : body;
+        }
+        if (attachments != null && !attachments.isEmpty()) {
+            var first = attachments.get(0);
+            return switch (first.kind()) {
+                case "IMAGE" -> "📷 صورة";
+                case "PDF" -> "📄 " + first.filename();
+                default -> "📎 " + first.filename();
+            };
+        }
+        return "—";
     }
 
     private String displayNameOf(User u) {

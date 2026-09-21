@@ -142,13 +142,16 @@ public class ChatSocketConfig implements WebSocketConfigurer {
 
         private final ChatSocketSessionRegistry registry;
         private final com.dataentry.service.ChatMessagingService chat;
+        private final com.dataentry.service.ChatGroupService groupChat;
         private final ObjectMapper mapper;
 
         public ChatSocketHandler(ChatSocketSessionRegistry registry,
                                  com.dataentry.service.ChatMessagingService chat,
+                                 com.dataentry.service.ChatGroupService groupChat,
                                  ObjectMapper mapper) {
             this.registry = registry;
             this.chat = chat;
+            this.groupChat = groupChat;
             this.mapper = mapper;
         }
 
@@ -157,7 +160,8 @@ public class ChatSocketConfig implements WebSocketConfigurer {
             registry.register(session);
             Long userId = userIdOf(session);
             if (userId != null) {
-                registry.push(userId, new ChatMessagingDtos.WsOut("CONNECTED", null, null, null, null, null, null));
+                registry.push(userId,
+                        new ChatMessagingDtos.WsOut("CONNECTED", null, null, null, null, null, null, null));
             }
         }
 
@@ -182,25 +186,37 @@ public class ChatSocketConfig implements WebSocketConfigurer {
                 registry.push(userId, ChatMessagingDtos.WsOut.error("Malformed message"));
                 return;
             }
-            if (in.type() == null || in.conversationId() == null) {
-                registry.push(userId, ChatMessagingDtos.WsOut.error("type and conversationId are required"));
+            boolean isGroup = in.groupId() != null;
+            if (in.type() == null || (in.conversationId() == null && in.groupId() == null)) {
+                registry.push(userId, ChatMessagingDtos.WsOut.error("type and conversationId/groupId are required"));
                 return;
             }
             try {
-                switch (in.type().toUpperCase()) {
-                    case "SEND" -> chat.sendText(userId, in.conversationId(), in.body(), in.clientMsgId());
-                    case "READ" -> chat.markRead(userId, in.conversationId());
-                    case "TYPING" -> chat.typing(userId, in.conversationId());
-                    default -> registry.push(userId,
-                            ChatMessagingDtos.WsOut.error("Unknown type: " + in.type()));
+                if (isGroup) {
+                    switch (in.type().toUpperCase()) {
+                        case "SEND" -> groupChat.sendText(userId, in.groupId(), in.body(), in.clientMsgId());
+                        case "READ" -> groupChat.markRead(userId, in.groupId());
+                        case "TYPING" -> groupChat.typing(userId, in.groupId());
+                        default -> registry.push(userId,
+                                ChatMessagingDtos.WsOut.error("Unknown type: " + in.type()));
+                    }
+                } else {
+                    switch (in.type().toUpperCase()) {
+                        case "SEND" -> chat.sendText(userId, in.conversationId(), in.body(), in.clientMsgId());
+                        case "READ" -> chat.markRead(userId, in.conversationId());
+                        case "TYPING" -> chat.typing(userId, in.conversationId());
+                        default -> registry.push(userId,
+                                ChatMessagingDtos.WsOut.error("Unknown type: " + in.type()));
+                    }
                 }
             } catch (org.springframework.web.server.ResponseStatusException e) {
                 registry.push(userId, new ChatMessagingDtos.WsOut("ERROR", in.conversationId(), null,
-                        null, null, e.getReason() == null ? "Rejected" : e.getReason(), in.clientMsgId()));
+                        null, null, e.getReason() == null ? "Rejected" : e.getReason(), in.clientMsgId(),
+                        in.groupId()));
             } catch (Exception e) {
                 log.warn("Chat frame failed user={} type={}: {}", userId, in.type(), e.toString());
                 registry.push(userId, new ChatMessagingDtos.WsOut("ERROR", in.conversationId(), null,
-                        null, null, "Message failed", in.clientMsgId()));
+                        null, null, "Message failed", in.clientMsgId(), in.groupId()));
             }
         }
 

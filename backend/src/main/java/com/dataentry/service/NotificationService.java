@@ -40,7 +40,7 @@ public class NotificationService {
                     .createdAt(Instant.now())
                     .build();
             repository.save(n);
-            dispatchPush(recipient, type, message, refType, projectId);
+            dispatchPush(recipient, type, message, refType, refId, projectId);
         } catch (Exception e) {
             log.warn("Failed to emit notification (type={}, recipient={}): {}",
                     type, recipient.getId(), e.toString());
@@ -54,9 +54,9 @@ public class NotificationService {
      * never slow the request that produced the notification.
      */
     private void dispatchPush(User recipient, String type, String message,
-                              String refType, Long projectId) {
+                              String refType, Long refId, Long projectId) {
         if (push == null || !push.isEnabled() || recipient == null || recipient.getId() == null) return;
-        String url = landingUrl(recipient, refType, projectId);
+        String url = landingUrl(recipient, refType, refId, projectId);
         try {
             if (org.springframework.transaction.support.TransactionSynchronizationManager
                     .isSynchronizationActive()) {
@@ -77,10 +77,13 @@ public class NotificationService {
     }
 
     /** Land the click somewhere useful; admins get the admin view of the same thing. */
-    private String landingUrl(User recipient, String refType, Long projectId) {
+    private String landingUrl(User recipient, String refType, Long refId, Long projectId) {
         boolean admin = recipient.isAdminLike();
         if ("ASSIGNMENT".equals(refType)) return admin ? "/admin/assignments" : "/assignments";
-        if ("CHAT".equals(refType)) return "/chat";
+        // Deep-link into the exact conversation/group the message came from — the same
+        // destination the in-app bell sends a click to.
+        if ("CHAT".equals(refType)) return refId != null ? "/chat?c=" + refId : "/chat";
+        if ("CHAT_GROUP".equals(refType)) return refId != null ? "/chat?g=" + refId : "/chat";
         if ("TICKET".equals(refType)) return admin ? "/admin/tickets" : "/my-tickets";
         if (projectId != null) {
             return (admin ? "/admin/project-folders/" : "/project-folders/") + projectId;
