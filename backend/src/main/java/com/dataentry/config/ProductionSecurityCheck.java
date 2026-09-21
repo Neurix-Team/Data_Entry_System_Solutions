@@ -55,12 +55,32 @@ public class ProductionSecurityCheck {
 
     @PostConstruct
     void check() {
+        for (String warning : collectWarnings()) {
+            log.warn("Production security warning: {}", warning);
+        }
         List<String> problems = collectProblems();
         if (problems.isEmpty()) {
             log.info("Production security check passed — no built-in defaults detected.");
             return;
         }
         throw new IllegalStateException(formatMessage(problems));
+    }
+
+    /**
+     * Weaknesses worth saying out loud on every boot, but not worth refusing to boot over.
+     * The distinction is what the secret can do: anything that forges a session or hands out
+     * an account belongs in {@link #collectProblems()} and stops the application; this list is
+     * for the rest.
+     */
+    List<String> collectWarnings() {
+        List<String> warnings = new ArrayList<>();
+        if (BUNDLED_VAPID_PRIVATE_KEY.equals(vapidPrivateKey)) {
+            warnings.add("WEB_PUSH_VAPID_PRIVATE_KEY is still the keypair bundled in "
+                    + "application.yml for local development. It is published in this "
+                    + "repository, so anyone could sign browser push messages as this "
+                    + "deployment. Generate a pair — the command is in .env.example.");
+        }
+        return warnings;
     }
 
     List<String> collectProblems() {
@@ -82,12 +102,6 @@ public class ProductionSecurityCheck {
         } else if (KNOWN_PLACEHOLDER_JWT_SECRETS.contains(jwtSecret)) {
             problems.add("JWT_SECRET is a well-known placeholder value that has appeared in git "
                     + "history and in application.yml. Anyone can forge tokens against it. Rotate now.");
-        }
-        if (BUNDLED_VAPID_PRIVATE_KEY.equals(vapidPrivateKey)) {
-            problems.add("WEB_PUSH_VAPID_PRIVATE_KEY is still the keypair bundled in "
-                    + "application.yml for local development. It is public knowledge, so anyone "
-                    + "could sign push messages as this deployment. Generate a pair — the "
-                    + "command is in .env.example.");
         }
         if (corsOrigins == null || corsOrigins.isBlank()) {
             problems.add("APP_CORS_ALLOWED_ORIGINS must be set. The API sends credentialed "

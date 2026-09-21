@@ -94,11 +94,20 @@ class ProductionSecurityCheckTest {
     }
 
     @Test
-    void fails_when_the_bundled_push_keypair_is_still_in_use() {
+    void warns_but_still_boots_when_the_bundled_push_keypair_is_in_use() {
         ProductionSecurityCheck c = new ProductionSecurityCheck(GOOD_PW, GOOD_PW, GOOD_JWT,
                 GOOD_ORIGINS, ProductionSecurityCheck.BUNDLED_VAPID_PRIVATE_KEY);
-        assertThatThrownBy(c::check)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("WEB_PUSH_VAPID_PRIVATE_KEY");
+        assertThat(c.collectWarnings()).singleElement()
+                .asString().contains("WEB_PUSH_VAPID_PRIVATE_KEY");
+        // A push-signing key cannot forge a session, so it must never take a deployment down.
+        assertThat(c.collectProblems()).isEmpty();
+        c.check();
+    }
+
+    @Test
+    void says_nothing_about_push_keys_once_they_are_rotated() {
+        ProductionSecurityCheck c = new ProductionSecurityCheck(GOOD_PW, GOOD_PW, GOOD_JWT,
+                GOOD_ORIGINS, GOOD_VAPID);
+        assertThat(c.collectWarnings()).isEmpty();
     }
 }
