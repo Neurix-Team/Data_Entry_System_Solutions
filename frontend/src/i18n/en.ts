@@ -32,6 +32,7 @@ export const en = {
     empty: '—',
     confirmDelete: 'Delete "{name}"? This cannot be undone.',
     somethingWrong: 'Something went wrong',
+    noMatches: 'No matches',
     signOut: 'Sign out',
     you: '(you)',
     teamLeader: 'Team Leader',

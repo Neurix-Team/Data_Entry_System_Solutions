@@ -34,6 +34,7 @@ export const ar: Dict = {
     empty: '—',
     confirmDelete: 'حذف "{name}"؟ لا يمكن التراجع.',
     somethingWrong: 'حدث خطأ ما',
+    noMatches: 'لا يوجد تطابق',
     signOut: 'تسجيل الخروج',
     you: '(أنت)',
     teamLeader: 'قائد الفريق',

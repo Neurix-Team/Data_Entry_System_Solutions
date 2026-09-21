@@ -19,6 +19,7 @@ import type {
 } from '../../api/types';
 import { useAuth } from '../../context/AuthContext';
 import { IconFolder, IconPlus, IconTasks } from '../../components/Icons';
+import { SearchableSelect } from '../../components/SearchableSelect';
 import { UploadHud } from '../../components/UploadHud';
 import { useT } from '../../i18n';
 import { pickLocalized } from '../../i18n/localized';
@@ -530,64 +531,54 @@ export function SubmitTicketPage() {
                 {lang === 'ar' ? 'المشروع' : 'Project'}
                 {projects.length > 0 && <span className="req">*</span>}
               </label>
-              <select
-                className="select"
+              <SearchableSelect
                 value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
+                onChange={(v) => setProjectId(v)}
                 disabled={projects.length <= 1}
-              >
-                {projects.length === 0 && (
-                  <option value="">
-                    {lang === 'ar' ? 'لم يخصص لك مشروع بعد' : 'No project assigned yet'}
-                  </option>
-                )}
-                {projects.length > 1 && (
-                  <option value="">
-                    {lang === 'ar' ? 'اختار المشروع' : 'Choose a project'}
-                  </option>
-                )}
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>{pickLocalized(p, 'name', lang)}</option>
-                ))}
-              </select>
+                placeholder={projects.length === 0
+                  ? (lang === 'ar' ? 'لم يخصص لك مشروع بعد' : 'No project assigned yet')
+                  : (lang === 'ar' ? 'اختار المشروع' : 'Choose a project')}
+                options={[
+                  // Only offered when there's an actual choice to make — with one project it's
+                  // pre-selected and disabled, matching the plain-select behavior this replaces.
+                  ...(projects.length > 1
+                    ? [{ value: '', label: lang === 'ar' ? 'اختار المشروع' : 'Choose a project' }]
+                    : []),
+                  ...projects.map((p) => ({ value: String(p.id), label: pickLocalized(p, 'name', lang) })),
+                ]}
+              />
             </div>
             <div className="field field-grow">
               <label className="field-label">
                 {t('user.submit.department')}{' '}
                 <span className="muted small">({t('common.optional')})</span>
               </label>
-              <select
-                className="select"
+              <SearchableSelect
                 value={departmentId}
-                onChange={(e) => setDepartmentId(e.target.value)}
+                onChange={(v) => setDepartmentId(v)}
                 disabled={departments.length === 0}
-              >
-                <option value="">
-                  {lang === 'ar' ? 'كل الأقسام في المشروع' : 'All departments in project'}
-                </option>
-                {departments.map((d) => (
-                  <option key={d.id} value={d.id}>{pickLocalized(d, 'name', lang)}</option>
-                ))}
-              </select>
+                placeholder={lang === 'ar' ? 'كل الأقسام في المشروع' : 'All departments in project'}
+                options={[
+                  { value: '', label: lang === 'ar' ? 'كل الأقسام في المشروع' : 'All departments in project' },
+                  ...departments.map((d) => ({ value: String(d.id), label: pickLocalized(d, 'name', lang) })),
+                ]}
+              />
             </div>
             <div className="field field-grow">
               <label className="field-label">
                 {t('user.submit.subcategory')}{' '}
                 <span className="muted small">({t('common.optional')})</span>
               </label>
-              <select
-                className="select"
+              <SearchableSelect
                 value={subcategoryId}
-                onChange={(e) => setSubcategoryId(e.target.value)}
+                onChange={(v) => setSubcategoryId(v)}
                 disabled={subcategories.length === 0}
-              >
-                <option value="">
-                  {lang === 'ar' ? 'بدون تصنيف' : 'No subcategory'}
-                </option>
-                {subcategories.map((s) => (
-                  <option key={s.id} value={s.id}>{pickLocalized(s, 'name', lang)}</option>
-                ))}
-              </select>
+                placeholder={lang === 'ar' ? 'بدون تصنيف' : 'No subcategory'}
+                options={[
+                  { value: '', label: lang === 'ar' ? 'بدون تصنيف' : 'No subcategory' },
+                  ...subcategories.map((s) => ({ value: String(s.id), label: pickLocalized(s, 'name', lang) })),
+                ]}
+              />
             </div>
           </div>
 
