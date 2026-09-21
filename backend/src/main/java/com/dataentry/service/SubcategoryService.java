@@ -137,6 +137,14 @@ public class SubcategoryService {
         Subcategory s = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Subcategory not found"));
         TenantGuard.assertOwnership(s);
+        long binnedTickets = ticketRepository.countDeletedTicketsBySubcategoryId(id);
+        if (binnedTickets > 0) {
+            // Recycle bin: refuse instead of violating the FK (or silently destroying
+            // recoverable entries). The caller clears the bin for this subcategory first.
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "This subcategory has " + binnedTickets
+                            + " entries in the recycle bin. Restore or purge them first.");
+        }
         ticketRepository.deleteAll(ticketRepository.findAllBySubcategoryId(id));
         customFieldRepository.deleteAll(
                 customFieldRepository.findAllBySubcategoryIdOrderByDisplayOrderAscIdAsc(id));

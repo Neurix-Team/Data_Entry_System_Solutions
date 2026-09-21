@@ -3,9 +3,10 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useT } from '../i18n';
 import { Avatar } from './Avatar';
+import { CommandPalette } from './CommandPalette';
 import {
   IconBuilding, IconChart, IconChat, IconCheck, IconClose, IconDashboard, IconFolder,
-  IconLogout, IconMembers, IconSearch, IconSettings, IconTasks,
+  IconLogout, IconMembers, IconSearch, IconSettings, IconTasks, IconTrash,
 } from './Icons';
 import { NotificationBell } from './NotificationBell';
 import { PreferencesToggle } from './PreferencesToggle';
@@ -20,6 +21,7 @@ export function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const myAvatar = user ? avatarUrl(user.id, user.avatarUpdatedAt) : null;
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const isAdmin = user?.role === 'ADMIN' || isSuperAdmin;
@@ -35,6 +37,18 @@ export function Layout() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [sidebarOpen]);
+
+  // Ctrl+K / Cmd+K opens the global palette from anywhere (B2).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   return (
     <div className={`app-shell${sidebarOpen ? ' sidebar-open' : ''}`}>
@@ -112,6 +126,30 @@ export function Layout() {
               <span className="side-icon"><IconChart /></span>
               {t('nav.reports')}
             </NavLink>
+            <NavLink to="/admin/recycle-bin" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
+              <span className="side-icon"><IconTrash /></span>
+              {t('nav.recycleBin')}
+            </NavLink>
+            <NavLink to="/admin/import" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
+              <span className="side-icon">⬆️</span>
+              {t('nav.import')}
+            </NavLink>
+            <NavLink to="/admin/announcements" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
+              <span className="side-icon">📣</span>
+              {t('nav.announcements')}
+            </NavLink>
+            <NavLink to="/admin/workload" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
+              <span className="side-icon">⚖️</span>
+              {t('nav.workload')}
+            </NavLink>
+            <NavLink to="/admin/quality" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
+              <span className="side-icon">🎯</span>
+              {t('nav.quality')}
+            </NavLink>
+            <NavLink to="/admin/weekly" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
+              <span className="side-icon">🗓️</span>
+              {t('nav.weeklyReport')}
+            </NavLink>
             <NavLink to="/chat" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
               <span className="side-icon"><IconChat /></span>
               {t('nav.chat')}
@@ -153,6 +191,10 @@ export function Layout() {
               <span className="side-icon"><IconFolder /></span>
               {t('nav.projectFolders')}
             </NavLink>
+            <NavLink to="/recycle-bin" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
+              <span className="side-icon"><IconTrash /></span>
+              {t('nav.recycleBin')}
+            </NavLink>
             <div className="sidebar-footer-links">
               <button type="button" className="side-link side-link-btn" onClick={logout}>
                 <span className="side-icon"><IconLogout /></span>
@@ -178,7 +220,24 @@ export function Layout() {
 
           <div className="topbar-search">
             <span className="search-icon"><IconSearch size={18} /></span>
-            <input type="search" placeholder={t('common.searchGlobal')} />
+            <input
+              type="search"
+              placeholder={t('common.searchGlobal')}
+              readOnly
+              onClick={() => setPaletteOpen(true)}
+              onFocus={() => setPaletteOpen(true)}
+              style={{ cursor: 'pointer' }}
+            />
+            <kbd
+              className="muted small"
+              style={{
+                position: 'absolute', insetInlineEnd: 10, top: '50%', transform: 'translateY(-50%)',
+                border: '1px solid var(--border)', borderRadius: 6, padding: '1px 6px',
+                background: 'var(--bg-sunken)', pointerEvents: 'none',
+              }}
+            >
+              Ctrl K
+            </kbd>
           </div>
 
           <div className="topbar-right">
@@ -216,6 +275,7 @@ export function Layout() {
       </div>
 
       <ChatWidget />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   );
 }

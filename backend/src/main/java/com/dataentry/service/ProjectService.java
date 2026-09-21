@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -195,23 +196,33 @@ public class ProjectService {
         }
     }
 
+    /**
+     * Soft delete — the project moves to the recycle bin. Departments, members and
+     * every entry attached to it stay exactly as they are, so a restore is instant
+     * and lossless; the permanent cascade only runs from the bin (RecycleBinService).
+     */
     @Transactional
     public void delete(Long id) {
         Project p = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
         TenantGuard.assertOwnership(p);
-
-        DepartmentService deptSvc = departmentServiceProvider.getObject();
-        List<Department> children = departmentRepository.findAllByProjectId(id);
-        for (Department d : children) {
-            deptSvc.deleteWithChildren(d.getId());
+        if (p.getDeletedAt() != null) {
+            // Already binned — behave exactly like a missing project.
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found");
         }
-
-        ticketRepository.deleteAll(ticketRepository.findAllByProjectId(id));
-
-        repository.deleteById(p.getId());
+        p.setDeletedAt(Instant.now());
+        p.setDeletedById(currentActorId());
+        repository.save(p);
         audit.record(AuditService.Action.DELETE, AuditService.EntityType.PROJECT,
-                id, "cascade=" + children.size() + " departments");
+                id, "soft; name=" + p.getName());
+    }
+
+    private Long currentActorId() {
+        var auth = org.springframework.security.core.context.SecurityContextHolder
+                .getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return null;
+        Object principal = auth.getPrincipal();
+        return principal instanceof User u ? u.getId() : null;
     }
 
 

@@ -107,4 +107,12 @@ public class User implements TeamOwned {
     public boolean isAdminLike() {
         return role == Role.ADMIN || role == Role.SUPER_ADMIN;
     }
+
+    /**
+     * Personal daily-entry target for the goal card on the agent dashboard.
+     * Informational only — a progress ring and streaks, never an enforced quota.
+     */
+    @Column(name = "daily_goal", nullable = false)
+    @Builder.Default
+    private int dailyGoal = 50;
 }

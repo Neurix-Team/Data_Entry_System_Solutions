@@ -8,6 +8,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -54,7 +55,8 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     @Query(value = """
             SELECT
               (SELECT COUNT(*) FROM tickets
-                WHERE (CAST(:teamId AS BIGINT) IS NULL OR team_id = :teamId)) AS "totalTickets",
+                WHERE (CAST(:teamId AS BIGINT) IS NULL OR team_id = :teamId)
+                  AND deleted_at IS NULL) AS "totalTickets",
               (SELECT COUNT(*) FROM departments
                 WHERE (CAST(:teamId AS BIGINT) IS NULL OR team_id = :teamId)) AS "totalDepartments",
               (SELECT COUNT(*) FROM custom_fields
@@ -63,17 +65,21 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
               (SELECT COUNT(*) FROM users
                 WHERE (CAST(:teamId AS BIGINT) IS NULL OR team_id = :teamId)) AS "totalUsers",
               (SELECT COUNT(*) FROM tickets
-                WHERE (CAST(:teamId AS BIGINT) IS NULL OR team_id = :teamId) AND status = 'IN_PROGRESS')
+                WHERE (CAST(:teamId AS BIGINT) IS NULL OR team_id = :teamId) AND status = 'IN_PROGRESS'
+                  AND deleted_at IS NULL)
                 AS "inProgress",
               (SELECT COUNT(*) FROM tickets
-                WHERE (CAST(:teamId AS BIGINT) IS NULL OR team_id = :teamId) AND status = 'REVIEW')
+                WHERE (CAST(:teamId AS BIGINT) IS NULL OR team_id = :teamId) AND status = 'REVIEW'
+                  AND deleted_at IS NULL)
                 AS "review",
               (SELECT COUNT(*) FROM tickets
-                WHERE (CAST(:teamId AS BIGINT) IS NULL OR team_id = :teamId) AND status = 'COMPLETED')
+                WHERE (CAST(:teamId AS BIGINT) IS NULL OR team_id = :teamId) AND status = 'COMPLETED'
+                  AND deleted_at IS NULL)
                 AS "completed",
               (SELECT COUNT(*) FROM tickets
                 WHERE (CAST(:teamId AS BIGINT) IS NULL OR team_id = :teamId)
-                  AND status = 'COMPLETED' AND submitted_at >= :startOfToday)
+                  AND status = 'COMPLETED' AND submitted_at >= :startOfToday
+                  AND deleted_at IS NULL)
                 AS "completedToday"
             """, nativeQuery = true)
     AdminStatsProjection aggregateAdminStats(@Param("teamId") Long teamId,
@@ -86,6 +92,7 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
               FROM tickets
              WHERE (CAST(:teamId AS BIGINT) IS NULL OR team_id = :teamId)
                AND submitted_at >= :since
+                AND deleted_at IS NULL
              GROUP BY 1, 2
             """, nativeQuery = true)
     List<DepartmentDailyCountProjection> departmentDailyCounts(
@@ -100,6 +107,7 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
               FROM tickets
              WHERE (CAST(:teamId AS BIGINT) IS NULL OR team_id = :teamId)
                AND submitted_at >= :since
+                AND deleted_at IS NULL
              GROUP BY 1
              ORDER BY 1
             """, nativeQuery = true)
@@ -120,6 +128,7 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
               FROM users u
               LEFT JOIN tickets t
                      ON t.submitted_by_id = u.id
+                    AND t.deleted_at IS NULL
                     AND (CAST(:teamId AS BIGINT) IS NULL OR t.team_id = :teamId)
              WHERE (CAST(:teamId AS BIGINT) IS NULL OR u.team_id = :teamId)
              GROUP BY u.id, u.username, u.display_name, u.display_name_en, u.display_name_ar
@@ -262,4 +271,216 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
             "group by t.submittedBy.id, t.submittedBy.username, t.submittedBy.displayName " +
             "order by count(t) desc")
     List<DashboardDtos.TopPerformer> topPerformersByStatus(@Param("status") TicketStatus status, Pageable pageable);
+
+    // ─── Recycle bin ─────────────────────────────────────────────────────────────
+    // Soft-deleted rows are invisible to everything above (entity-level @Where);
+    // these native queries deliberately bypass it to list / inspect / restore / purge
+    // binned rows. Team scope follows the stats-query convention: null teamId means
+    // "no tenant restriction" (super admin views / the retention sweeper).
+
+    interface DeletedTicketRow {
+        Long getId();
+        String getTitle();
+        String getTitleEn();
+        String getTitleAr();
+        String getStatus();
+        Long getSubmittedById();
+        String getSubmittedByUsername();
+        Instant getDeletedAt();
+        Long getDeletedById();
+        String getDeletedByName();
+        Long getTeamId();
+    }
+
+    @Query(value = """
+            SELECT t.id AS "id",
+                   COALESCE(t.title_en, t.title_ar, t.title) AS "title",
+                   t.title_en AS "titleEn",
+                   t.title_ar AS "titleAr",
+                   t.status AS "status",
+                   t.submitted_by_id AS "submittedById",
+                   u.username AS "submittedByUsername",
+                   t.deleted_at AS "deletedAt",
+                   t.deleted_by_id AS "deletedById",
+                   COALESCE(db.display_name, db.username) AS "deletedByName",
+                   t.team_id AS "teamId"
+              FROM tickets t
+              LEFT JOIN users u ON u.id = t.submitted_by_id
+              LEFT JOIN users db ON db.id = t.deleted_by_id
+             WHERE t.deleted_at IS NOT NULL
+               AND (CAST(:teamId AS BIGINT) IS NULL OR t.team_id = :teamId)
+               AND (CAST(:userId AS BIGINT) IS NULL OR t.submitted_by_id = :userId)
+             ORDER BY t.deleted_at DESC
+             LIMIT :limit OFFSET :offset
+            """, nativeQuery = true)
+    List<DeletedTicketRow> findDeletedTickets(@Param("teamId") Long teamId,
+                                              @Param("userId") Long userId,
+                                              @Param("limit") int limit,
+                                              @Param("offset") int offset);
+
+    @Query(value = """
+            SELECT t.id AS "id",
+                   COALESCE(t.title_en, t.title_ar, t.title) AS "title",
+                   t.title_en AS "titleEn",
+                   t.title_ar AS "titleAr",
+                   t.status AS "status",
+                   t.submitted_by_id AS "submittedById",
+                   u.username AS "submittedByUsername",
+                   t.deleted_at AS "deletedAt",
+                   t.deleted_by_id AS "deletedById",
+                   COALESCE(db.display_name, db.username) AS "deletedByName",
+                   t.team_id AS "teamId"
+              FROM tickets t
+              LEFT JOIN users u ON u.id = t.submitted_by_id
+              LEFT JOIN users db ON db.id = t.deleted_by_id
+             WHERE t.id = :id AND t.deleted_at IS NOT NULL
+            """, nativeQuery = true)
+    Optional<DeletedTicketRow> findDeletedTicketById(@Param("id") Long id);
+
+    @Query(value = """
+            SELECT COUNT(*) FROM tickets t
+             WHERE t.deleted_at IS NOT NULL
+               AND (CAST(:teamId AS BIGINT) IS NULL OR t.team_id = :teamId)
+               AND (CAST(:userId AS BIGINT) IS NULL OR t.submitted_by_id = :userId)
+            """, nativeQuery = true)
+    long countDeletedTickets(@Param("teamId") Long teamId, @Param("userId") Long userId);
+
+    /** Team of a ticket, binned or not — native so @Where can't hide the row. */
+    @Query(value = "select team_id from tickets where id = :id", nativeQuery = true)
+    Long teamIdOfAnyTicket(@Param("id") Long id);
+
+    /** 1 when the ticket is actually sitting in the bin, 0 otherwise. */
+    @Query(value = "select count(*) from tickets where id = :id and deleted_at is not null", nativeQuery = true)
+    long countBinnedTicketById(@Param("id") Long id);
+
+    @Modifying
+    @Query(value = "update tickets set deleted_at = null, deleted_by_id = null "
+            + "where id = :id and deleted_at is not null", nativeQuery = true)
+    int restoreTicket(@Param("id") Long id);
+
+    @Modifying
+    @Query(value = "delete from tickets where id = :id and deleted_at is not null", nativeQuery = true)
+    int purgeTicketRow(@Param("id") Long id);
+
+    @Modifying
+    @Query(value = "delete from ticket_field_values where ticket_id = :ticketId", nativeQuery = true)
+    int purgeTicketFieldValues(@Param("ticketId") Long ticketId);
+
+    @Modifying
+    @Query(value = "delete from ticket_resources where ticket_id = :ticketId", nativeQuery = true)
+    int purgeTicketResources(@Param("ticketId") Long ticketId);
+
+    @Modifying
+    @Query(value = "delete from ticket_documents where ticket_id = :ticketId", nativeQuery = true)
+    int purgeTicketDocuments(@Param("ticketId") Long ticketId);
+
+    /** Binned tickets past the retention window — the sweeper's worklist. */
+    @Query(value = "select id from tickets where deleted_at is not null and deleted_at < :cutoff", nativeQuery = true)
+    List<Long> findExpiredDeletedTicketIds(@Param("cutoff") Instant cutoff);
+
+    /**
+     * Binned tickets still referencing a department/subcategory block that structural
+     * row from being hard-deleted (FK). Deleting the structure is refused until the bin
+     * entries are restored or purged, so the bin's promise is never silently broken.
+     */
+    @Query(value = "select count(*) from tickets where department_id = :departmentId and deleted_at is not null", nativeQuery = true)
+    long countDeletedTicketsByDepartmentId(@Param("departmentId") Long departmentId);
+
+    @Query(value = "select count(*) from tickets where subcategory_id = :subcategoryId and deleted_at is not null", nativeQuery = true)
+    long countDeletedTicketsBySubcategoryId(@Param("subcategoryId") Long subcategoryId);
+
+    /**
+     * Live entries attached to a project — either directly or through one of its
+     * departments. A project purge is refused while any remain.
+     */
+    @Query(value = """
+            SELECT COUNT(*) FROM tickets t
+             WHERE t.deleted_at IS NULL
+               AND (t.project_id = :projectId
+                    OR t.department_id IN (SELECT d.id FROM departments d WHERE d.project_id = :projectId))
+            """, nativeQuery = true)
+    long countLiveTicketsAttachedToProject(@Param("projectId") Long projectId);
+
+    @Query(value = """
+            SELECT t.id FROM tickets t
+             WHERE t.deleted_at IS NOT NULL
+               AND (t.project_id = :projectId
+                    OR t.department_id IN (SELECT d.id FROM departments d WHERE d.project_id = :projectId))
+            """, nativeQuery = true)
+    List<Long> findDeletedTicketIdsAttachedToProject(@Param("projectId") Long projectId);
+
+    @Modifying
+    @Query(value = """
+            DELETE FROM tickets
+             WHERE deleted_at IS NOT NULL
+               AND (project_id = :projectId
+                    OR department_id IN (SELECT d.id FROM departments d WHERE d.project_id = :projectId))
+            """, nativeQuery = true)
+    int purgeDeletedTicketsAttachedToProject(@Param("projectId") Long projectId);
+
+    // ─── Global search (Ctrl+K palette) ────────────────────────────────────────
+    // Bounded results only — a palette, not a report. Native + explicit team scope
+    // for parity with the stats queries; deleted rows filtered everywhere.
+
+    interface SearchTicketRow {
+        Long getId();
+        String getTitle();
+        String getTitleEn();
+        String getTitleAr();
+        String getStatus();
+        Long getSubmittedById();
+        String getSubmittedByUsername();
+        Instant getSubmittedAt();
+    }
+
+    @Query(value = """
+            SELECT t.id AS "id",
+                   COALESCE(t.title_en, t.title_ar, t.title) AS "title",
+                   t.title_en AS "titleEn",
+                   t.title_ar AS "titleAr",
+                   t.status AS "status",
+                   t.submitted_by_id AS "submittedById",
+                   u.username AS "submittedByUsername",
+                   t.submitted_at AS "submittedAt"
+              FROM tickets t
+              LEFT JOIN users u ON u.id = t.submitted_by_id
+             WHERE t.deleted_at IS NULL
+               AND (CAST(:teamId AS BIGINT) IS NULL OR t.team_id = :teamId)
+               AND (lower(t.title) LIKE :pattern
+                    OR lower(t.title_en) LIKE :pattern
+                    OR lower(t.title_ar) LIKE :pattern)
+             ORDER BY t.submitted_at DESC
+             LIMIT :limit
+            """, nativeQuery = true)
+    List<SearchTicketRow> searchTickets(@Param("teamId") Long teamId,
+                                        @Param("pattern") String pattern,
+                                        @Param("limit") int limit);
+
+    // ─── Per-agent quality / workload aggregates (C3 + C5) ─────────────────────
+
+    interface UserStatusCountRow {
+        Long getUserId();
+        String getStatus();
+        long getTotal();
+    }
+
+    @Query(value = """
+            SELECT t.submitted_by_id AS "userId", t.status AS "status", COUNT(*) AS "total"
+              FROM tickets t
+             WHERE t.deleted_at IS NULL
+               AND (CAST(:teamId AS BIGINT) IS NULL OR t.team_id = :teamId)
+             GROUP BY 1, 2
+            """, nativeQuery = true)
+    List<UserStatusCountRow> statusCountsByUser(@Param("teamId") Long teamId);
+
+    @Query(value = """
+            SELECT t.submitted_by_id AS "userId", t.status AS "status", COUNT(*) AS "total"
+              FROM tickets t
+             WHERE t.deleted_at IS NULL
+               AND (CAST(:teamId AS BIGINT) IS NULL OR t.team_id = :teamId)
+               AND t.submitted_at >= :since
+             GROUP BY 1, 2
+            """, nativeQuery = true)
+    List<UserStatusCountRow> statusCountsByUserSince(@Param("teamId") Long teamId,
+                                                     @Param("since") Instant since);
 }

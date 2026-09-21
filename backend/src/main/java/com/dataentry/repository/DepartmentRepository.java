@@ -38,6 +38,7 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
                     AND (CAST(:teamId AS BIGINT) IS NULL OR s.team_id = :teamId)
               LEFT JOIN tickets t
                      ON t.department_id = d.id
+                    AND t.deleted_at IS NULL
                     AND (CAST(:teamId AS BIGINT) IS NULL OR t.team_id = :teamId)
              WHERE (CAST(:teamId AS BIGINT) IS NULL OR d.team_id = :teamId)
              GROUP BY d.id, d.name, d.name_en, d.name_ar
@@ -51,4 +52,25 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
     List<Department> findAllByProjectId(Long projectId);
     List<Department> findAllByProjectIdIn(java.util.Collection<Long> projectIds);
     boolean existsByNameIgnoreCase(String name);
+
+    // ─── Global search (Ctrl+K palette) ─────────────────────────────────────
+    interface SearchRow {
+        Long getId();
+        String getName();
+    }
+
+    @Query(value = """
+            SELECT d.id AS "id", COALESCE(d.name_en, d.name_ar, d.name) AS "name"
+              FROM departments d
+             WHERE d.active = TRUE
+               AND (CAST(:teamId AS BIGINT) IS NULL OR d.team_id = :teamId)
+               AND (lower(d.name) LIKE :pattern
+                    OR lower(d.name_en) LIKE :pattern
+                    OR lower(d.name_ar) LIKE :pattern)
+             ORDER BY d.id
+             LIMIT :limit
+            """, nativeQuery = true)
+    List<SearchRow> searchDepartments(@Param("teamId") Long teamId,
+                                      @Param("pattern") String pattern,
+                                      @Param("limit") int limit);
 }

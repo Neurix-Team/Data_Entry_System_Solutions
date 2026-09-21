@@ -78,4 +78,16 @@ public class Project implements TeamOwned {
     @Column(nullable = false, updatable = false)
     @Builder.Default
     private Instant createdAt = Instant.now();
+
+    /**
+     * Recycle bin: set by a soft delete, cleared by a restore. Deliberately NOT paired
+     * with a class-level @Where — tickets keep a live FK to binned projects and must
+     * still resolve them; project queries filter on this field explicitly instead.
+     */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
+    /** Who binned the project. Purely informational. */
+    @Column(name = "deleted_by_id")
+    private Long deletedById;
 }

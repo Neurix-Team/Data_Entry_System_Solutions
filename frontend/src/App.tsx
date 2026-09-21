@@ -19,11 +19,17 @@ const AdminProjectsPage = lazy(() => import('./pages/admin/AdminProjectsPage').t
 const AdminReportsPage = lazy(() => import('./pages/admin/AdminReportsPage').then((m) => ({ default: m.AdminReportsPage })));
 const AdminUserActivityPage = lazy(() => import('./pages/admin/AdminUserActivityPage').then((m) => ({ default: m.AdminUserActivityPage })));
 const AdminAssignmentsPage = lazy(() => import('./pages/admin/AdminAssignmentsPage').then((m) => ({ default: m.AdminAssignmentsPage })));
+const AdminImportPage = lazy(() => import('./pages/admin/AdminImportPage').then((m) => ({ default: m.AdminImportPage })));
+const AdminAnnouncementsPage = lazy(() => import('./pages/admin/AdminAnnouncementsPage').then((m) => ({ default: m.AdminAnnouncementsPage })));
+const AdminWorkloadPage = lazy(() => import('./pages/admin/AdminWorkloadPage').then((m) => ({ default: m.AdminWorkloadPage })));
+const AdminQualityPage = lazy(() => import('./pages/admin/AdminQualityPage').then((m) => ({ default: m.AdminQualityPage })));
+const AdminWeeklyReportPage = lazy(() => import('./pages/admin/AdminWeeklyReportPage').then((m) => ({ default: m.AdminWeeklyReportPage })));
 
 const SubmitTicketPage = lazy(() => import('./pages/user/SubmitTicketPage').then((m) => ({ default: m.SubmitTicketPage })));
 const MyTicketsPage = lazy(() => import('./pages/user/MyTicketsPage').then((m) => ({ default: m.MyTicketsPage })));
 const UserDashboardPage = lazy(() => import('./pages/user/UserDashboardPage').then((m) => ({ default: m.UserDashboardPage })));
 const MyAssignmentsPage = lazy(() => import('./pages/user/MyAssignmentsPage').then((m) => ({ default: m.MyAssignmentsPage })));
+const RecycleBinPage = lazy(() => import('./pages/RecycleBinPage').then((m) => ({ default: m.RecycleBinPage })));
 const ChatPage = lazy(() => import('./pages/chat/ChatPage'));
 
 const SuperLayout = lazy(() => import('./pages/super/SuperLayout').then((m) => ({ default: m.SuperLayout })));
@@ -98,8 +104,14 @@ export default function App() {
         <Route path="/admin/reports" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><AdminReportsPage /></ProtectedRoute>} />
         <Route path="/admin/users/:id/activity" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><AdminUserActivityPage /></ProtectedRoute>} />
         <Route path="/admin/assignments" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><AdminAssignmentsPage /></ProtectedRoute>} />
+        <Route path="/admin/import" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><AdminImportPage /></ProtectedRoute>} />
+        <Route path="/admin/announcements" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><AdminAnnouncementsPage /></ProtectedRoute>} />
+        <Route path="/admin/workload" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><AdminWorkloadPage /></ProtectedRoute>} />
+        <Route path="/admin/quality" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><AdminQualityPage /></ProtectedRoute>} />
+        <Route path="/admin/weekly" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><AdminWeeklyReportPage /></ProtectedRoute>} />
         <Route path="/admin/project-folders" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><ProjectFoldersPage /></ProtectedRoute>} />
         <Route path="/admin/project-folders/:projectId" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><ProjectFolderDetailPage /></ProtectedRoute>} />
+        <Route path="/admin/recycle-bin" element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}><RecycleBinPage /></ProtectedRoute>} />
 
         <Route path="/dashboard" element={<UserDashboardPage />} />
         <Route path="/submit" element={<SubmitTicketPage />} />
@@ -107,6 +119,7 @@ export default function App() {
         <Route path="/assignments" element={<MyAssignmentsPage />} />
         <Route path="/project-folders" element={<ProjectFoldersPage />} />
         <Route path="/project-folders/:projectId" element={<ProjectFolderDetailPage />} />
+        <Route path="/recycle-bin" element={<RecycleBinPage />} />
         <Route path="/chat" element={<ChatPage />} />
 
         <Route path="/profile" element={<ProfilePage />} />

@@ -6,6 +6,7 @@ import { IconCalendar, IconChart, IconCheck, IconTrendUp } from '../../component
 import { useAuth } from '../../context/AuthContext';
 import { useT } from '../../i18n';
 import { BreakdownList } from './dashboard/BreakdownList';
+import { GoalCard } from './dashboard/GoalCard';
 import { KpiCard } from './dashboard/KpiCard';
 import { RecentActivity } from './dashboard/RecentActivity';
 import { StatusDonut } from './dashboard/StatusDonut';
@@ -113,6 +114,8 @@ export function UserDashboardPage() {
           accent="green"
         />
       </div>
+
+      <GoalCard />
 
       <div className="udash-grid-2">
         <div className="udash-panel">

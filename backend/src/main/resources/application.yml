@@ -119,6 +119,25 @@ app:
     # strictly better than best-effort quality here. Previously 8000 ms.
     timeout-ms: 2000
     fail-open: true
+  push:
+    # Browser push (Web Push). The bundled pair works out of the box for local dev;
+    # generate a permanent pair for production (see .env.example) — rotating keys
+    # invalidates every existing browser subscription.
+    vapid-public-key: ${WEB_PUSH_VAPID_PUBLIC_KEY:BL5eJoBQYW4nf0ACRYMmg7ATHEK4E_pUYyy5-MtLj4IVmkI7AnSceaLF9LfwxvtqSPLt5gaQcDk8qTLbiVxSvR4}
+    vapid-private-key: ${WEB_PUSH_VAPID_PRIVATE_KEY:2mOGx3EDVfd1TDzayhj3JXYecapNezPCj6Hjan5H4AA}
+    vapid-subject: ${WEB_PUSH_VAPID_SUBJECT:mailto:admin@example.com}
+    # How long a push service should keep a message for an offline device.
+    ttl-seconds: ${WEB_PUSH_TTL_SECONDS:3600}
+  recycle-bin:
+    # Days a soft-deleted entry/project stays recoverable before the sweeper purges it.
+    retention-days: ${APP_RECYCLE_BIN_RETENTION_DAYS:30}
+  reports:
+    # Monday 06:00 digest to every team's leaders (in-app + browser push).
+    weekly-schedule-enabled: ${APP_WEEKLY_REPORT_SCHEDULE:true}
+    weekly-cron: ${APP_WEEKLY_REPORT_CRON:0 0 6 * * MON}
+  import:
+    # CSV import row cap per file (also hard-capped in code at 5000).
+    max-rows: ${APP_IMPORT_MAX_ROWS:5000}
 
 management:
   server:

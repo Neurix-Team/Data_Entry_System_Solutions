@@ -5,6 +5,7 @@ import { notificationsApi } from '../api/resources';
 import type { NotificationFeed, NotificationItem } from '../api/types';
 import { useAuth } from '../context/AuthContext';
 import { useT } from '../i18n';
+import { disablePush, enablePush, getPushStatus, type PushStatus } from '../push/push';
 import { IconBell } from './Icons';
 
 export function NotificationBell() {
@@ -15,6 +16,9 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ringing, setRinging] = useState(false);
+  const [pushStatus, setPushStatus] = useState<PushStatus | null>(null);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushMessage, setPushMessage] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const prevUnreadRef = useRef(0);
   const ringTimerRef = useRef<number | null>(null);
@@ -41,6 +45,31 @@ export function NotificationBell() {
       window.removeEventListener('focus', onFocus);
     };
   }, [user, refresh]);
+
+  // Browser-push state is only worth checking while the dropdown is open.
+  useEffect(() => {
+    if (!open) return;
+    setPushMessage(null);
+    getPushStatus().then(setPushStatus).catch(() => setPushStatus(null));
+  }, [open, user]);
+
+  async function onTogglePush() {
+    if (!pushStatus || pushBusy) return;
+    setPushBusy(true);
+    setPushMessage(null);
+    try {
+      const next = pushStatus.subscribed ? await disablePush() : await enablePush();
+      setPushStatus(next);
+    } catch (e) {
+      const reason = String((e as Error)?.message ?? '');
+      setPushMessage(
+        reason === 'denied' ? t('push.denied')
+          : reason === 'unsupported' ? t('push.unsupported')
+          : t('push.failed'));
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -211,6 +240,48 @@ export function NotificationBell() {
                 </li>
               ))}
             </ul>
+          )}
+
+          {pushStatus && pushStatus.serverEnabled && (
+            <div
+              style={{
+                borderTop: '1px solid var(--border)',
+                padding: '0.6rem 0.9rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 8,
+              }}
+            >
+              <span className="muted small" style={{ flex: 1, minWidth: 0 }}>
+                {pushMessage ?? (pushStatus.subscribed ? t('push.enabled') : t('push.hint'))}
+              </span>
+              {pushStatus.permission !== 'denied' && !pushStatus.subscribed && (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  disabled={pushBusy}
+                  onClick={onTogglePush}
+                >
+                  {t('push.enable')}
+                </button>
+              )}
+              {pushStatus.subscribed && (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  disabled={pushBusy}
+                  onClick={onTogglePush}
+                >
+                  {t('push.off')}
+                </button>
+              )}
+            </div>
+          )}
+          {pushStatus && !pushStatus.supported && (
+            <div className="muted small" style={{ padding: '0.5rem 0.9rem', borderTop: '1px solid var(--border)' }}>
+              {t('push.unsupported')}
+            </div>
           )}
         </div>
       )}

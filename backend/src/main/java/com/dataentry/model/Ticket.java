@@ -4,15 +4,25 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.Filter;
 import org.hibernate.annotations.BatchSize;
+import org.hibernate.annotations.Where;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Data-entry record. Soft delete: while {@code deletedAt} is set the row sits in the
+ * recycle bin — invisible to every Hibernate query (the class-level @Where restricts
+ * them all), still fully intact for a restore, and swept permanently only after the
+ * retention window. @Where (not @SoftDelete) on purpose: Hibernate's @SoftDelete
+ * would cascade a hard delete onto the child collections, destroying exactly the
+ * custom values / resources / documents a restore is supposed to bring back.
+ */
 @Entity
 @Table(name = "tickets")
 @Filter(name = "teamFilter", condition = "team_id = :teamId")
 @EntityListeners(TenantEntityListener.class)
+@Where(clause = "deleted_at IS NULL")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -125,4 +135,15 @@ public class Ticket implements TeamOwned {
     @OrderBy("uploadedAt ASC, id ASC")
     @Builder.Default
     private List<TicketDocument> documents = new ArrayList<>();
+
+    /**
+     * Recycle bin: set by a soft delete, cleared by a restore. Nullable and unmapped in
+     * @Where terms — see the class comment for the scheme.
+     */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
+    /** Who binned the entry — the admin or the owner. Purely informational. */
+    @Column(name = "deleted_by_id")
+    private Long deletedById;
 }

@@ -3,6 +3,7 @@ import type {
   AdminStats,
   AdminUser,
   AiCheckResponse,
+  Announcement,
   ArticleInput,
   Assignment,
   AssignmentList,
@@ -12,6 +13,8 @@ import type {
   DomainDetail,
   DomainStats,
   ExtractedPdf,
+  GoalsData,
+  ImportResult,
   LeaderboardResponse,
   MyDashboard,
   NotificationFeed,
@@ -20,8 +23,13 @@ import type {
   ProjectFolderDetail,
   ProjectFolderSummary,
   ProjectStatus,
+  PushKeyResponse,
+  QualityRow,
   QuickUploadResult,
+  RecycleBinItem,
+  RecycleBinPage,
   ReportData,
+  SearchHits,
   Subcategory,
   SubcategoryStats,
   Ticket,
@@ -34,6 +42,8 @@ import type {
   UploadSession,
   UploadSessionCreateRequest,
   UserActivity,
+  WeeklyReport,
+  WorkloadData,
 } from './types';
 
 export const usersApi = {
@@ -299,4 +309,77 @@ export const assignmentsApi = {
     api.post<Assignment>(`/user/assignments/${id}/done`).then(r => r.data),
   reopenMine: (id: number) =>
     api.post<Assignment>(`/user/assignments/${id}/reopen`).then(r => r.data),
+};
+
+// ─── Recycle bin ─────────────────────────────────────────────────────────────
+// Soft-deleted entries and projects: admins see the whole team's bin (plus
+// projects), users get their own entries back — the personal safety net.
+
+export const recycleBinApi = {
+  adminList: (type: 'tickets' | 'projects', page = 0, size = 20, signal?: AbortSignal) =>
+    api.get<RecycleBinPage>('/admin/recycle-bin', {
+      params: { type, page, size },
+      signal,
+    }).then(r => r.data),
+  myList: (page = 0, size = 20, signal?: AbortSignal) =>
+    api.get<RecycleBinPage>('/user/recycle-bin', { params: { page, size }, signal }).then(r => r.data),
+  restoreTicket: (id: number, admin = false) =>
+    api.post<void>(`/${admin ? 'admin' : 'user'}/recycle-bin/tickets/${id}/restore`)
+      .then(() => undefined),
+  restoreProject: (id: number) =>
+    api.post<void>(`/admin/recycle-bin/projects/${id}/restore`).then(() => undefined),
+  purgeTicket: (id: number) =>
+    api.delete<void>(`/admin/recycle-bin/tickets/${id}`).then(() => undefined),
+  purgeProject: (id: number) =>
+    api.delete<void>(`/admin/recycle-bin/projects/${id}`).then(() => undefined),
+};
+
+// ─── Browser push (Web Push) ─────────────────────────────────────────────────
+
+export interface PushSubscribePayload {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  userAgent?: string;
+}
+
+export const pushApi = {
+  key: () => api.get<PushKeyResponse>('/notifications/push/key').then(r => r.data),
+  subscribe: (payload: PushSubscribePayload) =>
+    api.post<void>('/notifications/push/subscribe', payload).then(() => undefined),
+  unsubscribe: (endpoint: string) =>
+    api.post<void>('/notifications/push/unsubscribe', { endpoint }).then(() => undefined),
+};
+
+// ─── Global search (Ctrl+K) ──────────────────────────────────────────────────
+
+export const searchApi = {
+  query: (q: string, signal?: AbortSignal) =>
+    api.get<SearchHits>('/search', { params: { q }, signal }).then(r => r.data),
+};
+
+// ─── Personal goals + streaks (B5) ────────────────────────────────────────────
+
+export const goalsApi = {
+  get: (signal?: AbortSignal) => api.get<GoalsData>('/user/goals', { signal }).then(r => r.data),
+  update: (dailyGoal: number) =>
+    api.patch<GoalsData>('/user/goals', { dailyGoal }).then(r => r.data),
+};
+
+// ─── Admin feature pack (C1-C5) ───────────────────────────────────────────────
+
+export const adminFeaturesApi = {
+  listAnnouncements: () => api.get<Announcement[]>('/admin/announcements').then(r => r.data),
+  announce: (payload: { title: string; body: string; audience: 'ALL' | 'USERS' | 'ADMINS' }) =>
+    api.post<Announcement>('/admin/announcements', payload).then(r => r.data),
+  workload: () => api.get<WorkloadData>('/admin/workload').then(r => r.data),
+  quality: () => api.get<{ rows: QualityRow[] }>('/admin/quality').then(r => r.data),
+  weekly: () => api.get<WeeklyReport>('/admin/reports/weekly').then(r => r.data),
+  dispatchWeekly: () =>
+    api.post<{ notified: number }>('/admin/reports/weekly/dispatch').then(r => r.data),
+  importCsv: (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api.post<ImportResult>('/admin/import/tickets', form).then(r => r.data);
+  },
 };
