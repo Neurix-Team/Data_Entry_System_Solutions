@@ -50,4 +50,29 @@ public interface UserRepository extends JpaRepository<User, Long> {
             value = "select * from users where role = 'SUPER_ADMIN' and active = true",
             nativeQuery = true)
     List<User> findActiveSuperAdminsForChat();
+
+    // ─── Global search (Ctrl+K palette): admins also search their team members ──
+
+    interface SearchUserRow {
+        Long getId();
+        String getUsername();
+        String getDisplayName();
+    }
+
+    @org.springframework.data.jpa.repository.Query(value = """
+            SELECT u.id AS "id",
+                   u.username AS "username",
+                   COALESCE(u.display_name, u.username) AS "displayName"
+              FROM users u
+             WHERE u.active = TRUE
+               AND (CAST(:teamId AS BIGINT) IS NULL OR u.team_id = :teamId)
+               AND (lower(u.username) LIKE :pattern
+                    OR lower(COALESCE(u.display_name, u.username)) LIKE :pattern)
+             ORDER BY u.username
+             LIMIT :limit
+            """, nativeQuery = true)
+    List<SearchUserRow> searchUsers(
+            @org.springframework.data.repository.query.Param("teamId") Long teamId,
+            @org.springframework.data.repository.query.Param("pattern") String pattern,
+            @org.springframework.data.repository.query.Param("limit") int limit);
 }

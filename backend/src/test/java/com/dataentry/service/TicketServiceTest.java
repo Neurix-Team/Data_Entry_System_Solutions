@@ -210,4 +210,38 @@ class TicketServiceTest {
         assertThat(project.getDepartment()).isNotNull();
         assertThat(project.getDepartment().getName()).isEqualTo("Fresh Project");
     }
+
+    @Test
+    void deleteOwn_softDeletesInsteadOfHardDelete() {
+        Ticket t = Ticket.builder().team(team).id(77L).title("Bin me")
+                .submittedBy(agent).content("c").build();
+        when(ticketRepository.findById(77L)).thenReturn(Optional.of(t));
+
+        ticketService.deleteOwn(77L, agent);
+
+        // Soft delete: stamped and saved, never removed — the recycle bin owns it now.
+        assertThat(t.getDeletedAt()).isNotNull();
+        assertThat(t.getDeletedById()).isEqualTo(agent.getId());
+        org.mockito.Mockito.verify(ticketRepository).save(t);
+        org.mockito.Mockito.verify(ticketRepository, org.mockito.Mockito.never())
+                .deleteById(org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
+    void deleteOwn_refusesSomeoneElsesTicket() {
+        User stranger = User.builder().team(team).id(2L).username("stranger")
+                .role(Role.USER).active(true).build();
+        Ticket t = Ticket.builder().team(team).id(78L).title("Not mine")
+                .submittedBy(stranger).content("c").build();
+        when(ticketRepository.findById(78L)).thenReturn(Optional.of(t));
+
+        assertThatThrownBy(() -> ticketService.deleteOwn(78L, agent))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isEqualTo(org.springframework.http.HttpStatus.FORBIDDEN);
+
+        assertThat(t.getDeletedAt()).isNull();
+        org.mockito.Mockito.verify(ticketRepository, org.mockito.Mockito.never())
+                .save(org.mockito.ArgumentMatchers.any(Ticket.class));
+    }
 }

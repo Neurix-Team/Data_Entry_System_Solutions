@@ -464,6 +464,125 @@ export interface NotificationFeed {
   unread: number;
 }
 
+// ─── Recycle bin (soft-deleted entries & projects) ──────────────────────────
+
+export interface RecycleBinItem {
+  id: number;
+  kind: 'TICKET' | 'PROJECT';
+  title: string;
+  titleEn?: string | null;
+  titleAr?: string | null;
+  status: string;
+  ownerUsername?: string | null;
+  deletedAt: string;
+  deletedByName?: string | null;
+  daysLeft: number;
+}
+
+export interface RecycleBinPage {
+  items: RecycleBinItem[];
+  totalItems: number;
+  totalPages: number;
+  page: number;
+  size: number;
+}
+
+// ─── Browser push (Web Push) ────────────────────────────────────────────────
+
+export interface PushKeyResponse {
+  enabled: boolean;
+  publicKey: string | null;
+}
+
+// ─── Global search (Ctrl+K) ─────────────────────────────────────────────────
+
+export interface SearchTicketHit {
+  id: number;
+  title: string;
+  titleEn?: string | null;
+  titleAr?: string | null;
+  status: string;
+  submittedByUsername?: string | null;
+  submittedAt: string;
+}
+
+export interface SearchHits {
+  query: string;
+  tickets: SearchTicketHit[];
+  projects: Array<{ id: number; name: string }>;
+  departments: Array<{ id: number; name: string }>;
+  subcategories: Array<{ id: number; name: string }>;
+  users: Array<{ id: number; username: string; displayName?: string | null }>;
+}
+
+// ─── Personal goals + streaks (B5) ───────────────────────────────────────────
+
+export interface GoalsData {
+  dailyGoal: number;
+  todayCount: number;
+  weekCount: number;
+  currentStreak: number;
+  bestStreak: number;
+  last7Days: Array<{ day: string; count: number }>;
+}
+
+// ─── Admin feature pack (C1-C5) ──────────────────────────────────────────────
+
+export interface Announcement {
+  id: number;
+  title: string;
+  body: string;
+  audience: 'ALL' | 'USERS' | 'ADMINS';
+  createdAt: string;
+  createdByName?: string | null;
+}
+
+export interface WorkloadRow {
+  userId: number;
+  displayName: string;
+  username: string;
+  openAssignments: number;
+  weekEntries: number;
+  weekCompleted: number;
+  loadScore: number;
+}
+
+export interface WorkloadData {
+  rows: WorkloadRow[];
+  busiestUserId?: number | null;
+  freestUserId?: number | null;
+}
+
+export interface WeeklyReport {
+  from: string;
+  to: string;
+  totalEntries: number;
+  completedEntries: number;
+  completionRatePct: number;
+  byDay: Array<{ day: string; total: number; completed: number }>;
+  topPerformers: Array<{ userId: number; displayName: string; total: number }>;
+}
+
+export interface QualityRow {
+  userId: number;
+  displayName: string;
+  username: string;
+  total: number;
+  completed: number;
+  review: number;
+  inProgress: number;
+  completedRate: number;
+  reviewRate: number;
+  weekTotal: number;
+}
+
+export interface ImportResult {
+  created: number;
+  failed: number;
+  skippedHeader: number;
+  errors: Array<{ row: number; reason: string }>;
+}
+
 export interface ExtractedPdf {
   filename: string;
   text: string;

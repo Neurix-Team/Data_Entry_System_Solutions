@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { extractError } from '../../api/client';
 import {
   ChunkedUploadUnsupportedError,
@@ -17,6 +17,7 @@ import type {
   ExtractedPdf,
   ResourceInput,
 } from '../../api/types';
+import { useAuth } from '../../context/AuthContext';
 import { IconFolder, IconPlus, IconTasks } from '../../components/Icons';
 import { UploadHud } from '../../components/UploadHud';
 import { useT } from '../../i18n';
@@ -35,7 +36,10 @@ import {
 } from './submit/ArticleCard';
 import { CustomFieldsSection } from './submit/CustomFieldsSection';
 import { DocumentUploadDialog } from './submit/DocumentUploadDialog';
+import { ShortcutsHelp } from './submit/ShortcutsHelp';
+import { useSubmitDraft, type SubmitDraft } from './submit/useDraft';
 import { useArticles } from './submit/useArticles';
+import { useFastEntry } from './submit/useFastEntry';
 import { useSubmitTicketData } from './submit/useSubmitTicketData';
 
 function LiveDateInput() {
@@ -61,6 +65,8 @@ function isValidUrl(s: string): boolean {
 export function SubmitTicketPage() {
   const { t, lang } = useT();
   const toast = useToast();
+  const { user } = useAuth();
+  const draft = useSubmitDraft(user?.id);
 
   const {
     projects, departments, subcategories, fields,
@@ -85,6 +91,8 @@ export function SubmitTicketPage() {
   } = useArticles();
 
   const bulkFilesInputRef = useRef<HTMLInputElement | null>(null);
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -112,6 +120,100 @@ export function SubmitTicketPage() {
   const [docLoading, setDocLoading] = useState(false);
   const [docResult, setDocResult] = useState<ExtractedPdf | null>(null);
   const [docError, setDocError] = useState<string | null>(null);
+
+  // ── Draft autosave (B1) ────────────────────────────────────────────────────
+  const [draftAvailable, setDraftAvailable] = useState<SubmitDraft | null>(() => null);
+  const [draftReady, setDraftReady] = useState(false);
+  const skipDraftSave = useRef(true);
+
+  // Read the saved draft once the user is known (localStorage is keyed by user).
+  useEffect(() => {
+    if (draftReady) return;
+    setDraftAvailable(user?.id ? draft.read() : null);
+    setDraftReady(true);
+    skipDraftSave.current = true; // never autosave the untouched mount state
+  }, [draftReady, user?.id, draft]);
+
+  function serializeDraft(): Omit<SubmitDraft, 'savedAt'> {
+    return {
+      projectId,
+      departmentId,
+      subcategoryId,
+      customValues,
+      articles: articles.map((a) => ({
+        title: a.title,
+        content: a.content,
+        resources: a.resources.map((r) => ({ name: r.name, link: r.link })),
+      })),
+    };
+  }
+
+  // Debounced autosave on every meaningful change.
+  useEffect(() => {
+    if (!draftReady || skipDraftSave.current) return;
+    const hasContent = articles.some((a) => a.title.trim() || a.content.trim())
+      || Object.values(customValues).some((v) => v && v.trim());
+    if (!hasContent) return;
+    const id = window.setTimeout(() => { draft.save(serializeDraft()); }, 800);
+    return () => window.clearTimeout(id);
+    // serializeDraft closes over the same values listed below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftReady, draft, projectId, departmentId, subcategoryId, customValues, articles]);
+
+  // Enter walks the fields, Ctrl+Enter sends, Alt+N opens a fresh card. Entry here is
+  // repetitive by nature, and a hand that never leaves the keyboard is a faster hand.
+  const showShortcuts = useCallback(() => setShortcutsOpen(true), []);
+  useFastEntry(formRef, {
+    onAddArticle: addArticle,
+    onShowShortcuts: showShortcuts,
+    disabled: submitting,
+  });
+
+  // Ctrl+S saves the draft right away; Ctrl+K is handled globally by the palette.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        if (skipDraftSave.current) skipDraftSave.current = false;
+        const at = draft.save(serializeDraft());
+        toast.info(at ? t('user.submit.draftSaved') : t('user.submit.draftSaveFailed'));
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft, projectId, departmentId, subcategoryId, customValues, articles, t]);
+
+  function restoreDraft(d: SubmitDraft) {
+    skipDraftSave.current = true;
+    setProjectId(d.projectId as typeof projectId);
+    setDepartmentId(d.departmentId as typeof departmentId);
+    setSubcategoryId(d.subcategoryId as typeof subcategoryId);
+    setCustomValues(d.customValues ?? {});
+    resetArticles();
+    // Deterministic replay of useArticles' id counters (articles from 1, extra
+    // resources from 2 — see useArticles.ts), so every update hits the right row.
+    let resCounter = 2;
+    d.articles.forEach((a, i) => {
+      const rowId = i; // add() assigns ids 1,2,3… in order
+      if (i > 0) addArticle();
+      const firstResId = i === 0 ? 0 : resCounter++;
+      a.resources.forEach((r, j) => {
+        if (j > 0) addResource(rowId);
+        const rid = j === 0 ? firstResId : resCounter++;
+        updateResource(rowId, rid, { name: r.name ?? '', link: r.link ?? '' });
+      });
+      updateArticle(rowId, { title: a.title ?? '', content: a.content ?? '' });
+    });
+    setDraftAvailable(null);
+    draft.clear();
+    toast.info(t('user.submit.draftRestored'));
+  }
+
+  function discardDraft() {
+    draft.clear();
+    setDraftAvailable(null);
+  }
 
 
   function validate(): boolean {
@@ -270,6 +372,8 @@ export function SubmitTicketPage() {
       resetArticles();
       autoTitles.current.clear();
       setErrors({});
+      draft.clear(); // submitted — the draft served its purpose
+      setDraftAvailable(null);
     } catch (err) {
       setSubmitError(extractError(err, t('user.submit.submitFailed')));
     } finally {
@@ -383,12 +487,39 @@ export function SubmitTicketPage() {
         </div>
       </div>
 
+      {draftAvailable && (
+        <div
+          role="status"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+            background: 'var(--brand-soft)', border: '1px solid var(--brand-border)',
+            borderRadius: 'var(--radius)', padding: '0.6rem 0.9rem', marginBottom: 12,
+          }}
+        >
+          <span style={{ fontSize: 15 }}>📩</span>
+          <span style={{ flex: 1, minWidth: 200, fontSize: 13 }}>
+            {t('user.submit.draftFound', {
+              time: new Date(draftAvailable.savedAt).toLocaleString(lang === 'ar' ? 'ar-EG' : undefined),
+            })}
+            <span className="muted small" style={{ display: 'block' }}>
+              {t('user.submit.draftHint')}
+            </span>
+          </span>
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => restoreDraft(draftAvailable)}>
+            {t('user.submit.draftRestore')}
+          </button>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={discardDraft}>
+            {t('user.submit.draftDiscard')}
+          </button>
+        </div>
+      )}
+
       {loadError && <div className="alert alert-error">{loadError}</div>}
       {submitError && <div className="alert alert-error">{submitError}</div>}
       {success && <div className="alert alert-success">{success}</div>}
 
       <div className="card">
-        <form onSubmit={onSubmit} noValidate>
+        <form onSubmit={onSubmit} noValidate ref={formRef}>
           <div className="form-row">
             <div className="field field-grow-sm">
               <label className="field-label">{t('user.submit.date')}</label>
@@ -593,6 +724,14 @@ export function SubmitTicketPage() {
           <div className="form-row-end">
             <button
               type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={showShortcuts}
+              title={t('user.submit.shortcuts.open')}
+            >
+              <kbd>?</kbd> {t('user.submit.shortcuts.open')}
+            </button>
+            <button
+              type="button"
               className="btn btn-secondary"
               onClick={addArticle}
               disabled={submitting}
@@ -607,6 +746,8 @@ export function SubmitTicketPage() {
           </div>
         </form>
       </div>
+
+      <ShortcutsHelp open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
 
       <AiCheckDialog
         open={aiOpen}

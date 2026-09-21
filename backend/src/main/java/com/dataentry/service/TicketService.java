@@ -17,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.EnumSet;
@@ -103,6 +104,9 @@ public class TicketService {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Project not found"));
         TenantGuard.assertOwnership(project);
+        if (project.getDeletedAt() != null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Project not found");
+        }
         Department dept = (departmentId != null)
                 ? resolveRequestedDepartment(project, departmentId)
                 : resolveDepartmentForQuickUpload(project);
@@ -259,6 +263,10 @@ public class TicketService {
         Project project = projectRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Project not found"));
         TenantGuard.assertOwnership(project);
+        if (project.getDeletedAt() != null) {
+            // Binned project — submitting into it must fail like a missing one.
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Project not found");
+        }
         return project;
     }
 
@@ -514,19 +522,22 @@ public class TicketService {
         return toDto(saved);
     }
 
-    private void assertAdminAuthenticated() {
+    /** Standard admin guard — also hands back the acting principal for the audit trail. */
+    private User assertAdminAuthenticated() {
         var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
         boolean isAdmin = auth != null && auth.isAuthenticated()
                 && auth.getAuthorities().stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
         if (!isAdmin) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
+        Object principal = auth == null ? null : auth.getPrincipal();
+        return principal instanceof User u ? u : null;
     }
 
     @Transactional
     public void delete(Long id) {
-        assertAdminAuthenticated();
-        deleteInternal(id);
+        User actor = assertAdminAuthenticated();
+        deleteInternal(id, actor);
     }
 
     @Transactional
@@ -540,19 +551,23 @@ public class TicketService {
         if (!t.getSubmittedBy().getId().equals(currentUser.getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
-        deleteInternal(id);
+        deleteInternal(id, currentUser);
     }
 
-    private void deleteInternal(Long id) {
+    /**
+     * Soft delete — the entry moves to the recycle bin: invisible to every read path
+     * (entity-level @Where), fully recoverable until the retention sweep. Files and
+     * child rows are deliberately untouched so a restore brings the entry back whole.
+     */
+    private void deleteInternal(Long id, User actor) {
         Ticket t = ticketRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ticket not found"));
         TenantGuard.assertOwnership(t);
-        ticketRepository.deleteById(id);
-        if (documentServiceProvider != null) {
-            TicketDocumentService docs = documentServiceProvider.getIfAvailable();
-            if (docs != null) docs.purgeTicketDirectory(id);
-        }
-        audit.record(AuditService.Action.DELETE, AuditService.EntityType.TICKET, id, null);
+        t.setDeletedAt(Instant.now());
+        t.setDeletedById(actor == null ? null : actor.getId());
+        ticketRepository.save(t);
+        audit.record(AuditService.Action.DELETE, AuditService.EntityType.TICKET, id,
+                "soft; title=" + (t.getTitle() == null ? "" : t.getTitle()));
     }
 
     private TicketDtos.TicketPage toPage(Page<Long> p) {

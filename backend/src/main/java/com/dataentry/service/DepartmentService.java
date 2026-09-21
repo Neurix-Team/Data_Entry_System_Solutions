@@ -142,6 +142,15 @@ public class DepartmentService {
         Department d = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Department not found"));
         TenantGuard.assertOwnership(d);
+        long binnedTickets = ticketRepository.countDeletedTicketsByDepartmentId(id);
+        if (binnedTickets > 0) {
+            // Hard-deleting the row would either violate the FK from those binned
+            // tickets or silently destroy recoverable data. Neither is acceptable:
+            // the caller must clear the bin for this department first.
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "This department has " + binnedTickets
+                            + " entries in the recycle bin. Restore or purge them first.");
+        }
         SubcategoryService subSvc = subcategoryServiceProvider.getObject();
         for (Subcategory s : subcategoryRepository.findAllByDepartmentId(id)) {
             subSvc.deleteWithChildren(s.getId());

@@ -4049,3 +4049,47 @@ html[dir='rtl'] .udash-trend-line { transform: scaleX(-1); }
 }
 .upload-row-meta.is-done { color: var(--success); font-weight: 600; }
 .upload-row-meta.is-failed { color: var(--danger); font-weight: 600; }
+
+
+/* ─── Keyboard shortcuts ─────────────────────────────────────────────────────
+   The chips in the submit form's help sheet, and on the button that opens it. */
+kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 0.1em 0.45em;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--bg-sunken);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.shortcut-list {
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.shortcut-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.shortcut-keys {
+  display: inline-flex;
+  gap: 0.25rem;
+  flex: 0 0 9.5rem;
+}
+
+.shortcut-what {
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+}

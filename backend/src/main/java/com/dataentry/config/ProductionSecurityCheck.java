@@ -25,22 +25,32 @@ public class ProductionSecurityCheck {
             "local-dev-secret-please-rotate-me-with-a-real-random-string-32chars-min"
     );
 
+    /**
+     * The Web Push keypair shipped in application.yml so local development works out of the
+     * box. Anyone holding this private key can sign push messages that browsers will accept
+     * as ours, so it must never reach a deployment.
+     */
+    static final String BUNDLED_VAPID_PRIVATE_KEY = "2mOGx3EDVfd1TDzayhj3JXYecapNezPCj6Hjan5H4AA";
+
     static final int MIN_JWT_SECRET_LENGTH = 32;
 
     private final String adminPassword;
     private final String superAdminPassword;
     private final String jwtSecret;
     private final String corsOrigins;
+    private final String vapidPrivateKey;
 
     public ProductionSecurityCheck(
             @Value("${app.seed.admin-password:}") String adminPassword,
             @Value("${app.seed.superadmin-password:}") String superAdminPassword,
             @Value("${app.jwt.secret:}") String jwtSecret,
-            @Value("${app.cors.allowed-origins:}") String corsOrigins) {
+            @Value("${app.cors.allowed-origins:}") String corsOrigins,
+            @Value("${app.push.vapid-private-key:}") String vapidPrivateKey) {
         this.adminPassword = adminPassword;
         this.superAdminPassword = superAdminPassword;
         this.jwtSecret = jwtSecret;
         this.corsOrigins = corsOrigins;
+        this.vapidPrivateKey = vapidPrivateKey;
     }
 
     @PostConstruct
@@ -72,6 +82,12 @@ public class ProductionSecurityCheck {
         } else if (KNOWN_PLACEHOLDER_JWT_SECRETS.contains(jwtSecret)) {
             problems.add("JWT_SECRET is a well-known placeholder value that has appeared in git "
                     + "history and in application.yml. Anyone can forge tokens against it. Rotate now.");
+        }
+        if (BUNDLED_VAPID_PRIVATE_KEY.equals(vapidPrivateKey)) {
+            problems.add("WEB_PUSH_VAPID_PRIVATE_KEY is still the keypair bundled in "
+                    + "application.yml for local development. It is public knowledge, so anyone "
+                    + "could sign push messages as this deployment. Generate a pair — the "
+                    + "command is in .env.example.");
         }
         if (corsOrigins == null || corsOrigins.isBlank()) {
             problems.add("APP_CORS_ALLOWED_ORIGINS must be set. The API sends credentialed "

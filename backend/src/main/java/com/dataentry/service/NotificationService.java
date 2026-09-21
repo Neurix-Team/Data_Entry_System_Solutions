@@ -18,9 +18,11 @@ public class NotificationService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(NotificationService.class);
 
     private final NotificationRepository repository;
+    private final WebPushService push;
 
-    public NotificationService(NotificationRepository repository) {
+    public NotificationService(NotificationRepository repository, WebPushService push) {
         this.repository = repository;
+        this.push = push;
     }
 
     @Transactional
@@ -38,10 +40,52 @@ public class NotificationService {
                     .createdAt(Instant.now())
                     .build();
             repository.save(n);
+            dispatchPush(recipient, type, message, refType, projectId);
         } catch (Exception e) {
             log.warn("Failed to emit notification (type={}, recipient={}): {}",
                     type, recipient.getId(), e.toString());
         }
+    }
+
+    /**
+     * Browser push rides along with every in-app notification. Delivery only starts
+     * after the surrounding transaction commits — a change that rolled back must not
+     * reach anyone's screen — and it is fully asynchronous, so a slow push service can
+     * never slow the request that produced the notification.
+     */
+    private void dispatchPush(User recipient, String type, String message,
+                              String refType, Long projectId) {
+        if (push == null || !push.isEnabled() || recipient == null || recipient.getId() == null) return;
+        String url = landingUrl(recipient, refType, projectId);
+        try {
+            if (org.springframework.transaction.support.TransactionSynchronizationManager
+                    .isSynchronizationActive()) {
+                org.springframework.transaction.support.TransactionSynchronizationManager
+                        .registerSynchronization(new org.springframework.transaction.support
+                                .TransactionSynchronization() {
+                            @Override
+                            public void afterCommit() {
+                                push.notifyUser(recipient.getId(), "Data Entry", message, url);
+                            }
+                        });
+            } else {
+                push.notifyUser(recipient.getId(), "Data Entry", message, url);
+            }
+        } catch (Exception e) {
+            log.warn("Web Push dispatch skipped (type={}): {}", type, e.toString());
+        }
+    }
+
+    /** Land the click somewhere useful; admins get the admin view of the same thing. */
+    private String landingUrl(User recipient, String refType, Long projectId) {
+        boolean admin = recipient.isAdminLike();
+        if ("ASSIGNMENT".equals(refType)) return admin ? "/admin/assignments" : "/assignments";
+        if ("CHAT".equals(refType)) return "/chat";
+        if ("TICKET".equals(refType)) return admin ? "/admin/tickets" : "/my-tickets";
+        if (projectId != null) {
+            return (admin ? "/admin/project-folders/" : "/project-folders/") + projectId;
+        }
+        return admin ? "/admin" : "/dashboard";
     }
 
     @Transactional(readOnly = true)

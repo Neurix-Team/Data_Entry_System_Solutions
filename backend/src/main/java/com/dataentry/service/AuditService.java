@@ -22,6 +22,8 @@ public class AuditService {
         public static final String USER = "USER";
         public static final String TICKET = "TICKET";
         public static final String ASSIGNMENT = "ASSIGNMENT";
+        /** Admin broadcast (C2) — a message pushed to a team audience. */
+        public static final String ANNOUNCEMENT = "ANNOUNCEMENT";
         private EntityType() {}
     }
 
@@ -40,6 +42,10 @@ public class AuditService {
         public static final String MFA_RECOVERY_CODES = "MFA_RECOVERY_CODES";
         /** A second-factor check failed; repeated entries feed the lockout story. */
         public static final String MFA_CHALLENGE_FAILED = "MFA_CHALLENGE_FAILED";
+        /** Recycle bin: a soft-deleted ticket/project was brought back. */
+        public static final String RESTORE = "RESTORE";
+        /** Recycle bin: a binned item was destroyed past recovery. */
+        public static final String PURGE = "PURGE";
         private Action() {}
     }
 

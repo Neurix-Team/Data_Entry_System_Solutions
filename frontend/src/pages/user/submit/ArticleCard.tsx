@@ -155,6 +155,8 @@ export function ArticleCard({
             value={article.title}
             onChange={(e) => onChange({ title: e.target.value })}
             placeholder={t('user.submit.articleTitlePlaceholder')}
+            // Alt+N focuses the newest card by looking for this.
+            data-fast-entry="article-title"
           />
           {err('title') && <span className="field-error">{err('title')}</span>}
         </div>

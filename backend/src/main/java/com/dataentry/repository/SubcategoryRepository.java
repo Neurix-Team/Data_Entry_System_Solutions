@@ -44,6 +44,7 @@ public interface SubcategoryRepository extends JpaRepository<Subcategory, Long> 
                     SELECT subcategory_id, COUNT(*) AS total
                       FROM tickets
                      WHERE (CAST(:teamId AS BIGINT) IS NULL OR team_id = :teamId)
+                        AND deleted_at IS NULL
                      GROUP BY subcategory_id
               ) tc ON tc.subcategory_id = s.id
               LEFT JOIN (
@@ -78,4 +79,25 @@ public interface SubcategoryRepository extends JpaRepository<Subcategory, Long> 
     long countByDepartmentId(Long departmentId);
 
     List<Subcategory> findAllByDepartmentId(Long departmentId);
+
+    // ─── Global search (Ctrl+K palette) ─────────────────────────────────────
+    interface SearchRow {
+        Long getId();
+        String getName();
+    }
+
+    @Query(value = """
+            SELECT s.id AS "id", COALESCE(s.name_en, s.name_ar, s.name) AS "name"
+              FROM subcategories s
+             WHERE s.active = TRUE
+               AND (CAST(:teamId AS BIGINT) IS NULL OR s.team_id = :teamId)
+               AND (lower(s.name) LIKE :pattern
+                    OR lower(s.name_en) LIKE :pattern
+                    OR lower(s.name_ar) LIKE :pattern)
+             ORDER BY s.id
+             LIMIT :limit
+            """, nativeQuery = true)
+    List<SearchRow> searchSubcategories(@Param("teamId") Long teamId,
+                                        @Param("pattern") String pattern,
+                                        @Param("limit") int limit);
 }
