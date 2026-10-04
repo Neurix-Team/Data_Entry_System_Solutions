@@ -245,6 +245,7 @@ export interface ExplorerArchiveOptions {
   subcategoryFolders: boolean;
   prefixNames: boolean;
   includeText: boolean;
+  fileType?: 'all' | 'documents' | 'pdf';
 }
 
 function explorerParams(q: ExplorerQuery): URLSearchParams {
@@ -357,6 +358,7 @@ export const superApi = {
     if (opts.subcategoryFolders) p.set('subcategoryFolders', 'true');
     if (opts.prefixNames) p.set('prefixNames', 'true');
     if (opts.includeText) p.set('includeText', 'true');
+    if (opts.fileType && opts.fileType !== 'all') p.set('fileType', opts.fileType);
     return `${API_BASE}/super/data/archive?${p.toString()}`;
   },
 

@@ -45,6 +45,7 @@ public class ExplorerArchiveService {
                          boolean subcategoryFolders,
                          boolean prefixNames,
                          boolean includeText,
+                         String fileType,
                          OutputStream out) throws IOException {
         DataExplorerDtos.Manifest manifest = explorer.manifest(filters, includeText);
         Set<String> usedPaths = new HashSet<>();
@@ -54,7 +55,8 @@ public class ExplorerArchiveService {
             zip.setLevel(Deflater.BEST_SPEED);
 
             for (DataExplorerDtos.ManifestEntry e : manifest.files()) {
-                TicketDocument doc = documentRepository.findById(e.documentId()).orElse(null);
+                if (!ExportPaths.matchesType(e, fileType)) continue;
+                TicketDocument doc =documentRepository.findById(e.documentId()).orElse(null);
                 if (doc == null || doc.getStoragePath() == null) { missing++; continue; }
                 Path abs = baseDir.resolve(doc.getStoragePath()).normalize();
                 if (!abs.startsWith(baseDir) || !Files.exists(abs)) { missing++; continue; }
@@ -87,6 +89,22 @@ public class ExplorerArchiveService {
         private ExportPaths() {}
 
         private static final int MAX_SEGMENT = 120;
+
+        /** fileType: "pdf" keeps only PDFs, "documents" keeps everything that is not a PDF, anything else keeps all. */
+        public static boolean matchesType(DataExplorerDtos.ManifestEntry e, String fileType) {
+            if (fileType == null) return true;
+            boolean wantPdf = "pdf".equalsIgnoreCase(fileType);
+            if (!wantPdf && !"documents".equalsIgnoreCase(fileType)) return true;
+            return isPdf(e) == wantPdf;
+        }
+
+        public static boolean isPdf(DataExplorerDtos.ManifestEntry e) {
+            if (e.contentType() != null && e.contentType().toLowerCase().startsWith("application/pdf")) return true;
+            for (String n : new String[] { e.originalFilename(), e.name() }) {
+                if (n != null && n.toLowerCase().endsWith(".pdf")) return true;
+            }
+            return false;
+        }
 
         public static String safe(String raw, String fallback) {
             if (raw == null) return fallback;

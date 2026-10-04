@@ -7,8 +7,8 @@ import { Modal } from '../../components/Modal';
 import { useToast } from '../../components/toast/ToastContext';
 import { useT } from '../../i18n';
 import {
-  downloadToDirectory, folderSegments, formatBytes, formatSeconds, initialProgress, pickDirectory,
-  supportsDirectoryPicker, type DownloadOptions, type DownloadProgress,
+  downloadToDirectory, filterManifestByType, folderSegments, formatBytes, formatSeconds, initialProgress, pickDirectory,
+  supportsDirectoryPicker, type DownloadOptions, type DownloadProgress, type FileTypeFilter,
 } from './folderDownload';
 import '../../styles/download-center.css';
 
@@ -26,9 +26,13 @@ interface Props {
 export function DownloadCenter({ open, onClose, query, filterLabels }: Props) {
   const { t } = useT();
   const toast = useToast();
-  const [manifest, setManifest] = useState<ExplorerManifest | null>(null);
+  const [rawManifest, setManifest] = useState<ExplorerManifest | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [opts, setOpts] = useState<DownloadOptions>({ subcategoryFolders: false, prefixNames: false, includeText: false, skipExisting: true });
+  const [opts, setOpts] = useState<DownloadOptions>({ fileType: 'all', subcategoryFolders: false, prefixNames: false, includeText: false, skipExisting: true });
+  const manifest = useMemo(
+    () => (rawManifest ? filterManifestByType(rawManifest, opts.fileType) : null),
+    [rawManifest, opts.fileType],
+  );
   const [progress, setProgress] = useState<DownloadProgress | null>(null);
   const [zipNotice, setZipNotice] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -85,7 +89,9 @@ export function DownloadCenter({ open, onClose, query, filterLabels }: Props) {
     abortRef.current = ac;
     setProgress(initialProgress(root.name, manifest));
     try {
-      const full = opts.includeText ? await superApi.explorerManifest(cleanQuery, true) : manifest;
+      const full = opts.includeText
+        ? filterManifestByType(await superApi.explorerManifest(cleanQuery, true), opts.fileType)
+        : manifest;
       const result = await downloadToDirectory(root, full, opts, setProgress, ac.signal);
       if (result.phase === 'done') {
         toast.success(t('super.data.download.successToast', {
@@ -183,6 +189,22 @@ export function DownloadCenter({ open, onClose, query, filterLabels }: Props) {
             </div>
           </>
         )}
+
+        <div className="dlc-section">{t('super.data.download.fileType')}</div>
+        <div className="dlc-types" role="radiogroup" aria-label={t('super.data.download.fileType')}>
+          {(['all', 'documents', 'pdf'] as FileTypeFilter[]).map((k) => (
+            <button
+              key={k}
+              type="button"
+              role="radio"
+              aria-checked={opts.fileType === k}
+              className={`dlc-type${opts.fileType === k ? ' is-active' : ''}`}
+              onClick={() => setOpts((o) => ({ ...o, fileType: k }))}
+            >
+              {t(`super.data.download.type_${k}`)}
+            </button>
+          ))}
+        </div>
 
         <div className="dlc-section">{t('super.data.download.options')}</div>
         <div className="dlc-opts">
