@@ -179,15 +179,18 @@ export interface ExplorerPage {
 }
 
 export interface ExplorerNamed { id: number; name: string; }
+export interface ExplorerDepartment extends ExplorerNamed { projectId: number | null; teamId: number | null; }
 export interface ExplorerFacets {
   teams: ExplorerNamed[];
   projects: ExplorerNamed[];
   users: ExplorerNamed[];
+  departments: ExplorerDepartment[];
 }
 
 export interface ExplorerQuery {
   teamId?: number;
   projectId?: number;
+  departmentId?: number;
   userId?: number;
   from?: string;
   to?: string;
@@ -252,6 +255,7 @@ function explorerParams(q: ExplorerQuery): URLSearchParams {
   const p = new URLSearchParams();
   if (q.teamId) p.set('teamId', String(q.teamId));
   if (q.projectId) p.set('projectId', String(q.projectId));
+  if (q.departmentId) p.set('departmentId', String(q.departmentId));
   if (q.userId) p.set('userId', String(q.userId));
   if (q.from) p.set('from', q.from);
   if (q.to) p.set('to', q.to);

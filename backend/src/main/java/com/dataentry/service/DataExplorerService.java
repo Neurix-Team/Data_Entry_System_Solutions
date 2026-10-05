@@ -113,6 +113,7 @@ public class DataExplorerService {
         List<DataExplorerDtos.Named> teams = new ArrayList<>();
         List<DataExplorerDtos.Named> projects = new ArrayList<>();
         List<DataExplorerDtos.Named> users = new ArrayList<>();
+        List<DataExplorerDtos.DepartmentNamed> departments = new ArrayList<>();
 
         jdbc.query("SELECT id, name FROM teams WHERE active = TRUE ORDER BY name",
                 (RowCallbackHandler) rs -> teams.add(new DataExplorerDtos.Named(rs.getLong(1), rs.getString(2))));
@@ -122,7 +123,11 @@ public class DataExplorerService {
                         "WHERE active = TRUE AND role != 'SUPER_ADMIN' ORDER BY 2",
                 (RowCallbackHandler) rs -> users.add(new DataExplorerDtos.Named(rs.getLong(1), rs.getString(2))));
 
-        return new DataExplorerDtos.Facets(teams, projects, users);
+        jdbc.query("SELECT id, name, project_id, team_id FROM departments WHERE active = TRUE ORDER BY name, id",
+                (RowCallbackHandler) rs -> departments.add(new DataExplorerDtos.DepartmentNamed(
+                        rs.getLong(1), rs.getString(2), rs.getObject(3, Long.class), rs.getObject(4, Long.class))));
+
+        return new DataExplorerDtos.Facets(teams, projects, users, departments);
     }
 
     public DataExplorerDtos.Row byId(Long id, String downloadUrlPrefix) {
@@ -286,6 +291,7 @@ public class DataExplorerService {
     private void appendFilters(StringBuilder jpql, Map<String, Object> params, Filters filters) {
         if (filters.teamId() != null) { jpql.append("and t.teamReferenceId = :teamId "); params.put("teamId", filters.teamId()); }
         if (filters.projectId() != null) { jpql.append("and t.projectReferenceId = :projectId "); params.put("projectId", filters.projectId()); }
+        if (filters.departmentId() != null) { jpql.append("and t.departmentReferenceId = :departmentId "); params.put("departmentId", filters.departmentId()); }
         if (filters.userId() != null) { jpql.append("and t.submittedByReferenceId = :userId "); params.put("userId", filters.userId()); }
         if (filters.from() != null) { jpql.append("and t.submittedAt >= :from "); params.put("from", filters.from()); }
         if (filters.to() != null) { jpql.append("and t.submittedAt < :to "); params.put("to", filters.to()); }
@@ -391,8 +397,13 @@ public class DataExplorerService {
             Long userId,
             Instant from,
             Instant to,
-            String search
-    ) {}
+            String search,
+            Long departmentId
+    ) {
+        public Filters(Long teamId, Long projectId, Long userId, Instant from, Instant to, String search) {
+            this(teamId, projectId, userId, from, to, search, null);
+        }
+    }
 
     private record BaseRow(
             Long id,

@@ -62,10 +62,12 @@ public class DataExplorerDtos {
     public record Facets(
             List<Named> teams,
             List<Named> projects,
-            List<Named> users
+            List<Named> users,
+            List<DepartmentNamed> departments
     ) {}
 
     public record Named(Long id, String name) {}
+    public record DepartmentNamed(Long id, String name, Long projectId, Long teamId) {}
 
     public record ManifestEntry(
             Long ticketId,

@@ -17,6 +17,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
@@ -39,6 +40,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
     private final UserRepository userRepository;
     private final TeamRepository teamRepository;
+    private final RequestAttributeSecurityContextRepository contextRepository = new RequestAttributeSecurityContextRepository();
 
     public JwtAuthFilter(JwtService jwtService,
                          UserRepository userRepository,
@@ -74,7 +76,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                                     && tokenVersionCurrent(claims, user)) {
                                 if (mfaSatisfied(claims, user, request)) {
                                     AuthEntry entry = buildEntry(request, user);
-                                    if (entry != null) applyAuth(request, entry);
+                                    if (entry != null) {
+                                        applyAuth(request, entry);
+                                        contextRepository.saveContext(SecurityContextHolder.getContext(), request, response);
+                                    }
                                 }
                             }
                         }

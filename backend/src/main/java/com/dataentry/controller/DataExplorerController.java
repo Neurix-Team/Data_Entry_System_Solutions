@@ -38,9 +38,10 @@ public class DataExplorerController {
             @RequestParam(required = false) Instant from,
             @RequestParam(required = false) Instant to,
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) Long departmentId,
             @RequestParam(defaultValue = "false") boolean includeText
     ) {
-        DataExplorerService.Filters f = new DataExplorerService.Filters(teamId, projectId, userId, from, to, search);
+        DataExplorerService.Filters f = new DataExplorerService.Filters(teamId, projectId, userId, from, to, search, departmentId);
         return service.manifest(f, includeText);
     }
 
@@ -52,12 +53,13 @@ public class DataExplorerController {
             @RequestParam(required = false) Instant from,
             @RequestParam(required = false) Instant to,
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) Long departmentId,
             @RequestParam(defaultValue = "false") boolean subcategoryFolders,
             @RequestParam(defaultValue = "false") boolean prefixNames,
             @RequestParam(defaultValue = "false") boolean includeText,
             @RequestParam(defaultValue = "all") String fileType
     ) {
-        DataExplorerService.Filters f = new DataExplorerService.Filters(teamId, projectId, userId, from, to, search);
+        DataExplorerService.Filters f = new DataExplorerService.Filters(teamId, projectId, userId, from, to, search, departmentId);
         String filename = "neurix-export-" + LocalDate.now() + ".zip";
         ContentDisposition cd = ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build();
         StreamingResponseBody body = out -> archive.writeZip(f, subcategoryFolders, prefixNames, includeText, fileType, out);
@@ -75,8 +77,9 @@ public class DataExplorerController {
             @RequestParam(required = false) Long userId,
             @RequestParam(required = false) Instant from,
             @RequestParam(required = false) Instant to,
-            @RequestParam(required = false) String search) {
-        return service.stats(new DataExplorerService.Filters(teamId, projectId, userId, from, to, search));
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Long departmentId) {
+        return service.stats(new DataExplorerService.Filters(teamId, projectId, userId, from, to, search, departmentId));
     }
 
     @GetMapping("/tickets")
@@ -87,10 +90,11 @@ public class DataExplorerController {
             @RequestParam(required = false) Instant from,
             @RequestParam(required = false) Instant to,
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) Long departmentId,
             @RequestParam(required = false) Long cursor,
             @RequestParam(required = false) Integer size
     ) {
-        DataExplorerService.Filters f = new DataExplorerService.Filters(teamId, projectId, userId, from, to, search);
+        DataExplorerService.Filters f = new DataExplorerService.Filters(teamId, projectId, userId, from, to, search, departmentId);
         return service.search(f, cursor, size, null);
     }
 

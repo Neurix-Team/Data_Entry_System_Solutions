@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { extractError } from '../../api/client';
-import { superApi, type ExplorerManifest, type ExplorerQuery } from '../../api/super';
+import { superApi, type ExplorerDepartment, type ExplorerManifest, type ExplorerQuery } from '../../api/super';
 import { IconAlert, IconCheck, IconClose, IconDatabase, IconDownload, IconFolder } from '../../components/Icons';
 import { Modal } from '../../components/Modal';
 import { useToast } from '../../components/toast/ToastContext';
@@ -21,9 +21,11 @@ interface Props {
   onClose: () => void;
   query: ExplorerQuery;
   filterLabels: string[];
+  departments: ExplorerDepartment[];
+  onDepartmentChange: (id: string) => void;
 }
 
-export function DownloadCenter({ open, onClose, query, filterLabels }: Props) {
+export function DownloadCenter({ open, onClose, query, filterLabels, departments, onDepartmentChange }: Props) {
   const { t } = useT();
   const toast = useToast();
   const [rawManifest, setManifest] = useState<ExplorerManifest | null>(null);
@@ -42,12 +44,13 @@ export function DownloadCenter({ open, onClose, query, filterLabels }: Props) {
     const q: ExplorerQuery = {};
     if (query.teamId) q.teamId = query.teamId;
     if (query.projectId) q.projectId = query.projectId;
+    if (query.departmentId) q.departmentId = query.departmentId;
     if (query.userId) q.userId = query.userId;
     if (query.from) q.from = query.from;
     if (query.to) q.to = query.to;
     if (query.search) q.search = query.search;
     return q;
-  }, [query.teamId, query.projectId, query.userId, query.from, query.to, query.search]);
+  }, [query.teamId, query.projectId, query.departmentId, query.userId, query.from, query.to, query.search]);
 
   useEffect(() => {
     if (!open) return;
@@ -150,6 +153,16 @@ export function DownloadCenter({ open, onClose, query, filterLabels }: Props) {
         )}
 
         {loadError && <div className="alert alert-error">{loadError}</div>}
+
+        <div style={{ marginBottom: 16 }}>
+          <label className="field-label" htmlFor="download-department">{t('super.data.department')}</label>
+          <select id="download-department" className="input" value={query.departmentId ?? ''} onChange={(e) => onDepartmentChange(e.target.value)}>
+            <option value="">{t('super.all')}</option>
+            {departments.map((department) => (
+              <option key={department.id} value={department.id}>{department.name}</option>
+            ))}
+          </select>
+        </div>
 
         <div className="dlc-summary">
           <div className="dlc-summary-icon"><IconDatabase size={20} /></div>

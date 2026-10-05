@@ -23,6 +23,7 @@ export function SuperDataPage() {
 
   const [teamId, setTeamId] = useState<string>('');
   const [projectId, setProjectId] = useState<string>('');
+  const [departmentId, setDepartmentId] = useState<string>('');
   const [userId, setUserId] = useState<string>('');
   const [from, setFrom] = useState<string>('');
   const [to, setTo] = useState<string>('');
@@ -41,6 +42,7 @@ export function SuperDataPage() {
     const q: ExplorerQuery = {};
     if (teamId) q.teamId = Number(teamId);
     if (projectId) q.projectId = Number(projectId);
+    if (departmentId) q.departmentId = Number(departmentId);
     if (userId) q.userId = Number(userId);
     if (from) q.from = new Date(`${from}T00:00:00`).toISOString();
     if (to) {
@@ -50,7 +52,7 @@ export function SuperDataPage() {
     }
     if (search.trim()) q.search = search.trim();
     return q;
-  }, [teamId, projectId, userId, from, to, search]);
+  }, [teamId, projectId, departmentId, userId, from, to, search]);
 
   const currentQuery = useRef(query);
   currentQuery.current = query;
@@ -95,10 +97,10 @@ export function SuperDataPage() {
     const timer = window.setTimeout(() => void load(false), 180);
     return () => { window.clearTimeout(timer); ++requestSequence.current; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [teamId, projectId, userId, from, to, search]);
+  }, [teamId, projectId, departmentId, userId, from, to, search]);
 
   function reset() {
-    setTeamId(''); setProjectId(''); setUserId('');
+    setTeamId(''); setProjectId(''); setDepartmentId(''); setUserId('');
     setFrom(''); setTo(''); setSearch('');
   }
 
@@ -114,12 +116,18 @@ export function SuperDataPage() {
       list?.find((x) => String(x.id) === id)?.name;
     if (teamId) labels.push(`${t('super.data.team') || 'Team'}: ${name(facets?.teams, teamId) ?? teamId}`);
     if (projectId) labels.push(`${t('super.data.project') || 'Project'}: ${name(facets?.projects, projectId) ?? projectId}`);
+    if (departmentId) labels.push(`${t('super.data.department')}: ${name(facets?.departments, departmentId) ?? departmentId}`);
     if (userId) labels.push(`${t('super.data.user') || 'Submitted by'}: ${name(facets?.users, userId) ?? userId}`);
     if (from) labels.push(`${t('super.data.from') || 'From'}: ${from}`);
     if (to) labels.push(`${t('super.data.to') || 'To'}: ${to}`);
     if (search.trim()) labels.push(`“${search.trim()}”`);
     return labels;
-  }, [facets, teamId, projectId, userId, from, to, search, t]);
+  }, [facets, teamId, projectId, departmentId, userId, from, to, search, t]);
+
+  const departments = useMemo(() => (facets?.departments ?? []).filter((department) =>
+    (!teamId || department.teamId === Number(teamId))
+    && (!projectId || department.projectId == null || department.projectId === Number(projectId))),
+  [facets, teamId, projectId]);
 
   return (
     <div className="page super-page">
@@ -147,6 +155,8 @@ export function SuperDataPage() {
         onClose={() => setDownloadOpen(false)}
         query={query}
         filterLabels={filterLabels}
+        departments={departments}
+        onDepartmentChange={setDepartmentId}
       />
 
       {error && <div className="alert alert-error">{error}</div>}
@@ -159,7 +169,7 @@ export function SuperDataPage() {
         }}>
           <div>
             <label className="field-label">{t('super.data.team') || 'Team'}</label>
-            <select className="input" value={teamId} onChange={(e) => setTeamId(e.target.value)}>
+            <select className="input" value={teamId} onChange={(e) => { setTeamId(e.target.value); setDepartmentId(''); }}>
               <option value="">{t('super.all') || 'All'}</option>
               {facets?.teams.map((x) => (
                 <option key={x.id} value={x.id}>{x.name}</option>
@@ -168,10 +178,21 @@ export function SuperDataPage() {
           </div>
           <div>
             <label className="field-label">{t('super.data.project') || 'Project'}</label>
-            <select className="input" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+            <select className="input" value={projectId} onChange={(e) => { setProjectId(e.target.value); setDepartmentId(''); }}>
               <option value="">{t('super.all') || 'All'}</option>
               {facets?.projects.map((x) => (
                 <option key={x.id} value={x.id}>{x.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="field-label" htmlFor="explorer-department">{t('super.data.department')}</label>
+            <select id="explorer-department" className="input" value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
+              <option value="">{t('super.all')}</option>
+              {departments.map((department) => (
+                <option key={department.id} value={department.id}>
+                  {department.name}{!projectId && department.projectId != null ? ` — ${facets?.projects.find((project) => project.id === department.projectId)?.name ?? department.projectId}` : ''}
+                </option>
               ))}
             </select>
           </div>

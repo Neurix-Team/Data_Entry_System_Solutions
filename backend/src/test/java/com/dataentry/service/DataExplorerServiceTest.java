@@ -130,4 +130,35 @@ class DataExplorerServiceTest {
         em.persist(com.dataentry.model.TicketDocument.builder().ticket(ticket).name(filename)
                 .originalFilename(filename).contentType(mime).sizeBytes(100).storagePath("fixture-only/" + filename).build());
     }
+
+    @Test
+    void departmentFilterIsSharedByRowsStatsAndDownloadManifest() {
+        var team = teamRepository.saveAndFlush(Team.builder().slug("department-filter").name("Department filter").build());
+        var user = com.dataentry.model.User.builder().username("department-user").passwordHash("fixture")
+                .role(com.dataentry.model.Role.USER).team(team).build(); em.persist(user);
+        var project = com.dataentry.model.Project.builder().team(team).name("Department project").build(); em.persist(project);
+        var selected = com.dataentry.model.Department.builder().team(team).project(project).name("Selected").build(); em.persist(selected);
+        var other = com.dataentry.model.Department.builder().team(team).project(project).name("Other").build(); em.persist(other);
+        var ticket = com.dataentry.model.Ticket.builder().team(team).submittedBy(user).project(project).department(selected)
+                .title("Mixed documents").content("Fixture").build(); em.persist(ticket);
+        attachment(ticket, "report.pdf", "application/pdf");
+        attachment(ticket, "report.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+        var excluded = com.dataentry.model.Ticket.builder().team(team).submittedBy(user).project(project).department(other)
+                .title("Other department").content("Fixture").build(); em.persist(excluded);
+        attachment(excluded, "excluded.pdf", "application/pdf"); em.flush(); em.clear();
+
+        var filters = new DataExplorerService.Filters(team.getId(), project.getId(), null, null, null, null, selected.getId());
+        assertThat(service.search(filters, null, 50, null).items()).extracting(DataExplorerDtos.Row::id).containsExactly(ticket.getId());
+        var stats = service.stats(filters);
+        assertThat(stats.totalTickets()).isEqualTo(1);
+        assertThat(stats.totalFiles()).isEqualTo(2);
+        assertThat(stats.pdfFiles()).isEqualTo(1);
+        assertThat(stats.wordFiles()).isEqualTo(1);
+        var manifest = service.manifest(filters, true);
+        assertThat(manifest.files()).extracting(DataExplorerDtos.ManifestEntry::originalFilename).containsExactly("report.pdf", "report.docx");
+        assertThat(manifest.tickets()).extracting(DataExplorerDtos.ManifestTicket::id).containsExactly(ticket.getId());
+        assertThat(service.facets().departments()).contains(new DataExplorerDtos.DepartmentNamed(
+                selected.getId(), selected.getName(), project.getId(), team.getId()));
+        assertThat(service.manifest(new DataExplorerService.Filters(null, null, null, null, null, null, -1L), false).files()).isEmpty();
+    }
 }

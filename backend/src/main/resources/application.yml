@@ -12,6 +12,9 @@ server:
     min-response-size: 1KB
 
 spring:
+  mvc:
+    async:
+      request-timeout: 6h
   config:
     import: optional:file:.env[.properties],optional:file:../.env[.properties]
   datasource:
