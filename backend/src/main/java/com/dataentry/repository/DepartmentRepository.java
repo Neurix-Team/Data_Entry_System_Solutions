@@ -8,6 +8,8 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 
 public interface DepartmentRepository extends JpaRepository<Department, Long> {
+    @Query("select count(f) > 0 from CleanedFile f where f.department.id = :departmentId")
+    boolean hasCleanedFiles(@Param("departmentId") Long departmentId);
     interface DomainAggregateRow {
         Long getDepartmentId();
         String getName();

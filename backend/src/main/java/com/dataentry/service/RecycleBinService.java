@@ -215,6 +215,10 @@ public class RecycleBinService {
     }
 
     private void purgeProjectInternal(Long id) {
+        if (projects.hasCleanedFiles(id)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Project has cleaned AI-work files. Keep or restore the project to preserve these files.");
+        }
         long live = tickets.countLiveTicketsAttachedToProject(id);
         if (live > 0) {
             // Purging would take live entries with it — refuse; they must be deleted

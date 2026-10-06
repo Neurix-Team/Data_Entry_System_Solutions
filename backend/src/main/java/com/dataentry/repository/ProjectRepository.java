@@ -12,6 +12,9 @@ import java.util.Optional;
 
 public interface ProjectRepository extends JpaRepository<Project, Long> {
 
+    @Query("select count(f) > 0 from CleanedFile f where f.project.id = :projectId")
+    boolean hasCleanedFiles(@Param("projectId") Long projectId);
+
     /**
      * Recycle bin: Project carries no class-level @Where (live tickets must keep
      * resolving binned projects), so every read below filters deleted rows out

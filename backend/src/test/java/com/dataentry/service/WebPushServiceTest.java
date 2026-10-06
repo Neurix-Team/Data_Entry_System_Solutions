@@ -123,8 +123,9 @@ class WebPushServiceTest {
     }
 
     private static PublicKey parsePoint(byte[] uncompressed) throws Exception {
-        java.security.spec.ECParameterSpec params = ((ECPublicKey) KeyPairGenerator
-                .getInstance("EC").genKeyPair().getPublic()).getParams();
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("EC");
+        generator.initialize(new ECGenParameterSpec("secp256r1"));
+        java.security.spec.ECParameterSpec params = ((ECPublicKey) generator.generateKeyPair().getPublic()).getParams();
         java.math.BigInteger x = new java.math.BigInteger(1, Arrays.copyOfRange(uncompressed, 1, 33));
         java.math.BigInteger y = new java.math.BigInteger(1, Arrays.copyOfRange(uncompressed, 33, 65));
         return KeyFactory.getInstance("EC")

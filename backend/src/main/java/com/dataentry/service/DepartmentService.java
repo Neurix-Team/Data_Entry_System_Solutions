@@ -142,6 +142,10 @@ public class DepartmentService {
         Department d = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Department not found"));
         TenantGuard.assertOwnership(d);
+        if (repository.hasCleanedFiles(id)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Department has cleaned AI-work files and must be kept to preserve these files.");
+        }
         long binnedTickets = ticketRepository.countDeletedTicketsByDepartmentId(id);
         if (binnedTickets > 0) {
             // Hard-deleting the row would either violate the FK from those binned

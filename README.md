@@ -12,6 +12,17 @@ A production-grade, full-stack data entry management system:
 
 ## Project layout
 
+Super admins can use `/super/cleaned-files` to upload preprocessing outputs, organized by
+project and department. Files have a cleaning date, optional due date, source/batch reference,
+notes, and a manual AI-work status (ready, in progress, completed). Multiple files upload
+independently, with failed files retained for retry. This section tracks work; it does not
+run an AI model. Supported formats and the per-file limit are shown in the upload dialog
+(50 MB by default, configurable with `app.cleaned-files.max-file-bytes`). Files are stored
+under `data/cleaned-files` in the backend's existing persistent data volume. Include this
+directory in file backups alongside `data/attachments`; the V13 migration stores metadata.
+Projects and departments with cleaned outputs cannot be permanently deleted, so deleting
+source data does not destroy the AI-work files. Projects can still be restored from the bin.
+
 ```
 data_entry/
 ├── backend/     Spring Boot API (Maven)

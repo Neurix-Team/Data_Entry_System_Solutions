@@ -91,6 +91,10 @@ export function SuperLayout() {
           <span className="side-icon"><IconDatabase /></span>
           {lang === 'ar' ? 'بيانات السيرفر' : 'Server dataset'}
         </NavLink>
+        <NavLink to="/super/cleaned-files" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
+          <span className="side-icon"><IconFolder /></span>
+          {lang === 'ar' ? 'الملفات المنظّفة' : 'Cleaned files'}
+        </NavLink>
         <NavLink to="/super/api-tokens" className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}>
           <span className="side-icon"><IconKey /></span>
           {t('super.tokens.nav') || 'API tokens'}

@@ -41,6 +41,7 @@ const SuperAdminsPage = lazy(() => import('./pages/super/SuperAdminsPage').then(
 const SuperProjectsPage = lazy(() => import('./pages/super/SuperProjectsPage').then((m) => ({ default: m.SuperProjectsPage })));
 const SuperDataPage = lazy(() => import('./pages/super/SuperDataPage').then((m) => ({ default: m.SuperDataPage })));
 const SuperDatasetPage = lazy(() => import('./pages/super/SuperDatasetPage').then((m) => ({ default: m.SuperDatasetPage })));
+const SuperCleanedFilesPage = lazy(() => import('./pages/super/SuperCleanedFilesPage').then((m) => ({ default: m.SuperCleanedFilesPage })));
 const SuperApiTokensPage = lazy(() => import('./pages/super/SuperApiTokensPage').then((m) => ({ default: m.SuperApiTokensPage })));
 
 function RouteLoading() {
@@ -88,6 +89,7 @@ export default function App() {
         <Route path="/super/projects" element={<SuperProjectsPage />} />
         <Route path="/super/data" element={<SuperDataPage />} />
         <Route path="/super/dataset" element={<SuperDatasetPage />} />
+        <Route path="/super/cleaned-files" element={<SuperCleanedFilesPage />} />
         <Route path="/super/api-tokens" element={<SuperApiTokensPage />} />
         <Route path="/super/admins" element={<SuperAdminsPage />} />
       </Route>
