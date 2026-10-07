@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { extractError } from '../../api/client';
-import { superApi, type ExplorerDepartment, type ExplorerManifest, type ExplorerQuery } from '../../api/super';
+import { superApi, type ExplorerDepartment, type ExplorerManifest, type ExplorerManifestEntry, type ExplorerQuery } from '../../api/super';
 import { IconAlert, IconCheck, IconClose, IconDatabase, IconDownload, IconFolder } from '../../components/Icons';
 import { Modal } from '../../components/Modal';
 import { useToast } from '../../components/toast/ToastContext';
@@ -23,9 +23,22 @@ interface Props {
   filterLabels: string[];
   departments: ExplorerDepartment[];
   onDepartmentChange: (id: string) => void;
+  source?: DownloadSource;
 }
 
-export function DownloadCenter({ open, onClose, query, filterLabels, departments, onDepartmentChange }: Props) {
+export interface DownloadSource {
+  manifest: (includeText: boolean) => Promise<ExplorerManifest>;
+  archiveUrl: (options: DownloadOptions) => string;
+  fileUrl: (entry: ExplorerManifestEntry) => string;
+  subtitle: string;
+  summary: (manifest: ExplorerManifest) => string;
+  prefixLabel: string;
+  prefixHint: string;
+  textLabel: string;
+  textHint: string;
+}
+
+export function DownloadCenter({ open, onClose, query, filterLabels, departments, onDepartmentChange, source }: Props) {
   const { t } = useT();
   const toast = useToast();
   const [rawManifest, setManifest] = useState<ExplorerManifest | null>(null);
@@ -57,11 +70,11 @@ export function DownloadCenter({ open, onClose, query, filterLabels, departments
     let cancelled = false;
     setManifest(null);
     setLoadError(null);
-    superApi.explorerManifest(cleanQuery, false)
+    (source ? source.manifest(false) : superApi.explorerManifest(cleanQuery, false))
       .then((m) => { if (!cancelled) setManifest(m); })
       .catch((e) => { if (!cancelled) setLoadError(extractError(e)); });
     return () => { cancelled = true; };
-  }, [open, cleanQuery]);
+  }, [open, cleanQuery, source]);
 
   const tree = useMemo(() => {
     if (!manifest) return [];
@@ -93,9 +106,9 @@ export function DownloadCenter({ open, onClose, query, filterLabels, departments
     setProgress(initialProgress(root.name, manifest));
     try {
       const full = opts.includeText
-        ? filterManifestByType(await superApi.explorerManifest(cleanQuery, true), opts.fileType)
+        ? filterManifestByType(await (source ? source.manifest(true) : superApi.explorerManifest(cleanQuery, true)), opts.fileType)
         : manifest;
-      const result = await downloadToDirectory(root, full, opts, setProgress, ac.signal);
+      const result = await downloadToDirectory(root, full, opts, setProgress, ac.signal, source?.fileUrl);
       if (result.phase === 'done') {
         toast.success(t('super.data.download.successToast', {
           files: result.filesDone - result.filesFailed, name: root.name,
@@ -107,7 +120,7 @@ export function DownloadCenter({ open, onClose, query, filterLabels, departments
   }
 
   function startZip() {
-    const url = superApi.explorerArchiveUrl(cleanQuery, opts);
+    const url = source ? source.archiveUrl(opts) : superApi.explorerArchiveUrl(cleanQuery, opts);
     const a = document.createElement('a');
     a.href = url;
     a.setAttribute('download', '');
@@ -143,7 +156,7 @@ export function DownloadCenter({ open, onClose, query, filterLabels, departments
         title={t('super.data.download.title')}
       >
         <p className="muted" style={{ marginTop: 0, fontSize: 13, lineHeight: 1.5 }}>
-          {t('super.data.download.subtitle')}
+          {source?.subtitle ?? t('super.data.download.subtitle')}
         </p>
 
         {filterLabels.length > 0 && (
@@ -171,7 +184,7 @@ export function DownloadCenter({ open, onClose, query, filterLabels, departments
               {manifest
                 ? (manifest.totalFiles === 0
                   ? t('super.data.download.noFiles')
-                  : t('super.data.download.summary', {
+                  : source ? source.summary(manifest) : t('super.data.download.summary', {
                     files: manifest.totalFiles.toLocaleString(),
                     size: formatBytes(manifest.totalBytes),
                     tickets: manifest.totalTickets.toLocaleString(),
@@ -221,22 +234,22 @@ export function DownloadCenter({ open, onClose, query, filterLabels, departments
 
         <div className="dlc-section">{t('super.data.download.options')}</div>
         <div className="dlc-opts">
-          <Toggle
+          {!source && <Toggle
             checked={opts.subcategoryFolders}
             onChange={(v) => setOpts((o) => ({ ...o, subcategoryFolders: v }))}
             label={t('super.data.download.optSubcategory')}
-          />
+          />}
           <Toggle
             checked={opts.prefixNames}
             onChange={(v) => setOpts((o) => ({ ...o, prefixNames: v }))}
-            label={t('super.data.download.optPrefix')}
-            hint={t('super.data.download.optPrefixHint')}
+            label={source?.prefixLabel ?? t('super.data.download.optPrefix')}
+            hint={source?.prefixHint ?? t('super.data.download.optPrefixHint')}
           />
           <Toggle
             checked={opts.includeText}
             onChange={(v) => setOpts((o) => ({ ...o, includeText: v }))}
-            label={t('super.data.download.optText')}
-            hint={t('super.data.download.optTextHint')}
+            label={source?.textLabel ?? t('super.data.download.optText')}
+            hint={source?.textHint ?? t('super.data.download.optTextHint')}
           />
           <Toggle
             checked={opts.skipExisting}

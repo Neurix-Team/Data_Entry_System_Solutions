@@ -16,6 +16,8 @@ import org.springframework.mock.web.MockMultipartFile;
 import java.nio.file.*;
 import java.time.LocalDate;
 import java.util.*;
+import java.io.ByteArrayInputStream;
+import java.util.zip.ZipInputStream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -87,12 +89,20 @@ class CleanedFilesSecurityTest {
             mvc.perform(get("/api/super/cleaned-files").header("Authorization", bearer(actor))).andExpect(status().isForbidden());
             mvc.perform(get("/api/super/cleaned-files/options").header("Authorization", bearer(actor))).andExpect(status().isForbidden());
             mvc.perform(get("/api/super/cleaned-files/" + id + "/download").header("Authorization", bearer(actor))).andExpect(status().isForbidden());
+            mvc.perform(get("/api/super/cleaned-files/manifest").header("Authorization", bearer(actor))).andExpect(status().isForbidden());
+            mvc.perform(get("/api/super/cleaned-files/archive").header("Authorization", bearer(actor))).andExpect(status().isForbidden()).andExpect(request().asyncNotStarted());
+            mvc.perform(post("/api/super/cleaned-files/bulk-delete").header("Authorization", bearer(actor)).contentType("application/json")
+                    .content(json.writeValueAsBytes(Map.of("ids", List.of(id), "expectedCount", 1)))).andExpect(status().isForbidden());
             upload("clean.md", CLEAN, department.getId(), metadata(), actor, 403);
             mvc.perform(put("/api/super/cleaned-files/" + id).header("Authorization", bearer(actor)).contentType("application/json")
                     .content(json.writeValueAsBytes(Map.of("metadata", metadata(), "status", "COMPLETED", "version", 0)))).andExpect(status().isForbidden());
         }
         mvc.perform(get("/api/super/cleaned-files")).andExpect(status().isForbidden());
         mvc.perform(get("/api/super/cleaned-files/" + id + "/download")).andExpect(status().isForbidden());
+        mvc.perform(get("/api/super/cleaned-files/manifest")).andExpect(status().isForbidden());
+        mvc.perform(get("/api/super/cleaned-files/archive")).andExpect(status().isForbidden()).andExpect(request().asyncNotStarted());
+        mvc.perform(post("/api/super/cleaned-files/bulk-delete").contentType("application/json")
+                .content(json.writeValueAsBytes(Map.of("ids", List.of(id), "expectedCount", 1)))).andExpect(status().isForbidden());
     }
 
     @Test
@@ -122,6 +132,11 @@ class CleanedFilesSecurityTest {
         JsonNode rows = json.readTree(page.getResponse().getContentAsByteArray());
         assertThat(rows.path("total").asLong()).isEqualTo(32); assertThat(rows.path("items").size()).isEqualTo(30);
         assertThat(rows.path("completed").asLong()).isEqualTo(31); assertThat(rows.path("ready").asLong()).isEqualTo(1);
+        mvc.perform(get("/api/super/cleaned-files/manifest").param("projectId", project.getId().toString())
+                        .header("Authorization", bearer(superAdmin))).andExpect(status().isOk()).andExpect(jsonPath("$.totalFiles").value(32));
+        mvc.perform(get("/api/super/cleaned-files/manifest").param("status", "READY").param("includeText", "true")
+                        .header("Authorization", bearer(superAdmin))).andExpect(status().isOk()).andExpect(jsonPath("$.files.length()").value(1))
+                .andExpect(jsonPath("$.tickets[0].customFields[0].fieldName").value("Cleaned on"));
         mvc.perform(get("/api/super/cleaned-files").param("page", "1").param("status", "READY")
                         .header("Authorization", bearer(superAdmin))).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1)).andExpect(jsonPath("$.items.length()").value(0));
         mvc.perform(get("/api/super/cleaned-files").param("search", "Clean batch").param("from", LocalDate.now().minusDays(1).toString())
@@ -150,6 +165,84 @@ class CleanedFilesSecurityTest {
         mvc.perform(get("/api/super/cleaned-files/9999999/download").header("Authorization", bearer(superAdmin))).andExpect(status().isNotFound());
         mvc.perform(get("/api/super/cleaned-files/options").header("Authorization", bearer(superAdmin)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.maxFileBytes").value(1048576));
+    }
+
+    @Test
+    void archivePreservesBytesHandlesDuplicateNamesAndFiltersMetadataWithFiles() throws Exception {
+        upload("batch.md", CLEAN, department.getId(), metadata(), superAdmin, 201);
+        upload("batch.md", CLEAN, department.getId(), metadata(), superAdmin, 201);
+        byte[] pdf = "%PDF-1.4\nfixture-pdf".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        upload("report.pdf", pdf, department.getId(), metadata(), superAdmin, 201);
+        var result = mvc.perform(get("/api/super/cleaned-files/archive").param("departmentId", department.getId().toString())
+                        .param("fileType", "documents").param("includeText", "true")
+                        .cookie(new jakarta.servlet.http.Cookie(JwtAuthFilter.AUTH_COOKIE, jwt.generateToken(superAdmin.getUsername(), "SUPER_ADMIN", superAdmin.getId(), null, superAdmin.getTokenVersion()))))
+                .andExpect(status().isOk()).andExpect(request().asyncStarted()).andReturn();
+        result.getAsyncResult(10_000);
+        var complete = mvc.perform(asyncDispatch(result)).andExpect(status().isOk()).andExpect(content().contentType("application/zip"))
+                .andExpect(header().string("Cache-Control", "private, no-store")).andReturn();
+        var contents = unzip(complete.getResponse().getContentAsByteArray());
+        assertThat(contents).hasSize(5);
+        assertThat(contents.entrySet()).anySatisfy(entry -> { assertThat(entry.getKey()).endsWith("/batch.md"); assertThat(entry.getValue()).isEqualTo(CLEAN); });
+        assertThat(contents.entrySet()).anySatisfy(entry -> { assertThat(entry.getKey()).endsWith("/batch (2).md"); assertThat(entry.getValue()).isEqualTo(CLEAN); });
+        assertThat(contents.keySet()).noneMatch(path -> path.contains("report.pdf") || path.startsWith("/") || path.contains("../"));
+        assertThat(new String(contents.get("index.csv"), java.nio.charset.StandardCharsets.UTF_8).lines().count()).isEqualTo(3);
+        mvc.perform(get("/api/super/cleaned-files/archive").param("fileType", "invalid").header("Authorization", bearer(superAdmin)))
+                .andExpect(status().isBadRequest()).andExpect(request().asyncNotStarted());
+    }
+
+    @Test
+    void selectedDeletionRemovesOnlyConfirmedFilesAndTheirBytes() throws Exception {
+        long first = upload("first.md", CLEAN, department.getId(), metadata(), superAdmin, 201).path("id").asLong();
+        long second = upload("second.md", CLEAN, department.getId(), metadata(), superAdmin, 201).path("id").asLong();
+        Path firstPath = FILES.resolve(files.findById(first).orElseThrow().getStorageKey());
+        performDeletion(Map.of("ids", List.of(first), "expectedCount", 2), 409);
+        assertThat(Files.exists(firstPath)).isTrue(); assertThat(files.count()).isEqualTo(2);
+        performDeletion(Map.of("ids", List.of(first), "expectedCount", 1), 200);
+        assertThat(Files.exists(firstPath)).isFalse(); assertThat(files.count()).isEqualTo(1);
+        mvc.perform(get("/api/super/cleaned-files/" + second + "/download").header("Authorization", bearer(superAdmin))).andExpect(status().isOk()).andExpect(content().bytes(CLEAN));
+        mvc.perform(get("/api/super/cleaned-files/" + first + "/download").header("Authorization", bearer(superAdmin))).andExpect(status().isNotFound());
+        performDeletion(Map.of("expectedCount", 1), 400);
+        performDeletion(Map.of("ids", List.of(second), "filters", Map.of(), "expectedCount", 1), 400);
+    }
+
+    @Test
+    void deleteAllMatchingSupportsExclusionsAndRejectsStaleConfirmation() throws Exception {
+        long first = upload("first.md", CLEAN, department.getId(), metadata(), superAdmin, 201).path("id").asLong();
+        long excluded = upload("second.md", CLEAN, department.getId(), metadata(), superAdmin, 201).path("id").asLong();
+        var complete = upload("complete.md", CLEAN, department.getId(), metadata(), superAdmin, 201);
+        update(complete.path("id").asLong(), complete.path("version").asLong(), "COMPLETED", 200);
+        var filters = Map.of("projectId", project.getId(), "departmentId", department.getId(), "status", "READY");
+        performDeletion(Map.of("filters", filters, "expectedCount", 1), 409);
+        assertThat(files.count()).isEqualTo(3);
+        performDeletion(Map.of("filters", filters, "excludedIds", List.of(excluded), "expectedCount", 1), 200);
+        assertThat(files.findById(first)).isEmpty(); assertThat(files.findById(excluded)).isPresent();
+        assertThat(files.findById(complete.path("id").asLong())).isPresent();
+        performDeletion(Map.of("filters", Map.of(), "expectedCount", 2), 200);
+        assertThat(files.count()).isZero();
+    }
+
+    @Test
+    void deletionRollsBackStagedFilesIfAnotherStoragePathIsUnsafe() throws Exception {
+        long first = upload("first.md", CLEAN, department.getId(), metadata(), superAdmin, 201).path("id").asLong();
+        long second = upload("second.md", CLEAN, department.getId(), metadata(), superAdmin, 201).path("id").asLong();
+        Path original = FILES.resolve(files.findById(first).orElseThrow().getStorageKey());
+        var corrupt = files.findById(second).orElseThrow(); corrupt.setStorageKey("../outside.md"); files.save(corrupt);
+        performDeletion(Map.of("ids", List.of(first, second), "expectedCount", 2), 404);
+        assertThat(Files.readAllBytes(original)).isEqualTo(CLEAN); assertThat(files.count()).isEqualTo(2);
+        mvc.perform(get("/api/super/cleaned-files/archive").header("Authorization", bearer(superAdmin)))
+                .andExpect(status().isNotFound()).andExpect(request().asyncNotStarted());
+    }
+
+    private void performDeletion(Map<String, ?> body, int expected) throws Exception {
+        mvc.perform(post("/api/super/cleaned-files/bulk-delete").header("Authorization", bearer(superAdmin)).contentType("application/json")
+                .content(json.writeValueAsBytes(body))).andExpect(status().is(expected));
+    }
+    private Map<String, byte[]> unzip(byte[] bytes) throws Exception {
+        Map<String, byte[]> result = new LinkedHashMap<>();
+        try (var zip = new ZipInputStream(new ByteArrayInputStream(bytes))) {
+            for (var entry = zip.getNextEntry(); entry != null; entry = zip.getNextEntry()) result.put(entry.getName(), zip.readAllBytes());
+        }
+        return result;
     }
 
     private Map<String, String> metadata() {

@@ -22,6 +22,11 @@ under `data/cleaned-files` in the backend's existing persistent data volume. Inc
 directory in file backups alongside `data/attachments`; the V13 migration stores metadata.
 Projects and departments with cleaned outputs cannot be permanently deleted, so deleting
 source data does not destroy the AI-work files. Projects can still be restored from the bin.
+The workspace uses a table with per-file download/edit/delete actions and the same download
+center as Data Explorer. Folder and streamed ZIP downloads cover every file matching the
+current filters, including results beyond the visible page. Selection supports the current
+page or all matching files with exclusions. Permanent deletion requires count confirmation;
+stale selections are rejected, and file moves are rolled back if the database deletion fails.
 
 ```
 data_entry/

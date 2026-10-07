@@ -24,4 +24,11 @@ public final class CleanedFileDtos {
     public record DepartmentOption(Long id, String name, Long projectId) {}
     public record Options(List<ProjectOption> projects, List<DepartmentOption> departments,
                           long maxFileBytes, List<String> extensions) {}
+    public record Filters(Long projectId, Long departmentId, Status status, LocalDate from, LocalDate to,
+                          @Size(max = 250) String search) {}
+    public record DeleteRequest(@Size(max = 1000) List<@NotNull @Positive Long> ids,
+                                @jakarta.validation.Valid Filters filters,
+                                @Size(max = 1000) List<@NotNull @Positive Long> excludedIds,
+                                @NotNull @Positive Long expectedCount) {}
+    public record Deleted(long deleted) {}
 }

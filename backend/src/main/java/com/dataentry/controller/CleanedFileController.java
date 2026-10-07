@@ -1,6 +1,7 @@
 package com.dataentry.controller;
 
 import com.dataentry.dto.CleanedFileDtos;
+import com.dataentry.dto.DataExplorerDtos;
 import com.dataentry.model.CleanedFile.Status;
 import com.dataentry.service.CleanedFileService;
 import jakarta.validation.Valid;
@@ -8,6 +9,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 
@@ -37,6 +39,28 @@ public class CleanedFileController {
                                                     @Valid @RequestPart CleanedFileDtos.Metadata metadata, @RequestPart MultipartFile file) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.upload(projectId, departmentId, metadata, file));
     }
+    @GetMapping("/manifest")
+    public DataExplorerDtos.Manifest manifest(@RequestParam(required = false) Long projectId, @RequestParam(required = false) Long departmentId,
+                                             @RequestParam(required = false) Status status, @RequestParam(required = false) LocalDate from,
+                                             @RequestParam(required = false) LocalDate to, @RequestParam(required = false) String search,
+                                             @RequestParam(defaultValue = "false") boolean includeText) {
+        return service.manifest(projectId, departmentId, status, from, to, search, includeText);
+    }
+    @GetMapping(value = "/archive", produces = "application/zip")
+    public ResponseEntity<StreamingResponseBody> archive(@RequestParam(required = false) Long projectId, @RequestParam(required = false) Long departmentId,
+                                                        @RequestParam(required = false) Status status, @RequestParam(required = false) LocalDate from,
+                                                        @RequestParam(required = false) LocalDate to, @RequestParam(required = false) String search,
+                                                        @RequestParam(defaultValue = "all") String fileType,
+                                                        @RequestParam(defaultValue = "false") boolean prefixNames,
+                                                        @RequestParam(defaultValue = "false") boolean includeText) {
+        var body = service.archive(projectId, departmentId, status, from, to, search, fileType, prefixNames, includeText);
+        return ResponseEntity.ok().contentType(MediaType.parseMediaType("application/zip"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename("neurix-cleaned-files-" + LocalDate.now() + ".zip", StandardCharsets.UTF_8).build().toString())
+                .header(HttpHeaders.CACHE_CONTROL, "private, no-store").header("X-Content-Type-Options", "nosniff").body(body);
+    }
+    @PostMapping("/bulk-delete")
+    public CleanedFileDtos.Deleted delete(@Valid @RequestBody CleanedFileDtos.DeleteRequest request) { return service.delete(request); }
     @PutMapping("/{id}")
     public CleanedFileDtos.Row update(@PathVariable Long id, @Valid @RequestBody CleanedFileDtos.Update update) { return service.update(id, update); }
     @GetMapping("/{id}/download")
